@@ -1,3 +1,8 @@
+import { authController } from './controllers/auth.controller.js';
+import { protect } from './middlewares/protect.middleware.js';
+import { authLimiter } from './middlewares/rateLimit.middleware.js';
+import { loginValidator } from './validators/auth.validator.js';
+
 // In-memory data store for immediate boot and local dev fallback
 const initialProjects = [
   {
@@ -164,6 +169,75 @@ export function apiHandler(req, res, next) {
   const method = req.method;
   const path = url.split('?')[0];
 
+  // Enhance res with status, json, cookie, clearCookie if missing (e.g. Vite connect middleware)
+  if (!res.status) {
+    res.status = function (code) {
+      this.statusCode = code;
+      return this;
+    };
+  }
+  if (!res.json) {
+    res.json = function (payload) {
+      this.setHeader('Content-Type', 'application/json');
+      this.end(JSON.stringify(payload));
+      return this;
+    };
+  }
+  if (!res.send) {
+    res.send = function (payload) {
+      if (typeof payload === 'object') {
+        return this.json(payload);
+      }
+      this.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      this.end(payload);
+      return this;
+    };
+  }
+  if (!res.cookie) {
+    res.cookie = function (name, val, options = {}) {
+      let cookieStr = `${name}=${encodeURIComponent(val)}`;
+      if (options.path) cookieStr += `; Path=${options.path}`;
+      if (options.maxAge) cookieStr += `; Max-Age=${Math.floor(options.maxAge / 1000)}`;
+      if (options.httpOnly) cookieStr += '; HttpOnly';
+      if (options.secure) cookieStr += '; Secure';
+      if (options.sameSite) cookieStr += `; SameSite=${options.sameSite}`;
+      const existing = res.getHeader('Set-Cookie');
+      if (!existing) {
+        res.setHeader('Set-Cookie', cookieStr);
+      } else if (Array.isArray(existing)) {
+        res.setHeader('Set-Cookie', [...existing, cookieStr]);
+      } else {
+        res.setHeader('Set-Cookie', [existing, cookieStr]);
+      }
+      return this;
+    };
+  }
+  if (!res.clearCookie) {
+    res.clearCookie = function (name, options = {}) {
+      let cookieStr = `${name}=; Path=${options.path || '/'}; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      if (options.httpOnly) cookieStr += '; HttpOnly';
+      if (options.secure) cookieStr += '; Secure';
+      if (options.sameSite) cookieStr += `; SameSite=${options.sameSite || 'lax'}`;
+      res.setHeader('Set-Cookie', cookieStr);
+      return this;
+    };
+  }
+
+  // Parse cookies into req.cookies if not populated
+  if (!req.cookies) {
+    req.cookies = {};
+    if (req.headers && req.headers.cookie) {
+      req.headers.cookie.split(';').forEach((part) => {
+        const idx = part.indexOf('=');
+        if (idx > -1) {
+          const k = part.slice(0, idx).trim();
+          const v = part.slice(idx + 1).trim();
+          req.cookies[k] = decodeURIComponent(v);
+        }
+      });
+    }
+  }
+
   // Helper JSON sender
   const sendJson = (status, payload) => {
     res.statusCode = status;
@@ -173,6 +247,9 @@ export function apiHandler(req, res, next) {
 
   // Helper body reader
   const parseBody = (cb) => {
+    if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+      return cb(req.body);
+    }
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
@@ -234,8 +311,8 @@ export function apiHandler(req, res, next) {
     });
   }
 
-  // Checkout endpoint
-  if (path === '/api/checkout' && method === 'POST') {
+  // Checkout endpoints (supports /api/orders/checkout and /api/checkout)
+  if ((path === '/api/orders/checkout' || path === '/api/checkout') && method === 'POST') {
     return parseBody(body => {
       const { items } = body;
       if (!items || !items.length) {
@@ -245,7 +322,7 @@ export function apiHandler(req, res, next) {
       const orderItems = [];
 
       for (const item of items) {
-        const product = products.find(p => p.id === item.productId || p.slug === item.slug);
+        const product = products.find(p => p.id === item.productId || p.slug === item.productId || p.slug === item.slug);
         if (product) {
           const qty = item.quantity || 1;
           totalAmount += product.price * qty;
@@ -263,9 +340,9 @@ export function apiHandler(req, res, next) {
         id: 'ord-' + Date.now(),
         orderNumber: 'SABR-' + Math.floor(100000 + Math.random() * 900000),
         items: orderItems,
-        totalAmount,
+        totalAmount: totalAmount || (Number(body.totalAmount) || 0),
         orderStatus: 'pending',
-        paymentStatus: 'pending',
+        paymentStatus: 'confirmed',
         createdAt: new Date().toISOString()
       };
       orders.unshift(order);
@@ -275,46 +352,204 @@ export function apiHandler(req, res, next) {
         data: {
           orderId: order.id,
           orderNumber: order.orderNumber,
-          amount: totalAmount,
+          amount: order.totalAmount,
           currency: 'INR',
-          // mock razorpay order id for dev/preview
           razorpayOrderId: 'order_mock_' + Date.now()
         }
       });
     });
   }
 
-  // Auth endpoints (Admin login / me)
-  if (path === '/api/auth/login' && method === 'POST') {
+  // Payment verification endpoint
+  if (path === '/api/orders/verify' && method === 'POST') {
     return parseBody(body => {
-      const { email, password } = body;
-      if (email === 'admin@sabrstudio.com' && password === 'admin123') {
-        return sendJson(200, {
-          success: true,
-          data: {
-            user: { id: 'admin-1', email: 'admin@sabrstudio.com', name: 'Studio Admin', role: 'admin' },
-            token: 'mock-jwt-token-admin'
+      return sendJson(200, {
+        success: true,
+        message: 'Payment verified successfully',
+        data: { verified: true }
+      });
+    });
+  }
+
+  // -------------------------------------------------------------
+  // Authentication endpoints (05-auth.md)
+  // -------------------------------------------------------------
+  if (path === '/api/auth/login' && method === 'POST') {
+    return parseBody((body) => {
+      req.body = body;
+      return authLimiter(req, res, () => {
+        let idx = 0;
+        const runValidators = () => {
+          if (idx < loginValidator.length) {
+            const currentValidator = loginValidator[idx++];
+            currentValidator(req, res, runValidators);
+          } else {
+            authController.login(req, res);
           }
-        });
-      }
-      return sendJson(401, { success: false, message: 'Invalid credentials' });
+        };
+        runValidators();
+      });
     });
   }
 
   if (path === '/api/auth/me' && method === 'GET') {
-    return sendJson(200, {
-      success: true,
-      data: { id: 'admin-1', email: 'admin@sabrstudio.com', name: 'Studio Admin', role: 'admin' }
+    return protect(req, res, () => {
+      authController.getMe(req, res);
     });
   }
 
-  // Admin data endpoints
-  if (path === '/api/admin/enquiries' && method === 'GET') {
-    return sendJson(200, { success: true, data: enquiries });
+  if (path === '/api/auth/logout' && method === 'POST') {
+    return authController.logout(req, res);
   }
 
-  if (path === '/api/admin/orders' && method === 'GET') {
-    return sendJson(200, { success: true, data: orders });
+  // -------------------------------------------------------------
+  // Admin Routes (Strictly guarded by protect middleware)
+  // References: 05-auth.md §10; ARCHITECTURE.md §10.11
+  // -------------------------------------------------------------
+  if (path.startsWith('/api/admin')) {
+    return protect(req, res, () => {
+      // Admin stats endpoint
+      if (path === '/api/admin/stats' && method === 'GET') {
+        return sendJson(200, {
+          success: true,
+          data: {
+            totalProjects: projects.length,
+            totalProducts: products.length,
+            totalEnquiries: enquiries.length,
+            totalOrders: orders.length,
+            revenue: orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+          },
+        });
+      }
+
+      // Admin Projects endpoints
+      if (path === '/api/admin/projects' && method === 'GET') {
+        return sendJson(200, { success: true, data: projects });
+      }
+
+      if (path === '/api/admin/projects' && method === 'POST') {
+        return parseBody((body) => {
+          const newProj = {
+            ...body,
+            id: body.id || `proj-${Date.now()}`,
+            slug:
+              body.slug ||
+              (body.title
+                ? body.title
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/(^-|-$)/g, '')
+                : `proj-${Date.now()}`),
+            published: body.published !== undefined ? body.published : true,
+          };
+          projects.unshift(newProj);
+          return sendJson(201, { success: true, data: newProj });
+        });
+      }
+
+      if (path.startsWith('/api/admin/projects/') && method === 'PUT') {
+        const id = path.replace('/api/admin/projects/', '');
+        return parseBody((body) => {
+          const index = projects.findIndex((p) => p.id === id || p.slug === id);
+          if (index !== -1) {
+            projects[index] = { ...projects[index], ...body };
+            return sendJson(200, { success: true, data: projects[index] });
+          }
+          return sendJson(404, { success: false, message: 'Project not found' });
+        });
+      }
+
+      if (path.startsWith('/api/admin/projects/') && method === 'DELETE') {
+        const id = path.replace('/api/admin/projects/', '');
+        projects = projects.filter((p) => p.id !== id && p.slug !== id);
+        return sendJson(200, { success: true, message: 'Project deleted' });
+      }
+
+      // Admin Retail endpoints
+      if (path === '/api/admin/retail' && method === 'GET') {
+        return sendJson(200, { success: true, data: products });
+      }
+
+      if (path === '/api/admin/retail' && method === 'POST') {
+        return parseBody((body) => {
+          const newItem = {
+            ...body,
+            id: body.id || `prod-${Date.now()}`,
+            slug:
+              body.slug ||
+              (body.title
+                ? body.title
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/(^-|-$)/g, '')
+                : `prod-${Date.now()}`),
+            price: Number(body.price) || 0,
+            published: body.published !== undefined ? body.published : true,
+          };
+          products.unshift(newItem);
+          return sendJson(201, { success: true, data: newItem });
+        });
+      }
+
+      if (path.startsWith('/api/admin/retail/') && method === 'PUT') {
+        const id = path.replace('/api/admin/retail/', '');
+        return parseBody((body) => {
+          const index = products.findIndex((p) => p.id === id || p.slug === id);
+          if (index !== -1) {
+            products[index] = {
+              ...products[index],
+              ...body,
+              price: Number(body.price || products[index].price),
+            };
+            return sendJson(200, { success: true, data: products[index] });
+          }
+          return sendJson(404, { success: false, message: 'Product not found' });
+        });
+      }
+
+      if (path.startsWith('/api/admin/retail/') && method === 'DELETE') {
+        const id = path.replace('/api/admin/retail/', '');
+        products = products.filter((p) => p.id !== id && p.slug !== id);
+        return sendJson(200, { success: true, message: 'Product deleted' });
+      }
+
+      // Admin Enquiry status patch
+      if (path.startsWith('/api/admin/enquiries/') && path.endsWith('/status') && method === 'PATCH') {
+        const id = path.replace('/api/admin/enquiries/', '').replace('/status', '');
+        return parseBody((body) => {
+          const enq = enquiries.find((e) => e.id === id);
+          if (enq) {
+            enq.status = body.status;
+            return sendJson(200, { success: true, data: enq });
+          }
+          return sendJson(404, { success: false, message: 'Enquiry not found' });
+        });
+      }
+
+      // Admin Order status patch
+      if (path.startsWith('/api/admin/orders/') && path.endsWith('/status') && method === 'PATCH') {
+        const id = path.replace('/api/admin/orders/', '').replace('/status', '');
+        return parseBody((body) => {
+          const ord = orders.find((o) => o.id === id || o.orderNumber === id);
+          if (ord) {
+            ord.orderStatus = body.status;
+            return sendJson(200, { success: true, data: ord });
+          }
+          return sendJson(404, { success: false, message: 'Order not found' });
+        });
+      }
+
+      // Admin data endpoints
+      if (path === '/api/admin/enquiries' && method === 'GET') {
+        return sendJson(200, { success: true, data: enquiries });
+      }
+
+      if (path === '/api/admin/orders' && method === 'GET') {
+        return sendJson(200, { success: true, data: orders });
+      }
+
+      return sendJson(404, { success: false, message: `Admin route ${method} ${path} not found` });
+    });
   }
 
   // Fallback 404 for unknown /api routes

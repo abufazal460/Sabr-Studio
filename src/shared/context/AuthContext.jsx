@@ -11,8 +11,9 @@ export const AuthProvider = ({ children }) => {
   const checkAuth = useCallback(async () => {
     try {
       const res = await axiosClient.get('/auth/me');
-      if (res.success && res.data?.user) {
-        setAdmin(res.data.user);
+      const adminData = res.data?.admin || res.data?.user;
+      if (res.success && adminData) {
+        setAdmin(adminData);
       } else {
         setAdmin(null);
       }
@@ -30,8 +31,9 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const res = await axiosClient.post('/auth/login', { email, password });
-      if (res.success && res.data?.user) {
-        setAdmin(res.data.user);
+      const adminData = res.data?.admin || res.data?.user;
+      if (res.success && adminData) {
+        setAdmin(adminData);
         return { success: true };
       }
       return { success: false, message: res.message || 'Login failed' };
