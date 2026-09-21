@@ -6,10 +6,11 @@ import { authService } from '../services/auth.service.js';
 function extractToken(req) {
   if (
     req.cookies &&
-    (req.cookies.token || req.cookies.sabr_auth || req.cookies.admin_token || req.cookies.jwt)
+    (req.cookies.token || req.cookies.sabr_token || req.cookies.sabr_auth || req.cookies.admin_token || req.cookies.jwt)
   ) {
     return (
       req.cookies.token ||
+      req.cookies.sabr_token ||
       req.cookies.sabr_auth ||
       req.cookies.admin_token ||
       req.cookies.jwt
@@ -25,7 +26,7 @@ function extractToken(req) {
       }
       return acc;
     }, {});
-    return parsed.token || parsed.sabr_auth || parsed.admin_token || parsed.jwt || null;
+    return parsed.token || parsed.sabr_token || parsed.sabr_auth || parsed.admin_token || parsed.jwt || null;
   }
   if (req.headers && (req.headers.authorization || req.headers.Authorization)) {
     const authHeader = req.headers.authorization || req.headers.Authorization;
