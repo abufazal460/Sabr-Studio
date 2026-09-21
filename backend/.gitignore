@@ -1,0 +1,8 @@
+node_modules/
+public/
+!public/.gitkeep
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
