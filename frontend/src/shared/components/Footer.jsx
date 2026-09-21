@@ -1,71 +1,127 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { LuInstagram, LuLinkedin, LuMail, LuPhone, LuMapPin } from 'react-icons/lu';
+import { LuInstagram, LuMail, LuPhone, LuMapPin } from 'react-icons/lu';
+import { FaWhatsapp, FaFacebookF, FaYoutube } from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
 
 export const Footer = () => {
   return (
-    <footer className="bg-footer-bg text-footer-text border-t border-black/40">
+    <footer className="bg-footer-bg text-footer-text border-t border-white/10">
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 py-16 sm:py-24">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-12 lg:gap-16">
-          {/* Brand & Studio Philosophy */}
+          {/* Column 1 — Brand & Studio Philosophy */}
           <div className="md:col-span-5 space-y-6">
             <span className="font-abhaya text-3xl sm:text-4xl text-white font-medium block">
               Sabr Studio
             </span>
-            <p className="text-footer-muted text-sm leading-relaxed max-w-sm">
+            <p className="text-footer-muted text-sm leading-relaxed max-w-sm font-inter">
               An architectural and interior design studio crafting deliberate, quiet environments. 
               We balance tactile wabi-sabi textures with brutalist spatial clarity across residential, commercial, and retail commissions.
             </p>
-            <div className="pt-2 text-xs text-footer-muted uppercase tracking-wider">
+            <div className="pt-2 text-xs text-footer-muted uppercase tracking-wider font-inter">
               New Delhi · Established 2012
+            </div>
+
+            {/* Social Icons with Platform Hover Brand Colors (UI-UX §41 & ANIMATION §8) */}
+            <div className="pt-2 flex items-center space-x-3" aria-label="Social media links">
+              <a
+                href="https://wa.me/911149823000"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="WhatsApp"
+                className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-footer-muted hover:text-white hover:bg-[#25D366] hover:border-[#25D366] transition-all duration-200 hover:-translate-y-0.5 hover:scale-105"
+              >
+                <FaWhatsapp className="w-4 h-4" />
+              </a>
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+                className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-footer-muted hover:text-white hover:bg-[#E1306C] hover:border-[#E1306C] transition-all duration-200 hover:-translate-y-0.5 hover:scale-105"
+              >
+                <LuInstagram className="w-4 h-4" />
+              </a>
+              <a
+                href="https://facebook.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Facebook"
+                className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-footer-muted hover:text-white hover:bg-[#1877F2] hover:border-[#1877F2] transition-all duration-200 hover:-translate-y-0.5 hover:scale-105"
+              >
+                <FaFacebookF className="w-3.5 h-3.5" />
+              </a>
+              <a
+                href="https://x.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="X (Twitter)"
+                className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-footer-muted hover:text-white hover:bg-[#334155] hover:border-[#334155] transition-all duration-200 hover:-translate-y-0.5 hover:scale-105"
+              >
+                <FaXTwitter className="w-4 h-4" />
+              </a>
+              <a
+                href="https://youtube.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="YouTube"
+                className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-footer-muted hover:text-white hover:bg-[#FF0000] hover:border-[#FF0000] transition-all duration-200 hover:-translate-y-0.5 hover:scale-105"
+              >
+                <FaYoutube className="w-4 h-4" />
+              </a>
             </div>
           </div>
 
-          {/* Navigation Links */}
+          {/* Column 2 — Quick Links */}
           <div className="md:col-span-3 space-y-4">
-            <div className="text-xs uppercase font-medium tracking-widest text-white">
-              Navigation
+            <div className="text-xs uppercase font-medium tracking-widest text-white font-inter">
+              Quick Links
             </div>
-            <ul className="space-y-2.5 text-sm">
+            <ul className="space-y-2.5 text-sm font-inter">
               <li>
-                <Link to="/projects" className="text-footer-muted hover:text-white transition-colors">
-                  Architectural Projects
+                <Link to="/" className="text-footer-muted hover:text-white hover:underline transition-colors">
+                  Home
                 </Link>
               </li>
               <li>
-                <Link to="/retail" className="text-footer-muted hover:text-white transition-colors">
-                  Retail & Bespoke Furniture
+                <Link to="/about" className="text-footer-muted hover:text-white hover:underline transition-colors">
+                  About
                 </Link>
               </li>
               <li>
-                <Link to="/services" className="text-footer-muted hover:text-white transition-colors">
-                  Studio Services
+                <Link to="/services" className="text-footer-muted hover:text-white hover:underline transition-colors">
+                  Services
                 </Link>
               </li>
               <li>
-                <Link to="/about" className="text-footer-muted hover:text-white transition-colors">
-                  About the Studio
+                <Link to="/projects" className="text-footer-muted hover:text-white hover:underline transition-colors">
+                  Projects
                 </Link>
               </li>
               <li>
-                <Link to="/contact" className="text-footer-muted hover:text-white transition-colors">
-                  Contact & Consultations
+                <Link to="/retail" className="text-footer-muted hover:text-white hover:underline transition-colors">
+                  Shop (Retail)
                 </Link>
               </li>
               <li>
-                <Link to="/admin/login" className="text-footer-muted/60 hover:text-footer-muted text-xs transition-colors">
+                <Link to="/contact" className="text-footer-muted hover:text-white hover:underline transition-colors">
+                  Contact
+                </Link>
+              </li>
+              <li className="pt-2">
+                <Link to="/admin/login" className="text-footer-muted/50 hover:text-footer-muted text-xs transition-colors">
                   Admin Portal
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Studio Contact */}
+          {/* Column 3 — Contact Info */}
           <div className="md:col-span-4 space-y-4">
-            <div className="text-xs uppercase font-medium tracking-widest text-white">
-              Studio Location
+            <div className="text-xs uppercase font-medium tracking-widest text-white font-inter">
+              Contact Us
             </div>
-            <div className="space-y-3 text-sm text-footer-muted">
+            <div className="space-y-3 text-sm text-footer-muted font-inter">
               <div className="flex items-start space-x-3">
                 <LuMapPin className="w-4 h-4 mt-0.5 text-white shrink-0" />
                 <span>4 Design Enclave, Lado Sarai, New Delhi 110030, India</span>
@@ -83,37 +139,15 @@ export const Footer = () => {
                 </a>
               </div>
             </div>
-
-            {/* Social Icons */}
-            <div className="pt-4 flex items-center space-x-4">
-              <a 
-                href="https://instagram.com" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                aria-label="Instagram"
-                className="text-footer-muted hover:text-white transition-colors"
-              >
-                <LuInstagram className="w-5 h-5" />
-              </a>
-              <a 
-                href="https://linkedin.com" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                aria-label="LinkedIn"
-                className="text-footer-muted hover:text-white transition-colors"
-              >
-                <LuLinkedin className="w-5 h-5" />
-              </a>
-            </div>
           </div>
         </div>
 
-        {/* Bottom Legal / Metadata */}
-        <div className="mt-16 pt-8 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center text-xs text-footer-muted gap-4">
-          <p>© {new Date().getFullYear()} Sabr Studio. All rights reserved.</p>
+        {/* Bottom Legal / Divider (UI-UX §41) */}
+        <div className="mt-16 pt-8 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center text-xs text-footer-muted gap-4 font-inter">
+          <p>© 2026 Sabr Studio. All rights reserved.</p>
           <div className="flex items-center space-x-6">
-            <span>Privacy Policy</span>
-            <span>Terms of Commission</span>
+            <span className="hover:text-white transition-colors cursor-pointer">Privacy Policy</span>
+            <span className="hover:text-white transition-colors cursor-pointer">Terms of Commission</span>
             <span>WCAG 2.2 AA</span>
           </div>
         </div>

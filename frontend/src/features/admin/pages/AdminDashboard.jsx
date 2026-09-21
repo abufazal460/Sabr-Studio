@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LuFolderGit2,
   LuPackage,
@@ -13,8 +14,6 @@ import {
   LuEye,
 } from 'react-icons/lu';
 import adminApi from '../admin.api';
-import { getProjects } from '../../projects/api/projects.api';
-import { getRetailProducts } from '../../retail/api/retail.api';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { Button } from '../../../shared/components/Button';
 import Badge from '../../../shared/components/Badge';
@@ -26,8 +25,33 @@ import EmptyState from '../../../shared/components/EmptyState';
 import Seo from '../../../shared/components/Seo';
 
 export const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const getInitialTab = () => {
+    if (location.pathname.includes('/projects')) return 'projects';
+    if (location.pathname.includes('/retail')) return 'retail';
+    if (location.pathname.includes('/enquiries')) return 'enquiries';
+    if (location.pathname.includes('/orders')) return 'orders';
+    return 'overview';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (location.pathname.includes('/projects')) {
+      setActiveTab('projects');
+    } else if (location.pathname.includes('/retail')) {
+      setActiveTab('retail');
+    } else if (location.pathname.includes('/enquiries')) {
+      setActiveTab('enquiries');
+    } else if (location.pathname.includes('/orders')) {
+      setActiveTab('orders');
+    } else if (location.pathname === '/admin') {
+      setActiveTab('overview');
+    }
+  }, [location.pathname]);
 
   // Data states
   const [projects, setProjects] = useState([]);
@@ -66,8 +90,8 @@ export const AdminDashboard = () => {
     setLoading(true);
     try {
       const [projRes, retRes, enqRes, ordRes] = await Promise.allSettled([
-        getProjects(),
-        getRetailProducts(),
+        adminApi.getProjects(),
+        adminApi.getRetailItems(),
         adminApi.getEnquiries(),
         adminApi.getOrders(),
       ]);
@@ -258,7 +282,11 @@ export const AdminDashboard = () => {
           <button
             key={tab.id}
             type="button"
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              if (tab.id === 'overview') navigate('/admin');
+              else navigate(`/admin/${tab.id}`);
+            }}
             className={`px-5 py-3 text-xs uppercase tracking-wider font-medium whitespace-nowrap transition-colors border-b-2 ${
               activeTab === tab.id
                 ? 'border-black text-black font-semibold bg-white/50'
