@@ -1,0 +1,1080 @@
+STRICT TYPOGRAPHY SYSTEM — DO NOT DEVIATE
+
+You are implementing typography for a premium minimalist interior-design website.
+
+The website uses a BLACK + WHITE visual language with generous whitespace, large editorial headings, clean body typography, high-quality imagery, minimal UI, and a sophisticated architectural/interior-design aesthetic.
+
+TYPOGRAPHY IS A FIXED DESIGN SYSTEM.
+
+DO NOT introduce new font families.
+DO NOT replace the selected fonts.
+DO NOT randomly change font weights.
+DO NOT use arbitrary font styles.
+DO NOT create additional typography systems.
+DO NOT use decorative fonts.
+DO NOT use system fonts unless a fallback is technically required.
+DO NOT use different fonts for individual sections.
+DO NOT use typography inconsistently between pages.
+
+The ENTIRE WEBSITE must follow the exact typography rules below.
+
+
+========================================================
+1. FONT FAMILIES — ABSOLUTELY FIXED
+========================================================
+
+ONLY TWO FONT FAMILIES ARE ALLOWED:
+
+HEADING FONT:
+"Abhaya Libre", serif
+
+BODY / UI FONT:
+"Inter", sans-serif
+
+No third font family is permitted.
+
+No substitutions such as:
+
+Playfair Display
+DM Sans
+Geist
+Poppins
+Montserrat
+Roboto
+Manrope
+Plus Jakarta Sans
+Lato
+Open Sans
+or any other font.
+
+Do not introduce another font even for special sections.
+
+The two-font system must remain consistent across:
+
+Home
+About
+Services
+Projects
+Project Details
+Contact
+Journal
+Footer
+Navigation
+Forms
+Cards
+Modals
+Dialogs
+Buttons
+Badges
+Labels
+Mobile
+Tablet
+Desktop
+Large Desktop
+4K
+
+
+========================================================
+2. TYPOGRAPHY PHILOSOPHY
+========================================================
+
+Abhaya Libre represents:
+
+EDITORIAL
+ARCHITECTURAL
+ARTISTIC
+ELEGANT
+EMOTIONAL
+PREMIUM
+
+Inter represents:
+
+CLEAN
+MODERN
+READABLE
+FUNCTIONAL
+NEUTRAL
+UI-FOCUSED
+
+Do not mix these responsibilities.
+
+Abhaya Libre = visual/editorial personality.
+
+Inter = information/interface/reading system.
+
+
+========================================================
+3. ALLOWED FONT WEIGHTS
+========================================================
+
+ONLY THESE WEIGHTS ARE PART OF THE DESIGN SYSTEM:
+
+400 = Regular
+500 = Medium
+600 = Semi Bold
+
+Do not use:
+
+100
+200
+300
+700
+800
+900
+
+Do not artificially create heavier typography.
+
+Do not use 700+ for headings, buttons, cards, navigation,
+or any other component.
+
+The website must remain visually light, refined and spacious.
+
+
+========================================================
+4. H1 — PRIMARY DISPLAY HEADING
+========================================================
+
+FONT:
+Abhaya Libre
+
+WEIGHT:
+500
+
+STYLE:
+Normal
+
+LETTER SPACING:
+-0.02em
+
+LINE HEIGHT:
+0.95
+
+SIZE:
+clamp(3.5rem, 7vw, 8rem)
+
+H1 is reserved for the primary page/hero heading.
+
+Example:
+
+Spaces made for living.
+
+Architecture for living.
+
+Timeless interior spaces.
+
+
+H1 must feel:
+
+large
+editorial
+spacious
+elegant
+architectural
+
+Do NOT make H1:
+
+bold
+heavy
+uppercase by default
+tight
+small
+over-decorated
+
+
+========================================================
+5. H2 — SECTION HEADING
+========================================================
+
+FONT:
+Abhaya Libre
+
+WEIGHT:
+500
+
+STYLE:
+Normal
+
+LETTER SPACING:
+-0.02em
+
+LINE HEIGHT:
+1
+
+SIZE:
+clamp(2.5rem, 5vw, 5rem)
+
+Use H2 for major section headings.
+
+Examples:
+
+Quiet design. Strong character.
+
+Designed around you.
+
+A collection of spaces.
+
+
+H2 must visually connect to H1 but remain clearly smaller.
+
+
+========================================================
+6. H3 — SUPPORTING EDITORIAL HEADING
+========================================================
+
+FONT:
+Abhaya Libre
+
+WEIGHT:
+500
+
+STYLE:
+Normal
+
+LETTER SPACING:
+-0.02em
+
+LINE HEIGHT:
+1.05
+
+SIZE:
+clamp(2rem, 3vw, 3rem)
+
+Use H3 for:
+
+subsections
+editorial statements
+supporting major headings
+important content headings
+
+Do not use H3 for every card title automatically.
+
+
+========================================================
+7. H4 / H5 / H6
+========================================================
+
+If H4, H5 or H6 are required for semantic hierarchy:
+
+USE:
+Inter
+
+WEIGHT:
+500 or 600
+
+STYLE:
+Normal
+
+Do not introduce another serif heading level.
+
+Abhaya Libre is reserved for H1/H2/H3 and editorial typography.
+
+
+========================================================
+8. BODY TEXT
+========================================================
+
+FONT:
+Inter
+
+WEIGHT:
+400
+
+STYLE:
+Normal
+
+LINE HEIGHT:
+1.6
+
+LETTER SPACING:
+-0.01em
+
+Use this for ALL normal reading content.
+
+This includes:
+
+paragraphs
+descriptions
+about text
+service descriptions
+project descriptions
+journal text
+contact information
+supporting copy
+long-form content
+footer paragraphs
+form descriptions
+
+
+Do NOT use Abhaya Libre for normal paragraphs.
+
+Do NOT make paragraphs semi-bold.
+
+Do NOT use italic paragraphs by default.
+
+
+========================================================
+9. PARAGRAPH WIDTH
+========================================================
+
+Long paragraphs must NOT span the entire screen.
+
+Use a readable maximum width.
+
+Preferred:
+
+max-width: 680px
+
+or approximately:
+
+max-width: 42rem
+
+Typography must have generous whitespace around it.
+
+Do not create extremely long text lines on desktop.
+
+
+========================================================
+10. NAVIGATION
+========================================================
+
+FONT:
+Inter
+
+SIZE:
+0.875rem
+
+WEIGHT:
+500
+
+STYLE:
+Normal
+
+LINE HEIGHT:
+1.2
+
+LETTER SPACING:
+0
+
+Navigation must remain clean and understated.
+
+Examples:
+
+About
+Projects
+Services
+Journal
+Contact
+
+
+Do not use Abhaya Libre for navigation.
+
+
+========================================================
+11. BUTTONS
+========================================================
+
+FONT:
+Inter
+
+SIZE:
+0.875rem
+
+WEIGHT:
+500
+
+STYLE:
+Normal
+
+LINE HEIGHT:
+1
+
+LETTER SPACING:
+0
+
+Buttons must be clean and modern.
+
+Primary button:
+
+Black background
+White text
+
+Secondary button:
+
+White background
+Black text
+Black border
+
+Examples:
+
+Explore Projects →
+View Project →
+Start a Project →
+Begin a Conversation →
+
+
+Use weight 600 only when stronger CTA emphasis is genuinely required.
+
+Do not use 700+.
+
+
+========================================================
+12. CARD TITLES
+========================================================
+
+FONT:
+Inter
+
+WEIGHT:
+600
+
+STYLE:
+Normal
+
+SIZE:
+approximately 1rem
+
+LINE HEIGHT:
+1.3
+
+Card titles must remain clean.
+
+Examples:
+
+The Quiet Residence
+A Study in Warmth
+Modern Residence — New Delhi
+
+
+Do NOT automatically use Abhaya Libre for cards.
+
+Abhaya Libre must remain reserved for editorial hierarchy.
+
+
+========================================================
+13. CARD META / PROJECT INFORMATION
+========================================================
+
+FONT:
+Inter
+
+WEIGHT:
+400
+
+STYLE:
+Normal
+
+SIZE:
+approximately 0.75rem
+
+LINE HEIGHT:
+1.4
+
+Use for:
+
+location
+year
+area
+project type
+category
+project metadata
+small supporting information
+
+Example:
+
+New Delhi · 2026 · 3,200 sq. ft.
+
+
+========================================================
+14. LABELS
+========================================================
+
+FONT:
+Inter
+
+WEIGHT:
+500
+
+STYLE:
+Normal
+
+SIZE:
+0.75rem
+
+LINE HEIGHT:
+1
+
+LETTER SPACING:
+0.1em
+
+TEXT TRANSFORM:
+uppercase
+
+Labels should be visually small and subtle.
+
+Examples:
+
+01 — ABOUT
+02 — PHILOSOPHY
+03 — SELECTED WORK
+04 — TYPOGRAPHY
+
+
+========================================================
+15. BADGES
+========================================================
+
+FONT:
+Inter
+
+WEIGHT:
+500
+
+STYLE:
+Normal
+
+SIZE:
+0.75rem
+
+LINE HEIGHT:
+1
+
+LETTER SPACING:
+0.1em
+
+TEXT TRANSFORM:
+uppercase
+
+Badges should use:
+
+small typography
+clear spacing
+minimal borders
+high contrast
+
+Examples:
+
+RESIDENTIAL
+HOSPITALITY
+COMMERCIAL
+FEATURED
+PRIVATE
+STUDIO
+2026
+
+
+Do not use Abhaya Libre inside badges.
+
+
+========================================================
+16. EDITORIAL ITALIC
+========================================================
+
+EDITORIAL ITALIC IS ALLOWED AND ENCOURAGED.
+
+BUT IT MUST BE USED INTENTIONALLY.
+
+FONT:
+Abhaya Libre
+
+WEIGHT:
+400
+
+STYLE:
+italic
+
+This is the ONLY standard italic treatment.
+
+Use editorial italic for:
+
+emotional emphasis
+editorial phrases
+short statements
+selected words inside large headings
+quotes
+philosophical statements
+visual storytelling
+design philosophy
+hero emphasis
+
+
+Examples:
+
+Spaces made for
+"living."
+
+Designed around
+"you."
+
+A collection of
+"spaces."
+
+Less, when considered carefully,
+can become more.
+
+Thoughtful interiors are never about excess.
+
+
+Italic should create an editorial contrast against normal
+Abhaya Libre typography.
+
+Do not make entire pages italic.
+
+Do not make normal paragraphs italic.
+
+Do not make navigation italic.
+
+Do not make buttons italic.
+
+Do not make badges italic.
+
+Do not make every heading italic.
+
+Italic is an ACCENT, not a default style.
+
+
+========================================================
+17. EDITORIAL QUOTES
+========================================================
+
+Large quotes should use:
+
+Abhaya Libre
+
+Weight:
+500
+
+Line height:
+approximately 0.98
+
+Letter spacing:
+-0.02em to -0.025em
+
+Selected phrases may use:
+
+Abhaya Libre
+400
+italic
+
+Example:
+
+A room should not simply
+look beautiful.
+
+It should feel like
+it belongs to you.
+
+
+The italic portion should be used to create rhythm,
+not decoration.
+
+
+========================================================
+18. LOGO / BRAND WORDMARK
+========================================================
+
+If the logo is text-based:
+
+FONT:
+Abhaya Libre
+
+WEIGHT:
+500
+
+STYLE:
+Normal
+
+Keep the wordmark elegant and restrained.
+
+Do not use heavy bold typography for the brand name.
+
+
+========================================================
+19. FOOTER
+========================================================
+
+Footer body:
+
+Inter
+400
+Normal
+line-height: 1.5
+
+Footer section labels:
+
+Inter
+500
+0.75rem
+uppercase
+0.1em letter spacing
+
+Footer links:
+
+Inter
+400
+Normal
+approximately 0.875rem
+
+Footer should remain informational and understated.
+
+
+========================================================
+20. FORMS
+========================================================
+
+INPUT:
+Inter
+400
+
+LABEL:
+Inter
+500
+
+PLACEHOLDER:
+Inter
+400
+
+BUTTON:
+Inter
+500
+
+Do not use Abhaya Libre for form controls.
+
+
+========================================================
+21. TEXT TRANSFORMATION RULES
+========================================================
+
+Large headings:
+
+Prefer normal/title-style capitalization.
+
+Do NOT automatically uppercase H1/H2/H3.
+
+Labels:
+
+uppercase
+
+Badges:
+
+uppercase
+
+Navigation:
+
+normal/title case
+
+Buttons:
+
+normal/title case
+
+Body:
+
+normal sentence case
+
+Footer links:
+
+normal/title case
+
+
+========================================================
+22. LETTER-SPACING RULES
+========================================================
+
+Large Abhaya Libre headings:
+
+-0.02em
+
+Large editorial statements:
+
+approximately
+-0.02em to -0.025em
+
+Inter body:
+
+-0.01em
+
+Navigation:
+
+0
+
+Buttons:
+
+0
+
+Labels:
+
+0.1em
+
+Badges:
+
+0.1em
+
+Do not randomly modify letter spacing.
+
+
+========================================================
+23. LINE-HEIGHT RULES
+========================================================
+
+H1:
+0.95
+
+H2:
+1
+
+H3:
+1.05
+
+Body:
+1.6
+
+Navigation:
+1.2
+
+Button:
+1
+
+Card title:
+1.3
+
+Card metadata:
+1.4
+
+Footer:
+1.5
+
+
+Do not apply a single line-height globally to every typography element.
+
+
+========================================================
+24. RESPONSIVE TYPOGRAPHY
+========================================================
+
+Use responsive typography with clamp() where appropriate.
+
+Do not create completely different typography systems for mobile.
+
+The same hierarchy must remain:
+
+H1
+↓
+H2
+↓
+H3
+↓
+Body
+↓
+UI
+
+Mobile must remain spacious and readable.
+
+Never make mobile typography unnecessarily tiny.
+
+Never allow large headings to overflow horizontally.
+
+Use natural wrapping.
+
+Do not distort, stretch or artificially scale text.
+
+
+========================================================
+25. WHITESPACE
+========================================================
+
+Typography must always have breathing room.
+
+Do not compensate for poor spacing by changing font size.
+
+Prefer:
+
+larger whitespace
+shorter text width
+strong hierarchy
+controlled line-height
+
+instead of:
+
+excessive font weights
+excessive font sizes
+multiple fonts
+text shadows
+decorative effects
+
+
+========================================================
+26. COLOR
+========================================================
+
+PRIMARY:
+
+#000000
+
+BACKGROUND:
+
+#FFFFFF
+
+PRIMARY TEXT:
+
+#111111
+
+MUTED TEXT:
+
+#666666
+
+
+Dark sections may use:
+
+white text
+muted gray text
+black background
+
+Typography must remain high contrast and readable.
+
+
+========================================================
+27. FONT LOADING
+========================================================
+
+Load ONLY the required font weights.
+
+Abhaya Libre:
+
+400
+500
+400 italic
+
+Inter:
+
+400
+500
+600
+
+Do not load unnecessary weights.
+
+Do not load unnecessary font families.
+
+
+========================================================
+28. ABSOLUTE COMPONENT RULE
+========================================================
+
+Whenever creating a NEW component, first identify its typography role.
+
+If it is:
+
+MAIN DISPLAY HEADING
+→ Abhaya Libre 500
+
+SECTION HEADING
+→ Abhaya Libre 500
+
+SUPPORTING EDITORIAL HEADING
+→ Abhaya Libre 500
+
+EDITORIAL ACCENT
+→ Abhaya Libre 400 italic
+
+BODY
+→ Inter 400
+
+NAVIGATION
+→ Inter 500
+
+BUTTON
+→ Inter 500
+
+IMPORTANT BUTTON
+→ Inter 600
+
+CARD TITLE
+→ Inter 600
+
+CARD META
+→ Inter 400
+
+LABEL
+→ Inter 500
+
+BADGE
+→ Inter 500
+
+FOOTER
+→ Inter 400
+
+FOOTER LABEL
+→ Inter 500
+
+FORM LABEL
+→ Inter 500
+
+FORM INPUT
+→ Inter 400
+
+
+========================================================
+29. DO NOT BREAK THE SYSTEM
+========================================================
+
+If a new design requires a typography treatment not listed here,
+DO NOT invent a new font family or weight.
+
+Reuse the closest existing typography role.
+
+The design system has only:
+
+2 font families
+3 primary weights
+1 controlled italic treatment
+
+This limitation is intentional.
+
+Consistency is more important than adding variety.
+
+
+========================================================
+30. FINAL DESIGN TARGET
+========================================================
+
+The final typography must feel:
+
+MINIMAL
+EDITORIAL
+ARCHITECTURAL
+PREMIUM
+CALM
+SPACIOUS
+MODERN
+TIMELESS
+CLEAN
+
+The typography should never feel:
+
+HEAVY
+CROWDED
+DECORATIVE
+PLAYFUL
+TECHNICAL
+OVER-STYLED
+FONT-HEAVY
+
+
+FINAL RULE:
+
+ABHAYA LIBRE = EDITORIAL / DISPLAY / EMOTION
+
+INTER = INFORMATION / UI / READABILITY
+
+400 = REGULAR
+
+500 = MEDIUM
+
+600 = SEMI BOLD
+
+ITALIC = RARE EDITORIAL ACCENT
+
+700+ = NOT ALLOWED
+
+THIRD FONT = NOT ALLOWED
+
+Maintain this typography system across the ENTIRE WEBSITE
+without exception.
