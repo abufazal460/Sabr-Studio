@@ -15,6 +15,7 @@ export const Navbar = () => {
   const { isAuthenticated } = useAuth();
 
   const navLinks = [
+    { name: 'Home', path: '/' },
     { name: 'Projects', path: '/projects' },
     { name: 'Retail', path: '/retail' },
     { name: 'Services', path: '/services' },
