@@ -10,7 +10,7 @@ import { enquiryService } from './services/enquiry.service.js';
 import { orderService } from './services/order.service.js';
 
 import { protect } from './middlewares/protect.middleware.js';
-import { authLimiter, adminLimiter } from './middlewares/rateLimit.middleware.js';
+import { authLimiter, adminLimiter, generalLimiter, enquiryLimiter } from './middlewares/rateLimit.middleware.js';
 
 import { loginValidator } from './validators/auth.validator.js';
 import {
@@ -32,8 +32,8 @@ import {
 } from './validators/order.validator.js';
 
 export function apiHandler(req, res, next) {
-  // If next is provided (Vite Connect middleware style) and path doesn't start with /api, pass through
-  if (next && req.url && !req.url.startsWith('/api')) {
+  // If next is provided (Vite Connect middleware style) and path doesn't start with /api or /health, pass through
+  if (next && req.url && !req.url.startsWith('/api') && !req.url.startsWith('/health')) {
     return next();
   }
   return handleApiRequest(req, res);
@@ -164,6 +164,20 @@ export default function handleApiRequest(req, res) {
   };
 
   // -------------------------------------------------------------
+  // Health‑check endpoint (unauthenticated) - per DEPLOYMENT.md & prompt
+  // -------------------------------------------------------------
+  if ((path === '/health' || path === '/api/health') && method === 'GET') {
+    return res.status(200).json({ status: 'ok' });
+  }
+
+  // Apply general rate limiter to non-auth, non-admin, non-health routes
+  if (path !== '/health' && path !== '/api/health' && !path.startsWith('/api/auth') && !path.startsWith('/api/admin')) {
+    let passed = false;
+    generalLimiter(req, res, () => { passed = true; });
+    if (!passed) return; // Rate limit exceeded, response already sent
+  }
+
+  // -------------------------------------------------------------
   // 1. Authentication Endpoints (05-auth.md)
   // -------------------------------------------------------------
   if (path === '/api/auth/login' && method === 'POST') {
@@ -219,7 +233,7 @@ export default function handleApiRequest(req, res) {
   // -------------------------------------------------------------
   if (path === '/api/enquiries' && method === 'POST') {
     return parseBody(() => {
-      return runMiddlewareChain([...createEnquiryValidator], () => {
+      return runMiddlewareChain([enquiryLimiter, ...createEnquiryValidator], () => {
         enquiryController.createEnquiry(req, res);
       });
     });
@@ -248,11 +262,12 @@ export default function handleApiRequest(req, res) {
   }
 
   // -------------------------------------------------------------
-  // 6. Admin Routes (Strictly guarded by protect middleware)
+  // 6. Admin Routes (Strictly guarded by protect middleware & adminLimiter)
   // References: 06-features.md §5; 05-auth.md §10; ARCHITECTURE.md §10.11
   // -------------------------------------------------------------
   if (path.startsWith('/api/admin')) {
-    return protect(req, res, async () => {
+    return adminLimiter(req, res, () => {
+      return protect(req, res, async () => {
       // 6.1 Admin Stats Overview
       if (path === '/api/admin/stats' && method === 'GET') {
         const [projects, products, enquiries, orders] = await Promise.all([
@@ -414,6 +429,7 @@ export default function handleApiRequest(req, res) {
         success: false,
         message: `Admin route ${method} ${path} not found`,
       });
+    });
     });
   }
 

@@ -1,6 +1,7 @@
 import express from 'express';
 import { enquiryController } from '../controllers/enquiry.controller.js';
 import { protect } from '../middlewares/protect.middleware.js';
+import { enquiryLimiter } from '../middlewares/rateLimit.middleware.js';
 import {
   createEnquiryValidator,
   updateEnquiryStatusValidator,
@@ -13,7 +14,7 @@ const router = express.Router();
  * Note: Never exposed via any public read endpoint!
  * References: API.md §2.7, prompts/06-features.md §4.6
  */
-router.post('/', createEnquiryValidator, (req, res) =>
+router.post('/', enquiryLimiter, createEnquiryValidator, (req, res) =>
   enquiryController.createEnquiry(req, res)
 );
 
