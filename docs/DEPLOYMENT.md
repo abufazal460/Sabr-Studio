@@ -2,7 +2,44 @@
 
 Reference docs: `PRD.md`, `TRD.md` (Sections 7, 18, 20 are authoritative here). No dedicated `DATABASE.md`/`API.md` exist yet — schema and endpoint details below are sourced from `TRD.md` Sections 6–7.
 
-**Architecture**: single Express process serves `/api/*` and the built React (Vite) frontend from `backend/public/` — one deployable unit. Vercel is a **preview-only** surface for the frontend; it is never production. Production is Hostinger only.
+**Architecture**: one shared codebase, two deployment adapters that expose the **same public URL structure** (`/`, `/projects`, `/projects/:slug`, `/retail`, `/services`, `/about`, `/contact`, `/admin/*`, `/api/*`):
+
+- **Hostinger (persistent Node)** — a single Express process serves `/api/*` *and* the built React (Vite) frontend from `backend/public/`. One domain, one process.
+- **Vercel (single project)** — Vercel serves the Vite static build (`frontend/dist`) directly and routes `/api/*` to a Node serverless function (`api/index.js` → the same Express app). One project, one domain. The frontend is **not** served through the Node function.
+
+Source folders stay separate (`frontend/`, `backend/`); they are never merged. The root `package.json` orchestrates dev/build/start.
+
+---
+
+## 0. Quick Reference
+
+### Development (two processes, Vite HMR)
+```text
+frontend → Vite dev server → http://localhost:5173
+backend  → Express API     → http://localhost:3000
+Vite proxies /api and /health → http://localhost:3000
+```
+Run both with one command from the repo root: `npm run dev` (or run `npm run dev` inside each folder).
+
+### Production build (Hostinger / local prod test)
+```text
+npm run build   # vite build → frontend/dist, then copied into backend/public
+npm run start   # node backend/server.js — Express serves /api/* + backend/public
+```
+
+### Hostinger
+```text
+One Node application · one domain · Express serves the frontend build · /api → Express
+```
+
+### Vercel
+```text
+One Vercel project (root) · frontend static build (frontend/dist) · /api → Node function · same domain
+```
+
+### Required environment variables (names only)
+- **Frontend (browser-safe, `VITE_` only):** `VITE_API_BASE_URL` (`/api` in production), `VITE_RAZORPAY_KEY_ID`
+- **Backend (server-only, never `VITE_`-prefixed):** `NODE_ENV`, `PORT`, `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `ADMIN_PASSWORD`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `CORS_ORIGIN`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_PRIVATE_KEY`
 
 ---
 
@@ -35,25 +72,49 @@ Rule: anything `VITE_`-prefixed is bundled into client JS. Never prefix a secret
 
 ## 2. Local Setup
 
-1. `git clone <repo>` → `cd frontend && npm install` and `cd backend && npm install`.
+1. `git clone <repo>` → from the **repository root** run `npm run install:all` (installs both `frontend/` and `backend/` deps).
 2. Copy `.env.example` → `.env` in both `frontend/` and `backend/`; fill values from Section 1's table (use test/dev Razorpay keys, a dev Atlas URI or dedicated dev database).
-3. Run backend: `npm run dev` (nodemon, `NODE_ENV=development`) — confirms Atlas connection before accepting traffic.
-4. Run frontend: `npm run dev` (Vite dev server, separate port) — `VITE_API_BASE_URL` points at `http://localhost:<backend-port>/api`.
-5. Backend `CORS_ORIGIN` must include the Vite dev server's origin in development.
+3. Run both apps with one command from the root: `npm run dev` — starts the Express API (`backend/`, port **3000**, nodemon) and the Vite dev server (`frontend/`, port **5173**) together. (You can also run `npm run dev` inside each folder separately.)
+4. The Vite dev server proxies `/api` and `/health` to `http://localhost:3000`, so the frontend can call relative `/api/...` in development with no hardcoded backend host and no CORS preflight.
+5. `VITE_API_BASE_URL` may be left empty in development (defaults to `/api`, served through the proxy). `backend/.env` `CORS_ORIGIN` should include the Vite origin (`http://localhost:5173`) if you ever call the backend directly instead of through the proxy.
+6. Local production rehearsal: `npm run build` (builds + copies the frontend into `backend/public/`), then `npm run start` and browse `http://localhost:3000` — Express serves both the SPA and `/api/*` from one process, exactly like Hostinger.
 
-**Connect to Atlas**: create a free/dev cluster (or use a dedicated dev database within the project's cluster), add your current IP to Atlas Network Access, copy the SRV connection string into `MONGODB_URI`.
+**Connect to Atlas**: create a free/dev cluster (or use a dedicated dev database within the project's cluster), add your current IP to Atlas Network Access, copy the SRV connection string into `MONGODB_URI`. If `MONGODB_URI` is unset or unreachable, the backend logs a warning and serves seeded in-memory data so local development never hard-fails.
 
 ---
 
-## 3. Vercel Deployment (Preview Only)
+## 3. Vercel Deployment (Single Project — Frontend + API)
 
-Vercel hosts a **frontend-only preview build** for reviewing UI changes on a shareable URL. It is not, and never becomes, the production deployment (production is single-process Hostinger — Section 4).
+Vercel deploys the **whole application as one project** from the repository root: the Vite static build is served by Vercel's CDN, and `/api/*` is handled by a Node serverless function that reuses the same Express app (`api/index.js` → `backend/server.js`). One public domain, same URL structure as Hostinger.
 
-1. Import the repo into Vercel; set **Root Directory** to `frontend/`.
-2. Build settings: **Build Command** `npm run build` (or `vite build`), **Output Directory** `dist`, **Install Command** `npm install`.
-3. Environment variables (Vercel project settings, Preview/Production-preview scope): `VITE_API_BASE_URL` pointing at a reachable backend (the Hostinger production API, or a running dev/staging backend — Vercel does not host this project's Express backend), `VITE_RAZORPAY_KEY_ID` (test key for preview).
-4. Every push/PR gets its own preview URL for review; no rewrite/SPA config beyond Vercel's default SPA fallback for Vite projects is required since only the frontend is deployed here.
-5. Do not point preview builds at production Razorpay/live keys or the production database's write paths without deliberate intent — previews commonly hit a test backend.
+The configuration lives in the root `vercel.json` (one coherent rewrites strategy — no deprecated `builds`/`routes`):
+
+```json
+{
+  "framework": null,
+  "installCommand": "npm install --prefix backend && npm install --prefix frontend",
+  "buildCommand": "npm run build --prefix frontend",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+```
+
+How routing resolves:
+1. `/api/*` → first rewrite → the `api/index.js` Node function (Express). The function only ever sees `/api/*`; it returns JSON 404s for unknown API paths and never serves HTML.
+2. Static assets (`/assets/*`, `/favicon.svg`, …) → served directly from `frontend/dist` (Vercel checks the filesystem before rewrites).
+3. Everything else (`/projects`, `/admin/login`, …) → second rewrite → `/index.html` → React Router (SPA deep links and refresh work).
+
+Setup steps:
+1. Import the repository into Vercel. **Root Directory: leave as the repository root** (do *not* set it to `frontend/`).
+2. Vercel reads `vercel.json` for install/build/output and the rewrites above. No further build settings are required.
+3. Set the backend environment variables (Section 1 table) in the Vercel project settings — `MONGODB_URI`, `JWT_SECRET`, `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=lax`, `CORS_ORIGIN` (the production domain), Cloudinary/EmailJS/Razorpay as needed. Set the frontend variable `VITE_API_BASE_URL=/api` (same-origin) and `VITE_RAZORPAY_KEY_ID`.
+4. Because frontend and API are same-origin, the auth cookie works without cross-origin CORS. `COOKIE_SECURE=true` is required (Vercel is HTTPS).
+5. MongoDB Atlas: allow-list Vercel's egress (Atlas `0.0.0.0/0` with strong credentials + TLS is the common compensating control on serverless, since Vercel function IPs are dynamic). The connection is cached on `globalThis` (`backend/config/db.js`) so warm invocations reuse one connection.
+
+> Note: serverless functions are stateless and short-lived. The in-memory fallback stores are per-invocation only — always set `MONGODB_URI` on Vercel so data persists. Permanent media must live in Cloudinary, never on the function's ephemeral filesystem.
 
 ---
 
@@ -61,17 +122,19 @@ Vercel hosts a **frontend-only preview build** for reviewing UI changes on a sha
 
 1. **Repository shape**: `frontend/` build output must land in `backend/public/` (`.gitignore`d, populated at build time — never hand-edited or committed).
 2. **Git import**: In Hostinger's Node.js application panel, connect the Git repository and select the production branch. Every push/manual deploy pulls latest code.
-3. **Build step** (single process, run at deploy time):
-   - Install frontend deps, run `vite build` → `frontend/dist/`.
-   - Copy `frontend/dist/` contents into `backend/public/` (or configure Vite's `build.outDir` to emit there directly).
-   - Install backend deps (production only — `nodemon` stays a devDependency).
-   - Start: `node server.js` (mapped from `npm start` in `backend/package.json`).
-   - Express serves `backend/public/` as static files after all `/api/*` routes are registered.
-4. **SPA routing**: a catch-all route, registered **after** `/api/*` routes and static-file middleware, returns `backend/public/index.html` for any non-API GET. This is required for direct URL access/refresh on routes like `/projects/some-slug` or `/admin/orders` — without it they 404.
-5. **Node version**: set in Hostinger's application settings to match the version pinned in `backend/package.json`'s `engines` field.
-6. **Port**: Express listens on `process.env.PORT` as provided by Hostinger — never a hardcoded port.
+3. **Build step** (run at deploy time from the **repository root**):
+   - Install: `npm run install:all` (installs `backend/` and `frontend/` deps; `nodemon` stays a backend devDependency).
+   - Build: `npm run build` → runs `vite build` (`frontend/dist/`) and copies that output into `backend/public/` via `scripts/build.mjs` (cross-platform, no manual copying). `backend/public/` is gitignored and populated only at build time.
+   - Start: `npm run start` → `node backend/server.js`.
+   - Express registers `/api/*` first, then serves `backend/public/` as static files, then a SPA catch-all (registered **after** `/api/*` and static) returns `backend/public/index.html` for any non-API GET.
+4. **Hostinger Node application settings**:
+   - **Application root:** the repository root (where the root `package.json` lives).
+   - **Build command:** `npm run install:all && npm run build`.
+   - **Start command:** `npm run start`.
+   - **Node version:** match `engines` in `backend/package.json` (Node >= 18).
+   - **Port:** Express listens on `process.env.PORT` (Hostinger-supplied) — never hardcoded.
 7. **Domain & DNS**: point the Hostinger-issued or connected custom domain at the Node.js application; enable Hostinger's SSL (Let's Encrypt or equivalent) so the entire site (pages + `/api/*`) serves over HTTPS.
-8. **Environment variables**: enter all backend variables from Section 1's table into Hostinger's Node.js application environment-variable panel — never hardcoded, never committed.
+8. **Environment variables**: enter all backend variables from Section 1's table into Hostinger's Node.js application environment-variable panel — never hardcoded, never committed. Set `NODE_ENV=production` and `COOKIE_SECURE=true`.
 9. **Restarts**: each deploy restarts the single Node process; a brief restart window is expected (no load balancer/multiple instances at this scope) — not a bug.
 10. **Rollback**: redeploy a previous commit/branch state; keep the production branch always in a clean, deployable state.
 11. **Media**: Cloudinary serves all uploaded images directly in production; `backend/public/` holds only the built frontend app shell, never user media.
@@ -91,10 +154,12 @@ Vercel hosts a **frontend-only preview build** for reviewing UI changes on a sha
 
 ## 6. Build & Configuration
 
-- **Frontend build**: `vite build` inside `frontend/` → `dist/`. Must complete with zero errors before deploy proceeds (hard gate).
-- **Backend runtime**: Node.js version pinned via `engines` in `backend/package.json`; starts with `node server.js`; does not accept traffic until Atlas connection is confirmed.
-- **API URL config**: `VITE_API_BASE_URL` = relative `/api` in production (same-origin, since Express serves both) · full `http://localhost:<port>/api` in local dev · reachable backend URL in Vercel preview.
-- **CORS**: `cors` configured with an explicit origin allow-list per environment (`CORS_ORIGIN`) — Vite dev server origin locally, the production domain in production. Never a wildcard origin for credentialed requests. In production this is a defensive allow-list, not a functional requirement, since frontend and API are same-origin.
+- **Root orchestration**: the root `package.json` drives everything — `npm run dev` (both apps), `npm run build` (frontend build → copied into `backend/public/`), `npm run start` (Express), `npm run vercel-build` (frontend build only, for Vercel), `npm run install:all` (install both packages). Build/dev scripts are Node-based (`scripts/build.mjs`, `scripts/dev.mjs`) so they behave identically on Windows and Linux.
+- **Frontend build**: `vite build` inside `frontend/` → `frontend/dist/`. Must complete with zero errors before deploy proceeds (hard gate). For Hostinger, `npm run build` then copies `frontend/dist/` into `backend/public/`.
+- **Backend runtime**: Node.js version pinned via `engines` in `backend/package.json` (>= 18); starts with `node backend/server.js`. It connects to Atlas in the background via `config/db.js → connectDB()` (connection cached on `globalThis` for serverless reuse); if `MONGODB_URI` is unset/unreachable it logs a warning and serves seeded in-memory data instead of crashing.
+- **API URL config**: `VITE_API_BASE_URL` = relative `/api` in production (same-origin on both Hostinger and Vercel) · in local dev it can stay empty (defaults to `/api`, proxied by Vite to `http://localhost:3000`) — no hardcoded backend host in source.
+- **CORS**: `cors` configured with an explicit comma-separated origin allow-list (`CORS_ORIGIN`) — localhost origins are auto-permitted outside production; the production domain is listed in production. Never a wildcard origin with credentials. In production this is a defensive allow-list, not a functional requirement, since frontend and API are same-origin.
+- **Security middleware**: `helmet` is active (CSP disabled because the UI renders images from external CDNs and runtime-injected inline styles); `express-rate-limit` guards login, admin, enquiry and general API traffic; `express-validator` validates all mutating endpoints.
 - **Frontend–backend connection**: the shared `axiosClient` uses `VITE_API_BASE_URL` with `withCredentials: true` so the httpOnly auth cookie is sent.
 
 ---
