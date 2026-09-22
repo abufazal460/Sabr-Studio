@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LuShoppingBag, LuMenu, LuX } from 'react-icons/lu';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../hooks/useAuth';
 import { Button } from './Button';
 
 export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { cartCount, openDrawer } = useCart();
+  const { isAuthenticated } = useAuth();
 
   const navLinks = [
     { name: 'Projects', path: '/projects' },
@@ -112,9 +115,9 @@ export const Navbar = () => {
             <Button
               variant="Primary"
               size="sm"
-              label="Login"
+              label={isAuthenticated ? 'Admin' : 'Login'}
               onClick={() => {
-                console.info('Login button clicked.');
+                navigate(isAuthenticated ? '/admin' : '/admin/login');
               }}
               className="!px-5 !py-2 !text-xs !min-h-[36px]"
             />
@@ -196,11 +199,11 @@ export const Navbar = () => {
                 <Button
                   variant="White"
                   size="default"
-                  label="Login"
+                  label={isAuthenticated ? 'Admin' : 'Login'}
                   className="w-full justify-center"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    console.info('Login button clicked.');
+                    navigate(isAuthenticated ? '/admin' : '/admin/login');
                   }}
                 />
                 <button

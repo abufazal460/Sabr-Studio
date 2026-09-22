@@ -26,7 +26,7 @@ export const authLimiter = rateLimit({
 // Admin-scoped rate limiter for /api/admin/* (RATE-03)
 export const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
@@ -38,5 +38,41 @@ export const adminLimiter = rateLimit({
   message: {
     success: false,
     message: 'Too many requests. Please try again later.',
+  },
+});
+
+// General API rate limiter (100 requests per 15 minutes per IP)
+export const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  keyGenerator: (req) => req.ip || req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1',
+  statusCode: 429,
+  handler: (req, res, next, options) => {
+    res.status(options.statusCode || 429).json(options.message);
+  },
+  message: {
+    success: false,
+    message: 'Too many requests. Please try again later.',
+  },
+});
+
+// Enquiry/contact form rate limiter (5 requests per 15 minutes per IP)
+export const enquiryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  keyGenerator: (req) => req.ip || req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1',
+  statusCode: 429,
+  handler: (req, res, next, options) => {
+    res.status(options.statusCode || 429).json(options.message);
+  },
+  message: {
+    success: false,
+    message: 'Too many enquiries. Please try again later.',
   },
 });

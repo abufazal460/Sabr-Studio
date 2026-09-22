@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../../shared/hooks/useAuth';
 import TextInput from '../../../shared/components/TextInput';
@@ -12,11 +12,17 @@ export const AdminLogin = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const targetPath = location.state?.from?.pathname || '/admin';
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(targetPath, { replace: true });
+    }
+  }, [isAuthenticated, navigate, targetPath]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
