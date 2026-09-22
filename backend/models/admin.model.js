@@ -71,10 +71,10 @@ export const inMemoryAdmins = [
   {
     _id: 'admin-1',
     id: 'admin-1',
-    name: 'Studio Admin',
+    name: 'admin',
     email: 'admin',
-    // Pre-hashed bcrypt hash for 'admin123' (10 rounds)
-    password: '$2a$10$LuUvjIDZM37R/uP02T1CF.JWHBdhC9HdSmx.KpZoYyNvMGIKx6nvu',
+    // Pre-hashed bcrypt hash for 'admin' (10 rounds)
+    password: '$2b$10$D/C9XXYbz02XVmcN/tZCmOLObxqhAXTUgseHC0WujNW41rrX6YBg6',
     role: 'admin',
     status: 'active',
     lastLoginAt: null,
