@@ -15,14 +15,12 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Response compression
 app.use(compression());
 
-// Mount the API handler
+// Mount API routes
 app.use(apiHandler);
 
-// Centralized error handler
+// Centralized error handling
 app.use(errorHandler);
 
 export default app;
