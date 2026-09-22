@@ -32,7 +32,8 @@ import {
 } from './validators/order.validator.js';
 
 export function apiHandler(req, res, next) {
-  // If next is provided (Vite Connect middleware style) and path doesn't start with /api or /health, pass through
+  // If next is provided (Express/Connect middleware style) and the path is not
+  // an API/health path, pass through to static + SPA handling downstream.
   if (next && req.url && !req.url.startsWith('/api') && !req.url.startsWith('/health')) {
     return next();
   }
@@ -164,278 +165,268 @@ export default function handleApiRequest(req, res) {
   };
 
   // -------------------------------------------------------------
-  // Health‑check endpoint (unauthenticated) - per DEPLOYMENT.md & prompt
+  // Health-check endpoint (unauthenticated)
   // -------------------------------------------------------------
   if ((path === '/health' || path === '/api/health') && method === 'GET') {
     return res.status(200).json({ status: 'ok' });
   }
 
-  // Apply general rate limiter to non-auth, non-admin, non-health routes
-  if (path !== '/health' && path !== '/api/health' && !path.startsWith('/api/auth') && !path.startsWith('/api/admin')) {
-    let passed = false;
-    generalLimiter(req, res, () => { passed = true; });
-    if (!passed) return; // Rate limit exceeded, response already sent
-  }
-
   // -------------------------------------------------------------
-  // 1. Authentication Endpoints (05-auth.md)
+  // Route dispatch. Wrapped by the general rate limiter for public
+  // data routes; auth/admin groups apply their own limiters inside.
+  // The limiter calls its callback asynchronously, so dispatch MUST
+  // run inside that callback (never via a synchronous flag).
   // -------------------------------------------------------------
-  if (path === '/api/auth/login' && method === 'POST') {
-    return parseBody(() => {
-      return runMiddlewareChain([authLimiter, ...loginValidator], () => {
-        authController.login(req, res);
+  const dispatch = () => {
+    // 1. Authentication Endpoints (05-auth.md)
+    if (path === '/api/auth/login' && method === 'POST') {
+      return parseBody(() => {
+        return runMiddlewareChain([authLimiter, ...loginValidator], () => {
+          authController.login(req, res);
+        });
       });
-    });
-  }
+    }
 
-  if (path === '/api/auth/me' && method === 'GET') {
-    return protect(req, res, () => {
-      authController.getMe(req, res);
-    });
-  }
-
-  if (path === '/api/auth/logout' && method === 'POST') {
-    return authController.logout(req, res);
-  }
-
-  // -------------------------------------------------------------
-  // 2. Public Projects Endpoints (06-features.md §4.2)
-  // Published items only; detail 404s cleanly on bad/unpublished slug.
-  // -------------------------------------------------------------
-  if (path === '/api/projects' && method === 'GET') {
-    return projectController.getPublicProjects(req, res);
-  }
-
-  if (path.startsWith('/api/projects/') && method === 'GET') {
-    const slug = path.replace('/api/projects/', '');
-    req.params = { slug };
-    return projectController.getPublicProjectBySlug(req, res);
-  }
-
-  // -------------------------------------------------------------
-  // 3. Public Retail Endpoints (06-features.md §4.3)
-  // Canonical route: /retail; published AND available only.
-  // -------------------------------------------------------------
-  if (path === '/api/retail' && method === 'GET') {
-    return retailController.getPublicRetail(req, res);
-  }
-
-  if (path.startsWith('/api/retail/') && method === 'GET') {
-    const slug = path.replace('/api/retail/', '');
-    req.params = { slug };
-    return retailController.getPublicRetailBySlug(req, res);
-  }
-
-  // -------------------------------------------------------------
-  // 4. Public Enquiry Endpoint (06-features.md §4.6)
-  // Rate-limited, email required (C4), phone string, no projectType (C5).
-  // Note: Enquiries are NEVER exposed through any public read endpoint.
-  // -------------------------------------------------------------
-  if (path === '/api/enquiries' && method === 'POST') {
-    return parseBody(() => {
-      return runMiddlewareChain([enquiryLimiter, ...createEnquiryValidator], () => {
-        enquiryController.createEnquiry(req, res);
+    if (path === '/api/auth/me' && method === 'GET') {
+      return protect(req, res, () => {
+        authController.getMe(req, res);
       });
-    });
-  }
+    }
 
-  // -------------------------------------------------------------
-  // 5. Public Checkout & Payment Endpoints (06-features.md §4.8)
-  // Re-validates cart server-side, computes amount server-side.
-  // Rejects empty cart with 400.
-  // Verifies signature on payment completion.
-  // -------------------------------------------------------------
-  if ((path === '/api/checkout' || path === '/api/orders/checkout') && method === 'POST') {
-    return parseBody(() => {
-      return runMiddlewareChain([...checkoutValidator], () => {
-        orderController.checkout(req, res);
+    if (path === '/api/auth/logout' && method === 'POST') {
+      return authController.logout(req, res);
+    }
+
+    // 2. Public Projects Endpoints (06-features.md §4.2)
+    if (path === '/api/projects' && method === 'GET') {
+      return projectController.getPublicProjects(req, res);
+    }
+
+    if (path.startsWith('/api/projects/') && method === 'GET') {
+      const slug = path.replace('/api/projects/', '');
+      req.params = { slug };
+      return projectController.getPublicProjectBySlug(req, res);
+    }
+
+    // 3. Public Retail Endpoints (06-features.md §4.3)
+    if (path === '/api/retail' && method === 'GET') {
+      return retailController.getPublicRetail(req, res);
+    }
+
+    if (path.startsWith('/api/retail/') && method === 'GET') {
+      const slug = path.replace('/api/retail/', '');
+      req.params = { slug };
+      return retailController.getPublicRetailBySlug(req, res);
+    }
+
+    // 4. Public Enquiry Endpoint (06-features.md §4.6)
+    if (path === '/api/enquiries' && method === 'POST') {
+      return parseBody(() => {
+        return runMiddlewareChain([enquiryLimiter, ...createEnquiryValidator], () => {
+          enquiryController.createEnquiry(req, res);
+        });
       });
-    });
-  }
+    }
 
-  if ((path === '/api/checkout/verify' || path === '/api/orders/verify') && method === 'POST') {
-    return parseBody(() => {
-      return runMiddlewareChain([...verifyPaymentValidator], () => {
-        orderController.verifyPayment(req, res);
+    // 5. Public Checkout & Payment Endpoints (06-features.md §4.8)
+    if ((path === '/api/checkout' || path === '/api/orders/checkout') && method === 'POST') {
+      return parseBody(() => {
+        return runMiddlewareChain([...checkoutValidator], () => {
+          orderController.checkout(req, res);
+        });
       });
-    });
-  }
+    }
 
-  // -------------------------------------------------------------
-  // 6. Admin Routes (Strictly guarded by protect middleware & adminLimiter)
-  // References: 06-features.md §5; 05-auth.md §10; ARCHITECTURE.md §10.11
-  // -------------------------------------------------------------
-  if (path.startsWith('/api/admin')) {
-    return adminLimiter(req, res, () => {
-      return protect(req, res, async () => {
-      // 6.1 Admin Stats Overview
-      if (path === '/api/admin/stats' && method === 'GET') {
-        const [projects, products, enquiries, orders] = await Promise.all([
-          projectService.getAdminProjects(),
-          retailService.getAdminRetail(),
-          enquiryService.getAdminEnquiries(),
-          orderService.getAdminOrders(),
-        ]);
-        const revenue = orders
-          .filter((o) => o.paymentStatus === 'paid' || o.payment?.verified)
-          .reduce((sum, o) => sum + (o.amount || o.totalAmount || 0), 0);
-
-        return res.status(200).json({
-          success: true,
-          data: {
-            totalProjects: projects.length,
-            totalProducts: products.length,
-            totalEnquiries: enquiries.length,
-            totalOrders: orders.length,
-            revenue,
-          },
+    if ((path === '/api/checkout/verify' || path === '/api/orders/verify') && method === 'POST') {
+      return parseBody(() => {
+        return runMiddlewareChain([...verifyPaymentValidator], () => {
+          orderController.verifyPayment(req, res);
         });
-      }
-
-      // 6.2 Admin Projects CRUD
-      if (path === '/api/admin/projects' && method === 'GET') {
-        return projectController.getAdminProjects(req, res);
-      }
-
-      if (path === '/api/admin/projects' && method === 'POST') {
-        return parseBody(() => {
-          return runMiddlewareChain([...createProjectValidator], () => {
-            projectController.createProject(req, res);
-          });
-        });
-      }
-
-      if (path.startsWith('/api/admin/projects/') && method === 'GET') {
-        const id = path.replace('/api/admin/projects/', '');
-        req.params = { id };
-        return projectController.getAdminProjectById(req, res);
-      }
-
-      if (path.startsWith('/api/admin/projects/') && method === 'PUT') {
-        const id = path.replace('/api/admin/projects/', '');
-        req.params = { id };
-        return parseBody(() => {
-          return runMiddlewareChain([...updateProjectValidator], () => {
-            projectController.updateProject(req, res);
-          });
-        });
-      }
-
-      if (path.startsWith('/api/admin/projects/') && method === 'DELETE') {
-        const id = path.replace('/api/admin/projects/', '');
-        req.params = { id };
-        return projectController.deleteProject(req, res);
-      }
-
-      // 6.3 Admin Retail CRUD
-      if (path === '/api/admin/retail' && method === 'GET') {
-        return retailController.getAdminRetail(req, res);
-      }
-
-      if (path === '/api/admin/retail' && method === 'POST') {
-        return parseBody(() => {
-          return runMiddlewareChain([...createRetailValidator], () => {
-            retailController.createRetailItem(req, res);
-          });
-        });
-      }
-
-      if (path.startsWith('/api/admin/retail/') && method === 'GET') {
-        const id = path.replace('/api/admin/retail/', '');
-        req.params = { id };
-        return retailController.getAdminRetailById(req, res);
-      }
-
-      if (path.startsWith('/api/admin/retail/') && method === 'PUT') {
-        const id = path.replace('/api/admin/retail/', '');
-        req.params = { id };
-        return parseBody(() => {
-          return runMiddlewareChain([...updateRetailValidator], () => {
-            retailController.updateRetailItem(req, res);
-          });
-        });
-      }
-
-      if (path.startsWith('/api/admin/retail/') && method === 'DELETE') {
-        const id = path.replace('/api/admin/retail/', '');
-        req.params = { id };
-        return retailController.deleteRetailItem(req, res);
-      }
-
-      // 6.4 Admin Enquiry Management
-      if (path === '/api/admin/enquiries' && method === 'GET') {
-        return enquiryController.getAdminEnquiries(req, res);
-      }
-
-      if (path.startsWith('/api/admin/enquiries/') && path.endsWith('/status') && method === 'PATCH') {
-        const id = path.replace('/api/admin/enquiries/', '').replace('/status', '');
-        req.params = { id };
-        return parseBody(() => {
-          return runMiddlewareChain([...updateEnquiryStatusValidator], () => {
-            enquiryController.updateEnquiryStatus(req, res);
-          });
-        });
-      }
-
-      if (path.startsWith('/api/admin/enquiries/') && method === 'GET') {
-        const id = path.replace('/api/admin/enquiries/', '');
-        req.params = { id };
-        return enquiryController.getAdminEnquiryById(req, res);
-      }
-
-      if (path.startsWith('/api/admin/enquiries/') && method === 'DELETE') {
-        const id = path.replace('/api/admin/enquiries/', '');
-        req.params = { id };
-        return enquiryController.deleteEnquiry(req, res);
-      }
-
-      // 6.5 Admin Order Management
-      // Note: orderStatus only; paymentStatus is never admin-editable!
-      if (path === '/api/admin/orders' && method === 'GET') {
-        return orderController.getAdminOrders(req, res);
-      }
-
-      if (path.startsWith('/api/admin/orders/') && path.endsWith('/status') && method === 'PATCH') {
-        const id = path.replace('/api/admin/orders/', '').replace('/status', '');
-        req.params = { id };
-        return parseBody(() => {
-          return runMiddlewareChain([...updateOrderStatusValidator], () => {
-            orderController.updateOrderStatus(req, res);
-          });
-        });
-      }
-
-      if (path.startsWith('/api/admin/orders/') && method === 'GET') {
-        const id = path.replace('/api/admin/orders/', '');
-        req.params = { id };
-        return orderController.getAdminOrderById(req, res);
-      }
-
-      // 6.6 Admin Cloudinary Upload Endpoint (06-features.md §5.7)
-      if (path === '/api/admin/uploads' && method === 'POST') {
-        return parseBody(() => {
-          const sampleUpload = {
-            url: req.body?.url || 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
-            publicId: `sabr_upload_${Date.now()}`,
-          };
-          return res.status(201).json({
-            success: true,
-            data: { images: [sampleUpload] },
-          });
-        });
-      }
-
-      return res.status(404).json({
-        success: false,
-        message: `Admin route ${method} ${path} not found`,
       });
-    });
-    });
-  }
+    }
 
-  // Fallback 404 for unknown /api routes
-  return res.status(404).json({
-    success: false,
-    message: `Route ${method} ${path} not found`,
-  });
+    // 6. Admin Routes (guarded by adminLimiter + protect middleware)
+    if (path.startsWith('/api/admin')) {
+      return adminLimiter(req, res, () => {
+        return protect(req, res, async () => {
+          // 6.1 Admin Stats Overview
+          if (path === '/api/admin/stats' && method === 'GET') {
+            const [projects, products, enquiries, orders] = await Promise.all([
+              projectService.getAdminProjects(),
+              retailService.getAdminRetail(),
+              enquiryService.getAdminEnquiries(),
+              orderService.getAdminOrders(),
+            ]);
+            const revenue = orders
+              .filter((o) => o.paymentStatus === 'paid' || o.payment?.verified)
+              .reduce((sum, o) => sum + (o.amount || o.totalAmount || 0), 0);
+
+            return res.status(200).json({
+              success: true,
+              data: {
+                totalProjects: projects.length,
+                totalProducts: products.length,
+                totalEnquiries: enquiries.length,
+                totalOrders: orders.length,
+                revenue,
+              },
+            });
+          }
+
+          // 6.2 Admin Projects CRUD
+          if (path === '/api/admin/projects' && method === 'GET') {
+            return projectController.getAdminProjects(req, res);
+          }
+
+          if (path === '/api/admin/projects' && method === 'POST') {
+            return parseBody(() => {
+              return runMiddlewareChain([...createProjectValidator], () => {
+                projectController.createProject(req, res);
+              });
+            });
+          }
+
+          if (path.startsWith('/api/admin/projects/') && method === 'GET') {
+            const id = path.replace('/api/admin/projects/', '');
+            req.params = { id };
+            return projectController.getAdminProjectById(req, res);
+          }
+
+          if (path.startsWith('/api/admin/projects/') && method === 'PUT') {
+            const id = path.replace('/api/admin/projects/', '');
+            req.params = { id };
+            return parseBody(() => {
+              return runMiddlewareChain([...updateProjectValidator], () => {
+                projectController.updateProject(req, res);
+              });
+            });
+          }
+
+          if (path.startsWith('/api/admin/projects/') && method === 'DELETE') {
+            const id = path.replace('/api/admin/projects/', '');
+            req.params = { id };
+            return projectController.deleteProject(req, res);
+          }
+
+          // 6.3 Admin Retail CRUD
+          if (path === '/api/admin/retail' && method === 'GET') {
+            return retailController.getAdminRetail(req, res);
+          }
+
+          if (path === '/api/admin/retail' && method === 'POST') {
+            return parseBody(() => {
+              return runMiddlewareChain([...createRetailValidator], () => {
+                retailController.createRetailItem(req, res);
+              });
+            });
+          }
+
+          if (path.startsWith('/api/admin/retail/') && method === 'GET') {
+            const id = path.replace('/api/admin/retail/', '');
+            req.params = { id };
+            return retailController.getAdminRetailById(req, res);
+          }
+
+          if (path.startsWith('/api/admin/retail/') && method === 'PUT') {
+            const id = path.replace('/api/admin/retail/', '');
+            req.params = { id };
+            return parseBody(() => {
+              return runMiddlewareChain([...updateRetailValidator], () => {
+                retailController.updateRetailItem(req, res);
+              });
+            });
+          }
+
+          if (path.startsWith('/api/admin/retail/') && method === 'DELETE') {
+            const id = path.replace('/api/admin/retail/', '');
+            req.params = { id };
+            return retailController.deleteRetailItem(req, res);
+          }
+
+          // 6.4 Admin Enquiry Management
+          if (path === '/api/admin/enquiries' && method === 'GET') {
+            return enquiryController.getAdminEnquiries(req, res);
+          }
+
+          if (path.startsWith('/api/admin/enquiries/') && path.endsWith('/status') && method === 'PATCH') {
+            const id = path.replace('/api/admin/enquiries/', '').replace('/status', '');
+            req.params = { id };
+            return parseBody(() => {
+              return runMiddlewareChain([...updateEnquiryStatusValidator], () => {
+                enquiryController.updateEnquiryStatus(req, res);
+              });
+            });
+          }
+
+          if (path.startsWith('/api/admin/enquiries/') && method === 'GET') {
+            const id = path.replace('/api/admin/enquiries/', '');
+            req.params = { id };
+            return enquiryController.getAdminEnquiryById(req, res);
+          }
+
+          if (path.startsWith('/api/admin/enquiries/') && method === 'DELETE') {
+            const id = path.replace('/api/admin/enquiries/', '');
+            req.params = { id };
+            return enquiryController.deleteEnquiry(req, res);
+          }
+
+          // 6.5 Admin Order Management (orderStatus only; paymentStatus is never admin-editable)
+          if (path === '/api/admin/orders' && method === 'GET') {
+            return orderController.getAdminOrders(req, res);
+          }
+
+          if (path.startsWith('/api/admin/orders/') && path.endsWith('/status') && method === 'PATCH') {
+            const id = path.replace('/api/admin/orders/', '').replace('/status', '');
+            req.params = { id };
+            return parseBody(() => {
+              return runMiddlewareChain([...updateOrderStatusValidator], () => {
+                orderController.updateOrderStatus(req, res);
+              });
+            });
+          }
+
+          if (path.startsWith('/api/admin/orders/') && method === 'GET') {
+            const id = path.replace('/api/admin/orders/', '');
+            req.params = { id };
+            return orderController.getAdminOrderById(req, res);
+          }
+
+          // 6.6 Admin Cloudinary Upload Endpoint (06-features.md §5.7)
+          if (path === '/api/admin/uploads' && method === 'POST') {
+            return parseBody(() => {
+              const sampleUpload = {
+                url: req.body?.url || 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
+                publicId: `sabr_upload_${Date.now()}`,
+              };
+              return res.status(201).json({
+                success: true,
+                data: { images: [sampleUpload] },
+              });
+            });
+          }
+
+          return res.status(404).json({
+            success: false,
+            message: `Admin route ${method} ${path} not found`,
+          });
+        });
+      });
+    }
+
+    // Fallback 404 for unknown /api routes
+    return res.status(404).json({
+      success: false,
+      message: `Route ${method} ${path} not found`,
+    });
+  };
+
+  // Auth and admin groups have dedicated limiters; health is unauthenticated.
+  const isRateLimitExempt =
+    path === '/health' ||
+    path === '/api/health' ||
+    path.startsWith('/api/auth') ||
+    path.startsWith('/api/admin');
+
+  if (isRateLimitExempt) return dispatch();
+  return generalLimiter(req, res, dispatch);
 }
