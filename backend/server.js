@@ -1,4 +1,4 @@
-// Load environment variables before any module reads process.env at import time.
+﻿// Load environment variables before any module reads process.env at import time.
 import 'dotenv/config';
 
 import path from 'path';
@@ -66,26 +66,9 @@ app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 // apiHandler calls next() for any non-API path so static/SPA handling below runs.
 app.use(apiHandler);
 
-// --- Production frontend (compiled Vite build) ------------------------------
-// Served only when a build has been placed in backend/public. The dev backend
-// stays API-only and does not require a frontend build.
-const publicDir = path.join(__dirname, 'public');
-const indexHtml = path.join(publicDir, 'index.html');
 
-if (fs.existsSync(indexHtml)) {
-  app.use(express.static(publicDir));
-
-  // SPA fallback for non-API client routes (React Router deep links / refresh).
-  // Paths with a file extension that were not served by express.static are
-  // genuinely missing assets — let them fall through to the JSON 404 handler
-  // instead of returning HTML (which would surface as a MIME error).
-  app.get(/^(?!\/api).*/, (req, res, next) => {
-    if (path.extname(req.path)) return next();
-    return res.sendFile(indexHtml);
-  });
-}
-
-// --- Health check endpoint -------------------------------------------------
+// --- Health check endpoint ---------------------------------------------------
+// Registered BEFORE static/SPA fallback so it always returns JSON, never HTML.
 app.get('/health', (req, res) => {
   const dbState = mongoose?.connection?.readyState;
   const dbStatuses = {
@@ -94,7 +77,7 @@ app.get('/health', (req, res) => {
     2: 'connecting',
     3: 'disconnecting',
   };
-  
+
   res.status(200).json({
     success: true,
     data: {
@@ -118,6 +101,24 @@ app.get('/health', (req, res) => {
     },
   });
 });
+// --- Production frontend (compiled Vite build) ------------------------------
+// Served only when a build has been placed in backend/public. The dev backend
+// stays API-only and does not require a frontend build.
+const publicDir = path.join(__dirname, 'public');
+const indexHtml = path.join(publicDir, 'index.html');
+
+if (fs.existsSync(indexHtml)) {
+  app.use(express.static(publicDir));
+
+  // SPA fallback for non-API client routes (React Router deep links / refresh).
+  // Paths with a file extension that were not served by express.static are
+  // genuinely missing assets â€” let them fall through to the JSON 404 handler
+  // instead of returning HTML (which would surface as a MIME error).
+  app.get(/^(?!\/api).*/, (req, res, next) => {
+    if (path.extname(req.path)) return next();
+    return res.sendFile(indexHtml);
+  });
+}
 
 // --- 404 (JSON) for anything still unmatched --------------------------------
 app.use((req, res) => {

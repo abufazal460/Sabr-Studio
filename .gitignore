@@ -7,6 +7,12 @@ frontend/dist/
 backend/public/*
 !backend/public/.gitkeep
 
+# Runtime data / uploads / logs (never commit)
+backend/data/
+uploads/
+logs/
+
+
 # Environment files
 .env
 .env.*
