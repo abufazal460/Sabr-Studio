@@ -1,6 +1,14 @@
 /**
  * Persistent Fallback Storage
  * When MongoDB is unavailable, critical data is persisted to JSON files.
+ *
+ * Serverless note (Vercel/AWS Lambda): the deployment filesystem is READ-ONLY
+ * except for /tmp. Writing inside the project directory crashes the function
+ * at import time with EROFS. Therefore:
+ *  - On Vercel we write to /tmp (per-warm-instance persistence).
+ *  - FALLBACK_DIR can override the directory explicitly.
+ *  - If directory creation still fails, storage degrades to pure in-memory
+ *    mode (data lives for the process lifetime) instead of crashing.
  */
 
 import fs from 'fs';
@@ -8,10 +16,27 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const fallbackDir = path.join(__dirname, '../data/fallback');
 
-if (!fs.existsSync(fallbackDir)) {
-  fs.mkdirSync(fallbackDir, { recursive: true });
+function resolveFallbackDir() {
+  if (process.env.FALLBACK_DIR) return process.env.FALLBACK_DIR;
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join('/tmp', 'sabr-studio-fallback');
+  }
+  return path.join(__dirname, '../data/fallback');
+}
+
+let persistenceEnabled = true;
+const fallbackDir = resolveFallbackDir();
+
+try {
+  if (!fs.existsSync(fallbackDir)) {
+    fs.mkdirSync(fallbackDir, { recursive: true });
+  }
+} catch (err) {
+  persistenceEnabled = false;
+  console.error(
+    `[FallbackStorage] Directory not writable (${fallbackDir}): ${err.message}. Running in in-memory mode.`
+  );
 }
 
 class FallbackStorage {
@@ -22,6 +47,7 @@ class FallbackStorage {
   }
 
   _load() {
+    if (!persistenceEnabled) return [];
     try {
       if (fs.existsSync(this.filePath)) {
         return JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
@@ -33,6 +59,7 @@ class FallbackStorage {
   }
 
   _save() {
+    if (!persistenceEnabled) return false; // in-memory only (serverless / read-only fs)
     try {
       fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
       return true;
