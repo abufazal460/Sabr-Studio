@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Test User",
+    "email": "test@example.com",
+    "phone": "+1234567890",
+    "message": "Test enquiry message",
+    "source": "/test",
+    "status": "new",
+    "_id": "fb-1790153638000-uf4ubmf05",
+    "id": "fb-1790153638001-pon6jh51z",
+    "createdAt": "2026-09-23T08:53:58.001Z",
+    "updatedAt": "2026-09-23T08:53:58.001Z"
+  },
+  {
+    "name": "Test User",
+    "email": "test@example.com",
+    "phone": "+1234567890",
+    "message": "Test enquiry message",
+    "source": "/test",
+    "status": "new",
+    "_id": "fb-1790153623115-4huubjw5z",
+    "id": "fb-1790153623115-177zdsocd",
+    "createdAt": "2026-09-23T08:53:43.115Z",
+    "updatedAt": "2026-09-23T08:53:43.115Z"
+  }
+]

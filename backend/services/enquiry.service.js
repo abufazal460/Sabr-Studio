@@ -1,4 +1,5 @@
 import { Enquiry, inMemoryEnquiries } from '../models/enquiry.model.js';
+import { fallbackEnquiries } from '../utils/fallbackStorage.js';
 
 export const enquiryService = {
   /**
@@ -22,17 +23,16 @@ export const enquiryService = {
     const isMongoConnected = Enquiry.db?.readyState === 1;
 
     if (isMongoConnected) {
-      const doc = await Enquiry.create(enquiryData);
-      createdRecord = doc.toObject();
+      try {
+        const doc = await Enquiry.create(enquiryData);
+        createdRecord = doc.toObject();
+      } catch (err) {
+        // Handle duplicate or other errors
+        throw err;
+      }
     } else {
-      createdRecord = {
-        ...enquiryData,
-        _id: `enq-${Date.now()}`,
-        id: `enq-${Date.now()}`,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      inMemoryEnquiries.unshift(createdRecord);
+      // Use persistent fallback storage
+      createdRecord = fallbackEnquiries.add(enquiryData);
     }
 
     // Email notification step (e.g. EmailJS / notification mock)
@@ -58,6 +58,11 @@ export const enquiryService = {
     if (isMongoConnected) {
       return await Enquiry.find().sort({ createdAt: -1 }).lean();
     }
+    // Fallback to persistent storage, then in-memory
+    const fallbackData = fallbackEnquiries.findAll();
+    if (fallbackData.length > 0) {
+      return fallbackData;
+    }
     return [...inMemoryEnquiries];
   },
 
@@ -70,6 +75,11 @@ export const enquiryService = {
       return await Enquiry.findOne({
         $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { id }],
       }).lean();
+    }
+    // Check fallback storage first
+    const fallbackEnquiry = fallbackEnquiries.findOne({ _id: id, id: id });
+    if (fallbackEnquiry) {
+      return fallbackEnquiry;
     }
     return inMemoryEnquiries.find((e) => e.id === id || e._id === id) || null;
   },
@@ -94,12 +104,19 @@ export const enquiryService = {
       ).lean();
     }
 
-    const enq = inMemoryEnquiries.find((e) => e.id === id || e._id === id);
-    if (!enq) return null;
+    // Update in fallback storage
+    const enq = fallbackEnquiries.findOne({ _id: id, id: id });
+    if (!enq) {
+      // Check in-memory as last resort
+      const memEnq = inMemoryEnquiries.find((e) => e.id === id || e._id === id);
+      if (!memEnq) return null;
+      memEnq.status = newStatus;
+      memEnq.updatedAt = new Date();
+      return memEnq;
+    }
 
-    enq.status = newStatus;
-    enq.updatedAt = new Date();
-    return enq;
+    fallbackEnquiries.update(id, { status: newStatus, updatedAt: new Date() });
+    return fallbackEnquiries.findOne({ _id: id, id: id });
   },
 
   /**
@@ -114,6 +131,11 @@ export const enquiryService = {
       return !!doc;
     }
 
+    // Delete from fallback storage
+    const deleted = fallbackEnquiries.delete(id);
+    if (deleted) return true;
+
+    // Try in-memory as last resort
     const initialLength = inMemoryEnquiries.length;
     const filtered = inMemoryEnquiries.filter((e) => e.id !== id && e._id !== id);
     if (filtered.length < initialLength) {

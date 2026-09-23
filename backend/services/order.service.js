@@ -2,6 +2,9 @@ import crypto from 'crypto';
 import { Order, inMemoryOrders } from '../models/order.model.js';
 import { retailService } from './retail.service.js';
 import { projectService } from './project.service.js';
+import { fallbackOrders } from '../utils/fallbackStorage.js';
+
+// ... rest of imports
 
 export const orderService = {
   /**
@@ -101,17 +104,26 @@ export const orderService = {
     const isMongoConnected = Order.db?.readyState === 1;
 
     if (isMongoConnected) {
-      const doc = await Order.create(orderRecord);
-      savedOrder = doc.toObject();
+      try {
+        const doc = await Order.create(orderRecord);
+        savedOrder = doc.toObject();
+      } catch (err) {
+        // Handle duplicate key error (race condition)
+        if (err.code === 11000) {
+          // Retry lookup for the duplicate order
+          const existing = await Order.findOne({ orderNumber });
+          if (existing) {
+            savedOrder = existing.toObject();
+          } else {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
     } else {
-      savedOrder = {
-        ...orderRecord,
-        _id: `ord-${Date.now()}`,
-        id: `ord-${Date.now()}`,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      inMemoryOrders.unshift(savedOrder);
+      // Use persistent fallback storage
+      savedOrder = fallbackOrders.add(orderRecord);
     }
 
     return {
@@ -119,7 +131,7 @@ export const orderService = {
       orderNumber: savedOrder.orderNumber,
       amount: savedOrder.amount,
       currency: 'INR',
-      razorpayOrderId: mockRazorpayOrderId,
+      razorpayOrderId: savedOrder.payment?.razorpayOrderId,
       itemsCount: orderItems.length,
     };
   },
@@ -148,14 +160,16 @@ export const orderService = {
           { id: orderId },
           { 'payment.razorpayOrderId': razorpayOrderId },
         ],
+      }).lean();
+    }
+
+    if (!order) {
+      // Check fallback storage
+      order = fallbackOrders.findOne({
+        _id: orderId,
+        id: orderId,
+        'payment.razorpayOrderId': razorpayOrderId,
       });
-    } else {
-      order = inMemoryOrders.find(
-        (o) =>
-          o.id === orderId ||
-          o._id === orderId ||
-          o.payment?.razorpayOrderId === razorpayOrderId
-      );
     }
 
     if (!order) {
@@ -195,6 +209,14 @@ export const orderService = {
 
       if (isMongoConnected && typeof order.save === 'function') {
         await order.save();
+      } else {
+        // Save to fallback storage
+        fallbackOrders.update(order._id || order.id, {
+          paymentStatus: 'paid',
+          orderStatus: 'confirmed',
+          payment: order.payment,
+          updatedAt: new Date(),
+        });
       }
       return { verified: true, orderId: order._id || order.id, status: 'paid' };
     } else {
@@ -202,6 +224,11 @@ export const orderService = {
       order.updatedAt = new Date();
       if (isMongoConnected && typeof order.save === 'function') {
         await order.save();
+      } else {
+        fallbackOrders.update(order._id || order.id, {
+          paymentStatus: 'failed',
+          updatedAt: new Date(),
+        });
       }
       const err = new Error('Payment signature verification failed');
       err.statusCode = 400;
@@ -216,6 +243,11 @@ export const orderService = {
     const isMongoConnected = Order.db?.readyState === 1;
     if (isMongoConnected) {
       return await Order.find().sort({ createdAt: -1 }).lean();
+    }
+    // Fallback to persistent storage, then in-memory
+    const fallbackData = fallbackOrders.findAll();
+    if (fallbackData.length > 0) {
+      return fallbackData;
     }
     return [...inMemoryOrders];
   },
@@ -233,6 +265,15 @@ export const orderService = {
           { orderNumber: id },
         ],
       }).lean();
+    }
+    // Check fallback storage first
+    const fallbackOrder = fallbackOrders.findOne({
+      _id: id,
+      id: id,
+      orderNumber: id,
+    });
+    if (fallbackOrder) {
+      return fallbackOrder;
     }
     return (
       inMemoryOrders.find(

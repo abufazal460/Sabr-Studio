@@ -9,10 +9,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
+import mongoose from 'mongoose';
 
 import { apiHandler } from './apiHandler.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { connectDB } from './config/db.js';
+import { createRequestTimeout } from './middlewares/timeout.middleware.js';
+import { logger } from './utils/logger.js';
+import { clearAllFallbackData, syncFallbackToMongoose, fallbackOrders, fallbackEnquiries } from './utils/fallbackStorage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -55,6 +59,9 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 app.use(compression());
 
+// --- Request timeout (30 seconds default) ---------------------------------
+app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
+
 // --- API routes (all under /api, plus /health) ------------------------------
 // apiHandler calls next() for any non-API path so static/SPA handling below runs.
 app.use(apiHandler);
@@ -78,6 +85,40 @@ if (fs.existsSync(indexHtml)) {
   });
 }
 
+// --- Health check endpoint -------------------------------------------------
+app.get('/health', (req, res) => {
+  const dbState = mongoose?.connection?.readyState;
+  const dbStatuses = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting',
+  };
+  
+  res.status(200).json({
+    success: true,
+    data: {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      version: process.env.npm_package_version || '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
+      database: {
+        status: dbState !== undefined ? dbStatuses[dbState] : 'unknown',
+        state: dbState,
+      },
+      fallbackStorage: {
+        orders: {
+          count: typeof fallbackOrders?.count === 'function' ? fallbackOrders.count() : 0,
+        },
+        enquiries: {
+          count: typeof fallbackEnquiries?.count === 'function' ? fallbackEnquiries.count() : 0,
+        },
+      },
+    },
+  });
+});
+
 // --- 404 (JSON) for anything still unmatched --------------------------------
 app.use((req, res) => {
   res.status(404).json({
@@ -96,10 +137,68 @@ connectDB();
 // --- Start ------------------------------------------------------------------
 // Vercel imports `app` directly as a serverless handler; only listen elsewhere.
 const PORT = process.env.PORT || 3000;
+let server;
+
 if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`[Sabr Studio] Server running at http://localhost:${PORT}`);
+  server = app.listen(PORT, () => {
+    logger.info(`[Sabr Studio] Server running at http://localhost:${PORT}`);
   });
 }
+
+// --- Graceful Shutdown ----------------------------------------------------
+const shutdown = async (signal) => {
+  logger.info(`[Shutdown] Received ${signal}. Starting graceful shutdown...`);
+  
+  const shutdownTimeout = setTimeout(() => {
+    logger.error('[Shutdown] Forced shutdown after timeout');
+    process.exit(1);
+  }, 30000); // 30 second max shutdown time
+
+  try {
+    // Stop accepting new connections
+    if (server) {
+      server.close(() => {
+        logger.info('[Shutdown] HTTP server closed');
+      });
+    }
+
+    // Attempt to sync any pending fallback data to MongoDB
+    logger.info('[Shutdown] Attempting to sync fallback data to MongoDB...');
+    const syncResult = await syncFallbackToMongoose({
+      orders: true,
+      enquiries: true,
+    });
+    
+    if (syncResult.orders.synced > 0 || syncResult.enquiries.synced > 0) {
+      logger.info('[Shutdown] Fallback data synced:', syncResult);
+    }
+
+    // Clear fallback storage after sync attempt
+    clearAllFallbackData();
+
+    clearTimeout(shutdownTimeout);
+    logger.info('[Shutdown] Graceful shutdown completed');
+    process.exit(0);
+  } catch (err) {
+    logger.error('[Shutdown] Error during shutdown:', err.message);
+    clearTimeout(shutdownTimeout);
+    process.exit(1);
+  }
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Handle uncaught errors
+process.on('uncaughtException', (err) => {
+  logger.error('[Process] Uncaught Exception:', err.message, err.stack);
+  shutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('[Process] Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit immediately - let the error handler process it
+});
 
 export default app;
