@@ -1,57 +1,133 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { LuArrowRight } from 'react-icons/lu';
-import { servicesData } from '../../services/data/services.data';
+import React, { useEffect, useRef } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { LuLampCeiling, LuArmchair, LuTrees } from 'react-icons/lu';
+
+gsap.registerPlugin(ScrollTrigger);
+
+// Home Services trio per the Figma `home/service` design (title, copy, icon).
+const homeServices = [
+  {
+    id: 'lighting-design',
+    icon: LuLampCeiling,
+    title: 'Lighting Design',
+    description:
+      'Achieve the perfect balance of ambient, task, and accent lighting for a functional atmosphere',
+  },
+  {
+    id: 'interior-design',
+    icon: LuArmchair,
+    title: 'Interior Design',
+    description:
+      'From concept to completion, we oversee every detail to bring your vision to life efficiently',
+  },
+  {
+    id: 'outdoor-design',
+    icon: LuTrees,
+    title: 'Outdoor Design',
+    description:
+      'Celebrate the changing seasons with our seasonal outdoor decor services',
+  },
+];
 
 export const ServiceTeaser = () => {
-  // Pull 3 featured services for the home teaser per UI-UX §34
-  const featuredServices = servicesData.services.filter((s) => s.featured).slice(0, 3);
+  const reduce = useReducedMotion();
+  const sectionRef = useRef(null);
+  const projectRef = useRef(null);
+
+  // Keep this section and the project section that overlays it the same height/width
+  // at every breakpoint so the pin-and-cover handoff stays aligned.
+  useEffect(() => {
+    // Capture the following project section before GSAP pinning reparents this section.
+    if (!projectRef.current) {
+      projectRef.current = sectionRef.current?.nextElementSibling || null;
+    }
+    const equalize = () => {
+      const svc = sectionRef.current;
+      const proj = projectRef.current;
+      if (!svc || !proj) return;
+      svc.style.height = '';
+      proj.style.height = '';
+      const height = Math.max(svc.scrollHeight, proj.scrollHeight);
+      svc.style.height = `${height}px`;
+      proj.style.height = `${height}px`;
+      ScrollTrigger.refresh();
+    };
+
+    equalize();
+    window.addEventListener('resize', equalize);
+    window.addEventListener('load', equalize);
+    return () => {
+      window.removeEventListener('resize', equalize);
+      window.removeEventListener('load', equalize);
+    };
+  }, []);
+
+  // Pin this section; the following project section scrolls up and covers it.
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      ScrollTrigger.create({
+        trigger: sectionRef.current,
+        start: 'top top',
+        end: () => '+=' + (sectionRef.current?.offsetHeight || window.innerHeight),
+        pin: true,
+        pinSpacing: false,
+      });
+    }, sectionRef);
+
+    return () => ctx.revert();
+  }, []);
+
+  const headingEnter = reduce
+    ? {
+        initial: false,
+        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
+        viewport: { once: true, amount: 0.5 },
+        transition: { duration: 0 },
+      }
+    : {
+        initial: { x: '-15%', clipPath: 'inset(0 100% 0 0)' },
+        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
+        viewport: { once: true, amount: 0.5 },
+        transition: { duration: 0.6, ease: 'easeOut' },
+      };
 
   return (
-    <section className="py-20 sm:py-28 lg:py-32 bg-surface border-b border-border" aria-label="Studio Services Overview">
-      <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
-        {/* Top Rule + Left-aligned Header */}
-        <div className="border-t border-border pt-8 mb-16 flex flex-col sm:flex-row justify-between sm:items-end gap-6">
-          <div className="space-y-2">
-            <span className="text-xs uppercase tracking-widest text-muted font-medium block">
-              Studio Disciplines
-            </span>
-            <h2 className="font-abhaya text-3xl sm:text-4xl lg:text-5xl text-ink font-medium">
-              Our Services
-            </h2>
-          </div>
-          <Link
-            to="/services"
-            className="inline-flex items-center text-xs uppercase tracking-widest font-semibold text-ink hover:text-muted transition-colors"
+    <section
+      ref={sectionRef}
+      className="relative z-0 bg-cream"
+      aria-label="Studio Services Overview"
+    >
+      <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 py-20 sm:py-28 lg:py-32">
+        {/* Left rule + heading (Figma home/service) */}
+        <div className="flex items-center gap-6 sm:gap-10 mb-16 sm:mb-24">
+          <span aria-hidden="true" className="h-[3px] w-16 sm:w-24 bg-ink shrink-0" />
+          <motion.h2
+            {...headingEnter}
+            className="font-inter font-bold text-4xl sm:text-5xl lg:text-6xl text-ink tracking-tight"
           >
-            <span>Explore All 6 Services</span>
-            <LuArrowRight className="ml-2 w-4 h-4" />
-          </Link>
+            Our Services
+          </motion.h2>
         </div>
 
-        {/* 3-Column Borderless Teaser (UI-UX §34) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 lg:gap-14">
-          {featuredServices.map((svc) => {
+        {/* Three service columns: icon left, title + description right */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16">
+          {homeServices.map((svc) => {
             const Icon = svc.icon;
             return (
-              <div key={svc.id} className="space-y-4 group">
-                <div className="w-12 h-12 rounded-sm bg-white border border-border flex items-center justify-center text-ink transition-transform duration-200 group-hover:scale-110">
-                  <Icon className="w-6 h-6 stroke-[1.5]" />
-                </div>
-                <h3 className="font-inter text-lg sm:text-xl font-semibold text-ink">
-                  {svc.title}
-                </h3>
-                <p className="font-inter text-sm text-muted leading-relaxed line-clamp-3">
-                  {svc.description}
-                </p>
-                <div className="pt-2">
-                  <Link
-                    to="/services"
-                    className="inline-flex items-center text-xs uppercase tracking-wider font-medium text-ink hover:underline"
-                  >
-                    <span>Read Details</span>
-                    <LuArrowRight className="ml-1.5 w-3.5 h-3.5" />
-                  </Link>
+              <div key={svc.id} className="flex items-start gap-5 sm:gap-6">
+                <Icon
+                  className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 text-ink stroke-[1.5]"
+                  aria-hidden="true"
+                />
+                <div>
+                  <h3 className="font-inter font-bold text-xl sm:text-2xl text-ink">
+                    {svc.title}
+                  </h3>
+                  <p className="mt-4 sm:mt-6 font-inter text-sm sm:text-base text-muted leading-relaxed">
+                    {svc.description}
+                  </p>
                 </div>
               </div>
             );

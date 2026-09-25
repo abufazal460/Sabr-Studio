@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import HeroSlider from '../components/HeroSlider';
+import AboutSection from '../components/AboutSection';
 import StatBlock from '../components/StatBlock';
 import ExpertiseSection from '../components/ExpertiseCard';
 import ServiceTeaser from '../components/ServiceTeaser';
@@ -22,6 +23,9 @@ export const Home = () => {
 
       {/* 1. Hero Section: 2-image cross-fade slider */}
       <HeroSlider />
+
+      {/* 1b. About Section: founder + stats + scroll-scrubbed project cards */}
+      <AboutSection />
 
       {/* 2. Studio Philosophy / About Teaser */}
       <section className="py-20 sm:py-28 lg:py-32 border-b border-border bg-white" aria-label="Studio Ethos">

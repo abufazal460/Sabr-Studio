@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { processData } from '../data/process.data';
 import SectionHeading from '../../../shared/components/SectionHeading';
+
+gsap.registerPlugin(ScrollTrigger);
 
 export const ProcessStepPill = ({ step, isLeft }) => {
   return (
     <div
+      data-process-side={isLeft ? 'left' : 'right'}
       className={`bg-black text-white p-6 sm:p-7 flex items-start space-x-5 transition-transform duration-200 hover:scale-[1.01] ${
         isLeft
           ? 'rounded-l-full rounded-r-none'
@@ -27,21 +33,74 @@ export const ProcessStepPill = ({ step, isLeft }) => {
 };
 
 export const ProcessSection = () => {
+  const reduce = useReducedMotion();
+  const sectionRef = useRef(null);
   const { eyebrow, title, description, centerImage, steps } = processData;
   const leftSteps = steps.slice(0, 3);
   const rightSteps = steps.slice(3, 6);
 
+  // Scroll-scrubbed six boxes: left from left, right from right, sequential, reversible.
+  useEffect(() => {
+    if (reduce) return;
+    const ctx = gsap.context(() => {
+      const pills = gsap.utils.toArray('[data-process-side]');
+      const from = (el) =>
+        el.dataset.processSide === 'left'
+          ? { xPercent: -40, clipPath: 'inset(0 100% 0 0)' }
+          : { xPercent: 40, clipPath: 'inset(0 0 0 100%)' };
+      const rest = { xPercent: 0, clipPath: 'inset(0 0 0 0)' };
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: sectionRef.current,
+          start: 'top bottom',
+          end: 'bottom top',
+          scrub: true,
+        },
+      });
+
+      pills.forEach((el, i) => {
+        tl.fromTo(el, from(el), { ...rest, duration: 0.5, ease: 'none' }, i * 0.2);
+      });
+      tl.to({}, { duration: 1 });
+      const outStart = tl.duration();
+      pills.forEach((el, i) => {
+        tl.to(el, { ...from(el), duration: 0.5, ease: 'none' }, outStart + i * 0.15);
+      });
+    }, sectionRef);
+
+    return () => ctx.revert();
+  }, [reduce]);
+
+  const headingEnter = reduce
+    ? {
+        initial: false,
+        whileInView: { y: '0%', clipPath: 'inset(0 0 0% 0)' },
+        viewport: { once: true, amount: 0.5 },
+        transition: { duration: 0 },
+      }
+    : {
+        initial: { y: '-120%', clipPath: 'inset(0 0 100% 0)' },
+        whileInView: { y: '0%', clipPath: 'inset(0 0 0% 0)' },
+        viewport: { once: true, amount: 0.5 },
+        transition: { duration: 0.6, ease: 'easeOut' },
+      };
+
   return (
-    <section className="py-20 sm:py-28 lg:py-32 bg-surface border-b border-border" aria-label="How We Work Process">
+    <section
+      ref={sectionRef}
+      className="relative z-20 overflow-hidden py-20 sm:py-28 lg:py-32 bg-surface border-b border-border"
+      aria-label="How We Work Process"
+    >
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
-        <div className="text-center max-w-2xl mx-auto mb-16 sm:mb-20">
+        <motion.div {...headingEnter} className="text-center max-w-2xl mx-auto mb-16 sm:mb-20">
           <SectionHeading
             eyebrow={eyebrow}
             title={title}
             description={description}
             align="center"
           />
-        </div>
+        </motion.div>
 
         {/* Desktop 3-column layout (Steps 1-3 | Architectural Plan Image | Steps 4-6) */}
         <div className="hidden lg:grid grid-cols-12 gap-8 items-center">
