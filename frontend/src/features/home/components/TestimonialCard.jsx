@@ -71,9 +71,9 @@ export const TestimonialsSection = () => {
         {/* Carousel Viewport: Desktop 3, Tablet 2, Mobile 1 */}
         <div className="relative overflow-hidden">
           <div
-            className="flex transition-transform duration-500 ease-out"
+            className="flex transition-transform duration-500 ease-out [--step:100%] sm:[--step:50%] lg:[--step:33.3333%]"
             style={{
-              transform: `translateX(-${currentIndex * 100}%)`,
+              transform: `translateX(calc(${-currentIndex} * var(--step)))`,
             }}
           >
             {testimonialsData.map((item, idx) => (
@@ -107,9 +107,9 @@ export const TestimonialsSection = () => {
                   setIsPaused(true);
                   setTimeout(() => setIsPaused(false), 8000);
                 }}
-                className={`w-2.5 h-2.5 rounded-full transition-[transform,background-color] duration-300 ease-out motion-reduce:transition-none ${
+                className={`w-2.5 h-2.5 rounded-full ${
                   isActive
-                    ? 'bg-black scale-x-[2.6]'
+                    ? 'bg-black'
                     : 'bg-border hover:bg-muted'
                 }`}
               />

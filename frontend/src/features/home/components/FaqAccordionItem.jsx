@@ -93,7 +93,7 @@ export const FaqSection = () => {
           Frequently Asked Questions
         </motion.span>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 justify-center items-center">
           {/* Left Column Heading */}
           <div className="lg:col-span-5 space-y-4">
             <motion.h2
@@ -102,9 +102,7 @@ export const FaqSection = () => {
             >
               Do you need some help?
             </motion.h2>
-            <p className="font-inter text-sm sm:text-base text-muted leading-relaxed max-w-md">
-              We operate with clarity and candor. Find answers regarding our architectural methodology, project pacing, and bespoke material commissions.
-            </p>
+           
           </div>
 
           {/* Right Column Accordion */}
