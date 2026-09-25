@@ -82,21 +82,19 @@ export const ServiceTeaser = () => {
   const headingEnter = reduce
     ? {
         initial: false,
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.5 },
+        animate: { x: '0%', clipPath: 'inset(0 0 0 0)' },
         transition: { duration: 0 },
       }
     : {
         initial: { x: '-15%', clipPath: 'inset(0 100% 0 0)' },
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.5 },
+        animate: { x: '0%', clipPath: 'inset(0 0 0 0)' },
         transition: { duration: 0.6, ease: 'easeOut' },
       };
 
   return (
     <section
       ref={sectionRef}
-      className="relative z-0 bg-cream"
+      className="relative z-0 bg-white"
       aria-label="Studio Services Overview"
     >
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 py-20 sm:py-28 lg:py-32">
