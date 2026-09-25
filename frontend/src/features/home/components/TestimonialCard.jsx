@@ -107,10 +107,10 @@ export const TestimonialsSection = () => {
                   setIsPaused(true);
                   setTimeout(() => setIsPaused(false), 8000);
                 }}
-                className={`transition-all duration-200 rounded-full ${
+                className={`w-2.5 h-2.5 rounded-full transition-[transform,background-color] duration-300 ease-out motion-reduce:transition-none ${
                   isActive
-                    ? 'w-8 h-2.5 bg-black'
-                    : 'w-2.5 h-2.5 bg-border hover:bg-muted'
+                    ? 'bg-black scale-x-[2.6]'
+                    : 'bg-border hover:bg-muted'
                 }`}
               />
             );
