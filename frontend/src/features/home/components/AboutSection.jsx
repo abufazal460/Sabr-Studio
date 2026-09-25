@@ -149,51 +149,6 @@ export const AboutSection = () => {
             </p>
           </motion.div>
         </div>
-
-        {/* Stat counters */}
-        <div
-          ref={statsRef}
-          className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border border border-border"
-        >
-          {statsData.map((stat, idx) => (
-            <Counter
-              key={idx}
-              value={stat.value}
-              label={stat.label}
-              start={statsInView}
-              reduce={reduce}
-            />
-          ))}
-        </div>
-
-        {/* Project cards */}
-        <div className="overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border">
-            {projects.map((proj) => {
-              const imageUrl = buildCloudinaryUrl(proj.coverImage, { width: 800, height: 1060 });
-              return (
-                <Link
-                  key={proj.id}
-                  to={`/projects/${proj.slug}`}
-                  className="group relative block aspect-[3/4] overflow-hidden bg-surface"
-                >
-                  <img
-                    src={imageUrl}
-                    alt={proj.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover object-center"
-                  />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center p-6 text-center text-white">
-                    <span className="font-inter text-xs uppercase tracking-widest font-medium text-white/80 mb-2">
-                      {proj.category}
-                    </span>
-                    <h3 className="font-abhaya text-2xl font-medium mb-4">{proj.title}</h3>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </section>
   );
