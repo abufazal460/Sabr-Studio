@@ -109,9 +109,7 @@ export const ProjectHomeThumb = () => {
     >
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 mb-12 sm:mb-16">
         <SectionHeading
-          eyebrow="Architectural Portfolio"
-          title="Selected Projects"
-          description="A chronological cross-section of monolithic residences and quiet interior spaces."
+          title="Projects"
           align="center"
         />
       </div>
