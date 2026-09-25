@@ -16,7 +16,8 @@ export const Footer = () => {
           <div className="md:col-span-5 space-y-6">
             <motion.span
               initial={reduceMotion ? false : { y: '-120%', clipPath: 'inset(0 0 100% 0)' }}
-              animate={{ y: '0%', clipPath: 'inset(0 0 0% 0)' }}
+              whileInView={{ y: '0%', clipPath: 'inset(0 0 0% 0)' }}
+              viewport={{ once: true, amount: 0.4 }}
               transition={
                 reduceMotion ? { duration: 0 } : { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
               }

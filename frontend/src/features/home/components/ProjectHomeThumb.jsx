@@ -53,7 +53,7 @@ export const ProjectHomeThumb = () => {
   }, []);
 
   return (
-    <section className="py-20 sm:py-28 lg:py-32 bg-white border-b border-border" aria-label="Selected Projects Strip">
+    <section className="relative z-10 py-20 sm:py-28 lg:py-32 bg-white border-b border-border" aria-label="Selected Projects Strip">
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 mb-12 sm:mb-16">
         <SectionHeading
           eyebrow="Architectural Portfolio"
