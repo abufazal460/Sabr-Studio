@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { testimonialsData } from '../data/testimonials.data';
 import SectionHeading from '../../../shared/components/SectionHeading';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';

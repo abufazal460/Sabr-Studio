@@ -75,21 +75,19 @@ export const ProcessSection = () => {
   const headingEnter = reduce
     ? {
         initial: false,
-        whileInView: { y: '0%', clipPath: 'inset(0 0 0% 0)' },
-        viewport: { once: true, amount: 0.5 },
+        animate: { y: '0%', clipPath: 'inset(0 0 0% 0)' },
         transition: { duration: 0 },
       }
     : {
         initial: { y: '-120%', clipPath: 'inset(0 0 100% 0)' },
-        whileInView: { y: '0%', clipPath: 'inset(0 0 0% 0)' },
-        viewport: { once: true, amount: 0.5 },
+        animate: { y: '0%', clipPath: 'inset(0 0 0% 0)' },
         transition: { duration: 0.6, ease: 'easeOut' },
       };
 
   return (
     <section
       ref={sectionRef}
-      className="relative z-20 overflow-hidden py-20 sm:py-28 lg:py-32 bg-surface border-b border-border"
+      className="relative z-20 overflow-hidden py-20 sm:py-28 lg:py-32 bg-white"
       aria-label="How We Work Process"
     >
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">

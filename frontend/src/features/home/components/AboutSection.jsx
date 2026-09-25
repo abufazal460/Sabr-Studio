@@ -99,20 +99,6 @@ export const AboutSection = () => {
       });
   }, []);
 
-  const imageEnter = reduce
-    ? {
-        initial: false,
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.3 },
-        transition: { duration: 0 },
-      }
-    : {
-        initial: { x: '-15%', clipPath: 'inset(0 100% 0 0)' },
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.3 },
-        transition: { duration: 0.6, ease: 'easeOut' },
-      };
-
   const textEnter = reduce
     ? {
         initial: false,
@@ -129,13 +115,13 @@ export const AboutSection = () => {
 
   return (
     <section
-      className="overflow-hidden py-20 sm:py-28 lg:py-32 border-b border-border bg-white"
+      className="overflow-hidden py-20 sm:py-28 lg:py-32 bg-white"
       aria-label="About the Studio"
     >
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 space-y-16 lg:space-y-24">
         {/* Founder image + text */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-          <motion.div {...imageEnter} className="lg:col-span-5">
+          <div className="lg:col-span-5">
             <div className="aspect-[4/5] bg-surface border border-border rounded-md overflow-hidden cursor-pointer">
               <img
                 src={founderPhotoUrl}
@@ -144,7 +130,7 @@ export const AboutSection = () => {
                 className="w-full h-full object-cover object-center transition-transform duration-300 ease-out motion-safe:hover:scale-105"
               />
             </div>
-          </motion.div>
+          </div>
 
           <motion.div {...textEnter} className="lg:col-span-7 space-y-6">
             <div className="space-y-2">

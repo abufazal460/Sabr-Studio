@@ -96,7 +96,7 @@ export const ServiceTeaser = () => {
   return (
     <section
       ref={sectionRef}
-      className="relative z-0 bg-cream"
+      className="relative z-0 bg-white"
       aria-label="Studio Services Overview"
     >
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 py-20 sm:py-28 lg:py-32">
@@ -105,7 +105,7 @@ export const ServiceTeaser = () => {
           <span aria-hidden="true" className="h-[3px] w-16 sm:w-24 bg-ink shrink-0" />
           <motion.h2
             {...headingEnter}
-            className="font-inter z-0 font-bold text-4xl sm:text-5xl lg:text-6xl text-ink tracking-tight"
+            className="font-inter font-bold text-4xl sm:text-5xl lg:text-6xl text-ink tracking-tight"
           >
             Our Services
           </motion.h2>
