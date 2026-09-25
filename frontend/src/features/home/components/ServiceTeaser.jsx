@@ -105,7 +105,7 @@ export const ServiceTeaser = () => {
           <span aria-hidden="true" className="h-[3px] w-16 sm:w-24 bg-ink shrink-0" />
           <motion.h2
             {...headingEnter}
-            className="font-inter font-bold text-4xl sm:text-5xl lg:text-6xl text-ink tracking-tight"
+            className="font-inter z-0 font-bold text-4xl sm:text-5xl lg:text-6xl text-ink tracking-tight"
           >
             Our Services
           </motion.h2>
