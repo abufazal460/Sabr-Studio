@@ -89,7 +89,7 @@ export const ProcessSection = () => {
   return (
     <section
       ref={sectionRef}
-      className="overflow-hidden py-20 sm:py-28 lg:py-32 bg-surface border-b border-border"
+      className="relative z-20 overflow-hidden py-20 sm:py-28 lg:py-32 bg-surface border-b border-border"
       aria-label="How We Work Process"
     >
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
