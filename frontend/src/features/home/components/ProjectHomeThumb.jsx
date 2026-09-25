@@ -78,11 +78,11 @@ export const ProjectHomeThumb = () => {
                   src={imageUrl}
                   alt={proj.title}
                   loading="lazy"
-                  className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-105"
+                  className="w-full h-full object-cover object-center"
                 />
 
                 {/* Hover overlay with centered white label (UI-UX §35) */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center p-6 text-center text-white">
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out motion-reduce:transition-none flex flex-col items-center justify-center p-6 text-center text-white">
                   <span className="font-inter text-xs uppercase tracking-widest font-medium text-white/80 mb-2">
                     {proj.category}
                   </span>
