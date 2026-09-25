@@ -82,14 +82,12 @@ export const ServiceTeaser = () => {
   const headingEnter = reduce
     ? {
         initial: false,
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.5 },
+        animate: { x: '0%', clipPath: 'inset(0 0 0 0)' },
         transition: { duration: 0 },
       }
     : {
         initial: { x: '-15%', clipPath: 'inset(0 100% 0 0)' },
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.5 },
+        animate: { x: '0%', clipPath: 'inset(0 0 0 0)' },
         transition: { duration: 0.6, ease: 'easeOut' },
       };
 
