@@ -7,16 +7,12 @@ import {
   useTransform,
   animate,
 } from 'framer-motion';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { aboutData } from '../../about/data/about.data';
 import { statsData } from '../data/stats.data';
 import { getProjects } from '../../projects/api/projects.api';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 import Badge from '../../../shared/components/Badge';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
-
-gsap.registerPlugin(ScrollTrigger);
 
 const fallbackProjects = [
   {
@@ -88,8 +84,6 @@ export const AboutSection = () => {
   const founderPhotoUrl = buildCloudinaryUrl(founder.photo, { width: 800, height: 1000 });
 
   const [projects, setProjects] = useState(fallbackProjects);
-  const sectionRef = useRef(null);
-  const cardsRef = useRef(null);
   const statsRef = useRef(null);
   const statsInView = useInView(statsRef, { once: true, amount: 0.4 });
 
@@ -104,33 +98,6 @@ export const AboutSection = () => {
         // Silent fallback to curated architectural projects
       });
   }, []);
-
-  // Scroll-scrubbed project cards: two from left, two from right, linear scrub, reversible.
-  useEffect(() => {
-    if (reduce) return;
-    const ctx = gsap.context(() => {
-      const left = gsap.utils.toArray('[data-card-side="left"]');
-      const right = gsap.utils.toArray('[data-card-side="right"]');
-      gsap.set(left, { xPercent: -35, clipPath: 'inset(0 100% 0 0)' });
-      gsap.set(right, { xPercent: 35, clipPath: 'inset(0 0 0 100%)' });
-
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: cardsRef.current,
-          start: 'top bottom',
-          end: 'bottom top',
-          scrub: true,
-        },
-      });
-      tl.to(left, { xPercent: 0, clipPath: 'inset(0 0 0 0)', duration: 1, ease: 'none' }, 0)
-        .to(right, { xPercent: 0, clipPath: 'inset(0 0 0 0)', duration: 1, ease: 'none' }, 0)
-        .to({}, { duration: 1 })
-        .to(left, { xPercent: -35, clipPath: 'inset(0 100% 0 0)', duration: 1, ease: 'none' })
-        .to(right, { xPercent: 35, clipPath: 'inset(0 0 0 100%)', duration: 1, ease: 'none' });
-    }, sectionRef);
-
-    return () => ctx.revert();
-  }, [reduce]);
 
   const imageEnter = reduce
     ? {
@@ -162,7 +129,6 @@ export const AboutSection = () => {
 
   return (
     <section
-      ref={sectionRef}
       className="overflow-hidden py-20 sm:py-28 lg:py-32 border-b border-border bg-white"
       aria-label="About the Studio"
     >
@@ -214,16 +180,15 @@ export const AboutSection = () => {
           ))}
         </div>
 
-        {/* Scroll-scrubbed project cards */}
-        <div ref={cardsRef} className="overflow-hidden">
+        {/* Project cards */}
+        <div className="overflow-hidden">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border">
-            {projects.map((proj, index) => {
+            {projects.map((proj) => {
               const imageUrl = buildCloudinaryUrl(proj.coverImage, { width: 800, height: 1060 });
               return (
                 <Link
                   key={proj.id}
                   to={`/projects/${proj.slug}`}
-                  data-card-side={index < 2 ? 'left' : 'right'}
                   className="group relative block aspect-[3/4] overflow-hidden bg-surface"
                 >
                   <img

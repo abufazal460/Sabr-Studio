@@ -24,6 +24,6 @@ export const aboutData = {
     bio:
       'With over a decade of practice spanning monumental residential architecture and limited-edition collectible furniture, Aamir leads the studio with an emphasis on tectonic truth and tactile calmness. His work has been cited across national and international design publications for redefining contemporary Indian minimalism.',
     photo:
-      'https://unsplash.com/photos/smiling-woman-in-blue-blazer-leaning-on-wall-NpyF7rjqmq4',
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80',
   },
 };
