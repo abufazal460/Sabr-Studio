@@ -58,7 +58,7 @@ export const Contact = () => {
                   href={card.href}
                   target={card.id === 'address' ? '_blank' : undefined}
                   rel={card.id === 'address' ? 'noopener noreferrer' : undefined}
-                  className="h-full p-8 sm:p-10 bg-surface border border-border rounded-md group hover:border-ink transition-all duration-200 hover:shadow-hover flex flex-col justify-between"
+                  className="h-full p-8 sm:p-10  border border-border rounded-md group hover:border-ink transition-all duration-200 shadow-hover flex flex-col justify-between"
                 >
                   <div className="space-y-6">
                     <div className="w-12 h-12 rounded-sm bg-white border border-border flex items-center justify-center text-ink transition-transform duration-200 group-hover:scale-105">
