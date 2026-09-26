@@ -4,6 +4,8 @@ import {
   useAnimationControls,
   useInView,
   useReducedMotion,
+  useScroll,
+  useTransform,
 } from 'framer-motion';
 import { aboutData } from '../data/about.data';
 import Seo from '../../../shared/components/Seo';
@@ -55,10 +57,24 @@ export const About = () => {
 
   const introTitle = useReveal('left');
   const introCopy = useReveal('right');
-  const storyImage = useReveal('left');
-  const storyCopy = useReveal('right');
   const founderPortrait = useReveal('left');
   const studioBadge = useReveal('right');
+
+  // About Us: scroll-linked motion. Progress spans the section's full traversal
+  // of the viewport (0 = section top at viewport bottom, 1 = section bottom at
+  // viewport top). Values derive synchronously from scroll position — no
+  // observer or animation completion gates visibility, and scrolling in either
+  // direction scrubs the motion both ways.
+  const storySectionRef = useRef(null);
+  const { scrollYProgress: storyProgress } = useScroll({
+    target: storySectionRef,
+    offset: ['start end', 'end start'],
+  });
+  const storyImageX = useTransform(storyProgress, [0, 0.3, 0.7, 1], ['-14%', '0%', '0%', '-14%']);
+  const storyCopyX = useTransform(storyProgress, [0, 0.3, 0.7, 1], ['14%', '0%', '0%', '14%']);
+  const storyFade = useTransform(storyProgress, [0, 0.3, 0.7, 1], [0, 1, 1, 0]);
+  const storyImageStyle = reduce ? undefined : { x: storyImageX, opacity: storyFade };
+  const storyCopyStyle = reduce ? undefined : { x: storyCopyX, opacity: storyFade };
 
   const imageHover = reduce ? undefined : { scale: 1.03 };
   const imageHoverTransition = { duration: 0.35, ease: 'easeOut' };
@@ -105,10 +121,14 @@ export const About = () => {
       </section>
 
       {/* 2. About Us: tall interior image left, heading + rule + justified copy right */}
-      <section className="py-20 sm:py-28 lg:py-32 2xl:py-40 bg-white" aria-label="About the Studio">
+      <section
+        ref={storySectionRef}
+        className="py-20 sm:py-28 lg:py-32 2xl:py-40 bg-white overflow-hidden"
+        aria-label="About the Studio"
+      >
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 2xl:px-16">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
-            <motion.div ref={storyImage.ref} animate={storyImage.controls} className="lg:col-span-5">
+            <motion.div style={storyImageStyle} className="lg:col-span-5">
               <div className="aspect-[3/4] w-full bg-surface overflow-hidden">
                 <motion.img
                   src={storyImageUrl}
@@ -126,11 +146,7 @@ export const About = () => {
                 {story.heading}
               </h2>
               <div aria-hidden="true" className="border-t border-border mt-4 mb-6 sm:mb-8" />
-              <motion.div
-                ref={storyCopy.ref}
-                animate={storyCopy.controls}
-                className="space-y-5 sm:space-y-6"
-              >
+              <motion.div style={storyCopyStyle} className="space-y-5 sm:space-y-6">
                 {story.paragraphs.map((paragraph, idx) => (
                   <p
                     key={idx}
