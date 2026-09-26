@@ -1,4 +1,4 @@
-﻿// Load environment variables before any module reads process.env at import time.
+// Load environment variables before any module reads process.env at import time.
 import 'dotenv/config';
 
 import path from 'path';
@@ -137,13 +137,27 @@ connectDB();
 
 // --- Start ------------------------------------------------------------------
 // Vercel imports `app` directly as a serverless handler; only listen elsewhere.
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT, 10) || 3000;
 let server;
 
 if (!process.env.VERCEL) {
-  server = app.listen(PORT, () => {
-    logger.info(`[Sabr Studio] Server running at http://localhost:${PORT}`);
-  });
+  const startServer = (port) => {
+    server = app.listen(port)
+      .on('listening', () => {
+        logger.info(`[Sabr Studio] Server running at http://localhost:${port}`);
+      })
+      .on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          const nextPort = port + 1;
+          logger.warn(`[Sabr Studio] Port ${port} in use, trying ${nextPort}`);
+          startServer(nextPort);
+        } else {
+          logger.error('[Server] Startup error:', err);
+          process.exit(1);
+        }
+      });
+  };
+  startServer(PORT);
 }
 
 // --- Graceful Shutdown ----------------------------------------------------
