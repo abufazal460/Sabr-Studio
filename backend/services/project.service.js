@@ -92,6 +92,14 @@ export const projectService = {
       year: data.year ? Number(data.year) : null,
       area: data.area || null,
       description: data.description || '',
+      shortDescription: data.shortDescription || '',
+      contentBlocks: Array.isArray(data.contentBlocks)
+        ? data.contentBlocks.map((block) => ({
+            type: block.type,
+            text: block.text || '',
+            url: block.url || '',
+          }))
+        : [],
       images: Array.isArray(data.images) ? data.images : [],
       coverImage:
         data.coverImage ||

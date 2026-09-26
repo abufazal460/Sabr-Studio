@@ -33,7 +33,8 @@ if (timeoutCode.includes('finish') && timeoutCode.includes('close')) {
 }
 
 console.log('\n[TEST 6.3] Timeout middleware usage in server...');
-const serverCode = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf-8');
+// Entry-point note: the old single-file server.js now lives in app.js.
+const serverCode = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf-8');
 
 if (serverCode.includes('createRequestTimeout(30000')) {
   console.log('✅ Server uses 30-second timeout');

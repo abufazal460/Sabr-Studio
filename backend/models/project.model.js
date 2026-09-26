@@ -37,6 +37,26 @@ const projectSchema = new mongoose.Schema(
       required: [true, 'Project description is required'],
       trim: true,
     },
+    shortDescription: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    contentBlocks: {
+      type: [
+        {
+          _id: false,
+          type: {
+            type: String,
+            enum: ['heading', 'paragraph', 'image'],
+            required: true,
+          },
+          text: { type: String, default: '' },
+          url: { type: String, default: '' },
+        },
+      ],
+      default: [],
+    },
     images: {
       type: [
         {
@@ -90,6 +110,32 @@ export const inMemoryProjects = [
     area: '4,500 sq.ft',
     description:
       'A serene sanctuary in South Delhi balancing brutalist architectural geometries with tactile wabi-sabi finishes.',
+    shortDescription:
+      'A serene sanctuary in South Delhi balancing brutalist geometries with tactile wabi-sabi finishes.',
+    contentBlocks: [
+      { type: 'heading', text: 'Spatial Concept' },
+      {
+        type: 'paragraph',
+        text:
+          'The residence is organised around a shaded central courtyard, allowing every principal room to borrow filtered daylight and cross-ventilation while preserving complete visual privacy from the street.',
+      },
+      {
+        type: 'image',
+        url:
+          'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+      },
+      { type: 'heading', text: 'Materiality & Light' },
+      {
+        type: 'paragraph',
+        text:
+          'Board-formed concrete, lime plaster, and smoked oak converge in a restrained palette, letting the movement of sun across textured surfaces become the primary interior ornament.',
+      },
+      {
+        type: 'image',
+        url:
+          'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1200&q=80',
+      },
+    ],
     coverImage:
       'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
     images: [
@@ -123,6 +169,8 @@ export const inMemoryProjects = [
     area: '3,200 sq.ft',
     description:
       'An open-concept creative studio fostering quiet focus through acoustic limewash surfaces and natural ventilation.',
+    shortDescription:
+      'An open-concept creative studio fostering quiet focus through acoustic limewash surfaces.',
     coverImage:
       'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80',
     images: [
@@ -151,6 +199,8 @@ export const inMemoryProjects = [
     area: '6,800 sq.ft',
     description:
       'A boutique wellness retreat rooted in local terracotta craft, sheltered courtyards, and filtered tropical daylight.',
+    shortDescription:
+      'A boutique wellness retreat rooted in local terracotta craft and filtered tropical daylight.',
     coverImage:
       'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80',
     images: [
@@ -178,6 +228,8 @@ export const inMemoryProjects = [
     area: '5,100 sq.ft',
     description:
       'A panoramic duplex emphasizing monolithic micro-cement volumes, smoked oak cabinetry, and concealed lighting.',
+    shortDescription:
+      'A panoramic duplex of monolithic micro-cement volumes, smoked oak cabinetry, and concealed lighting.',
     coverImage:
       'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
     images: [

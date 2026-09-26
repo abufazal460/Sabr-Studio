@@ -14,7 +14,13 @@ console.log('='.repeat(60));
 console.log('TEST 5: Health Endpoint & Error Handling Code Review');
 console.log('='.repeat(60));
 
-const serverCode = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf-8');
+// The previous single-file server.js was split into app.js (middleware/health
+// wiring) and dev.js (listen + graceful shutdown). Read both so this review
+// covers the current entry points.
+const serverCode = [
+  fs.readFileSync(path.join(__dirname, 'app.js'), 'utf-8'),
+  fs.readFileSync(path.join(__dirname, 'dev.js'), 'utf-8'),
+].join('\n');
 const errorMiddlewareCode = fs.readFileSync(path.join(__dirname, 'middlewares/error.middleware.js'), 'utf-8');
 
 console.log('\n[TEST 5.1] Health endpoint...');

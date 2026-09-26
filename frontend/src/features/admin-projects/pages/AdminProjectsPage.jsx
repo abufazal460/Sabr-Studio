@@ -11,9 +11,11 @@ import {
   LuCheck,
   LuX,
   LuEye,
+  LuEyeOff,
+  LuArrowUp,
+  LuArrowDown,
 } from 'react-icons/lu';
 import adminApi from '../api/adminProjects.api';
-import { getProjects } from '../../projects/api/projects.api';
 import { getRetailProducts } from '../../retail/api/retail.api';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { Button } from '../../../shared/components/Button';
@@ -37,19 +39,25 @@ export const AdminDashboard = () => {
 
   // Modal states
   const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState(null);
   const [retailModalOpen, setRetailModalOpen] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
 
   // Form states
-  const [projectForm, setProjectForm] = useState({
+  const emptyProjectForm = {
     title: '',
-    category: 'Residential',
-    location: 'New Delhi, India',
-    year: '2024',
-    area: '4,500 sq.ft.',
-    coverImage: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80',
+    location: '',
+    year: '',
+    area: '',
+    shortDescription: '',
     description: '',
-  });
+    coverImage: '',
+    published: false,
+    images: [],
+    contentBlocks: [],
+  };
+
+  const [projectForm, setProjectForm] = useState(emptyProjectForm);
 
   const [retailForm, setRetailForm] = useState({
     title: '',
@@ -66,7 +74,7 @@ export const AdminDashboard = () => {
     setLoading(true);
     try {
       const [projRes, retRes, enqRes, ordRes] = await Promise.allSettled([
-        getProjects(),
+        adminApi.getProjects(),
         getRetailProducts(),
         adminApi.getEnquiries(),
         adminApi.getOrders(),
@@ -95,30 +103,138 @@ export const AdminDashboard = () => {
     loadAllData();
   }, []);
 
-  const handleCreateProject = async (e) => {
+  const handleSaveProject = async (e) => {
     e.preventDefault();
-    const newProject = {
-      ...projectForm,
-      id: `proj-${Date.now()}`,
-      slug: projectForm.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+    const usableImages = projectForm.images.filter((img) => img.url && img.url.trim());
+    const payload = {
+      title: projectForm.title,
+      location: projectForm.location || null,
+      year: projectForm.year ? Number(projectForm.year) : null,
+      area: projectForm.area || null,
+      shortDescription: projectForm.shortDescription || '',
+      description: projectForm.description || '',
+      coverImage:
+        projectForm.coverImage || (usableImages[0] && usableImages[0].url) || '',
+      images: usableImages.map((img) => ({ url: img.url, publicId: img.publicId || '' })),
+      gallery: usableImages.map((img) => img.url),
+      contentBlocks: projectForm.contentBlocks.map((block) => ({
+        type: block.type,
+        text: block.text || '',
+        url: block.url || '',
+      })),
+      published: Boolean(projectForm.published),
     };
+
     try {
-      await adminApi.createProject(newProject);
-    } catch {
-      // Local optimistic fallback
+      if (editingProjectId) {
+        const res = await adminApi.updateProject(editingProjectId, payload);
+        const saved = res?.data;
+        setProjects((prev) =>
+          prev.map((p) =>
+            (p.id || p._id) === editingProjectId ? { ...p, ...(saved || payload) } : p
+          )
+        );
+      } else {
+        const res = await adminApi.createProject(payload);
+        const saved = res?.data;
+        setProjects((prev) => [
+          saved || { ...payload, id: `proj-${Date.now()}`, _id: `proj-${Date.now()}` },
+          ...prev,
+        ]);
+      }
+    } catch (err) {
+      window.alert(err?.response?.data?.message || err.message || 'Failed to save project.');
+      return;
     }
-    setProjects((prev) => [newProject, ...prev]);
+
     setProjectModalOpen(false);
-    setProjectForm({
-      title: '',
-      category: 'Residential',
-      location: 'New Delhi, India',
-      year: '2024',
-      area: '4,500 sq.ft.',
-      coverImage: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80',
-      description: '',
-    });
+    setEditingProjectId(null);
+    setProjectForm(emptyProjectForm);
   };
+
+  const openProjectModal = (project) => {
+    if (project) {
+      setEditingProjectId(project.id || project._id);
+      const seededImages =
+        Array.isArray(project.images) && project.images.length
+          ? project.images.map((img) => ({
+              url: typeof img === 'string' ? img : img.url,
+              publicId: typeof img === 'string' ? '' : img.publicId || '',
+            }))
+          : project.coverImage
+          ? [{ url: project.coverImage, publicId: '' }]
+          : [];
+      setProjectForm({
+        title: project.title || '',
+        location: project.location || '',
+        year: project.year ?? '',
+        area: project.area || '',
+        shortDescription: project.shortDescription || '',
+        description: project.description || '',
+        coverImage: project.coverImage || '',
+        published: Boolean(project.published),
+        images: seededImages,
+        contentBlocks: Array.isArray(project.contentBlocks)
+          ? project.contentBlocks.map((block) => ({ ...block }))
+          : [],
+      });
+    } else {
+      setEditingProjectId(null);
+      setProjectForm(emptyProjectForm);
+    }
+    setProjectModalOpen(true);
+  };
+
+  const handleTogglePublish = (project) => {
+    const id = project.id || project._id;
+    const next = !project.published;
+    setProjects((prev) =>
+      prev.map((p) => ((p.id || p._id) === id ? { ...p, published: next } : p))
+    );
+    adminApi.updateProject(id, { published: next }).catch(() => {});
+  };
+
+  const updateProjectImage = (idx, url) =>
+    setProjectForm((f) => ({
+      ...f,
+      images: f.images.map((img, i) => (i === idx ? { ...img, url } : img)),
+    }));
+
+  const removeProjectImage = (idx) =>
+    setProjectForm((f) => ({
+      ...f,
+      images: f.images.filter((_, i) => i !== idx),
+    }));
+
+  const addProjectImage = () =>
+    setProjectForm((f) => ({ ...f, images: [...f.images, { url: '', publicId: '' }] }));
+
+  const updateContentBlock = (idx, patch) =>
+    setProjectForm((f) => ({
+      ...f,
+      contentBlocks: f.contentBlocks.map((b, i) => (i === idx ? { ...b, ...patch } : b)),
+    }));
+
+  const removeContentBlock = (idx) =>
+    setProjectForm((f) => ({
+      ...f,
+      contentBlocks: f.contentBlocks.filter((_, i) => i !== idx),
+    }));
+
+  const moveContentBlock = (idx, dir) =>
+    setProjectForm((f) => {
+      const next = [...f.contentBlocks];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return f;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return { ...f, contentBlocks: next };
+    });
+
+  const addContentBlock = () =>
+    setProjectForm((f) => ({
+      ...f,
+      contentBlocks: [...f.contentBlocks, { type: 'paragraph', text: '', url: '' }],
+    }));
 
   const handleCreateRetail = async (e) => {
     e.preventDefault();
@@ -286,7 +402,7 @@ export const AdminDashboard = () => {
               icon={LuPlus}
               iconPosition="left"
               label="Add Project"
-              onClick={() => setProjectModalOpen(true)}
+              onClick={() => openProjectModal(null)}
             />
           </div>
 
@@ -295,35 +411,62 @@ export const AdminDashboard = () => {
               <thead className="bg-surface text-muted uppercase tracking-wider border-y border-border">
                 <tr>
                   <th className="py-3 px-4">Title</th>
-                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Location</th>
                   <th className="py-3 px-4">Year</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {projects.map((proj) => (
-                  <tr key={proj.id} className="hover:bg-surface/50">
-                    <td className="py-3 px-4 font-medium text-ink font-inter">
-                      {proj.title}
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge variant="default">{proj.category}</Badge>
-                    </td>
-                    <td className="py-3 px-4 text-muted">{proj.location}</td>
-                    <td className="py-3 px-4 text-muted font-mono">{proj.year}</td>
-                    <td className="py-3 px-4 text-right space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteProject(proj.id)}
-                        className="p-1 text-muted hover:text-error transition-colors"
-                        title="Delete project"
-                      >
-                        <LuTrash2 className="w-4 h-4 inline" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {projects.map((proj) => {
+                  const projId = proj.id || proj._id;
+                  return (
+                    <tr key={projId} className="hover:bg-surface/50">
+                      <td className="py-3 px-4 font-medium text-ink font-inter">
+                        {proj.title}
+                      </td>
+                      <td className="py-3 px-4">
+                        {proj.published ? (
+                          <Badge variant="success">Published</Badge>
+                        ) : (
+                          <Badge variant="error">Draft</Badge>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-muted">{proj.location}</td>
+                      <td className="py-3 px-4 text-muted font-mono">{proj.year}</td>
+                      <td className="py-3 px-4 text-right space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => openProjectModal(proj)}
+                          className="p-1 text-muted hover:text-ink transition-colors"
+                          title="Edit project"
+                        >
+                          <LuPencil className="w-4 h-4 inline" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePublish(proj)}
+                          className="p-1 text-muted hover:text-ink transition-colors"
+                          title={proj.published ? 'Unpublish project' : 'Publish project'}
+                        >
+                          {proj.published ? (
+                            <LuEyeOff className="w-4 h-4 inline" />
+                          ) : (
+                            <LuEye className="w-4 h-4 inline" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProject(projId)}
+                          className="p-1 text-muted hover:text-error transition-colors"
+                          title="Delete project"
+                        >
+                          <LuTrash2 className="w-4 h-4 inline" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -520,24 +663,27 @@ export const AdminDashboard = () => {
         </div>
       )}
 
-      {/* Modal: Add Project */}
+      {/* Modal: Add / Edit Project */}
       {projectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <h3 className="font-abhaya text-2xl font-medium text-ink">
-                Add Architectural Project
+                {editingProjectId ? 'Edit Architectural Project' : 'Add Architectural Project'}
               </h3>
               <button
                 type="button"
-                onClick={() => setProjectModalOpen(false)}
+                onClick={() => {
+                  setProjectModalOpen(false);
+                  setEditingProjectId(null);
+                }}
                 className="p-1 text-muted hover:text-ink"
               >
                 <LuX className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateProject} className="space-y-4">
+            <form onSubmit={handleSaveProject} className="space-y-4">
               <TextInput
                 id="proj-title"
                 label="Project Title"
@@ -548,16 +694,12 @@ export const AdminDashboard = () => {
               />
 
               <div className="grid grid-cols-2 gap-4">
-                <Select
-                  id="proj-category"
-                  label="Category"
-                  value={projectForm.category}
-                  onChange={(e) => setProjectForm({ ...projectForm, category: e.target.value })}
-                  options={[
-                    { value: 'Residential', label: 'Residential' },
-                    { value: 'Commercial', label: 'Commercial' },
-                    { value: 'Hospitality', label: 'Hospitality' },
-                  ]}
+                <TextInput
+                  id="proj-location"
+                  label="Location"
+                  value={projectForm.location}
+                  onChange={(e) => setProjectForm({ ...projectForm, location: e.target.value })}
+                  placeholder="New Delhi, India"
                 />
                 <TextInput
                   id="proj-year"
@@ -568,45 +710,177 @@ export const AdminDashboard = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <TextInput
-                  id="proj-location"
-                  label="Location"
-                  value={projectForm.location}
-                  onChange={(e) => setProjectForm({ ...projectForm, location: e.target.value })}
-                  placeholder="New Delhi, India"
-                />
-                <TextInput
-                  id="proj-area"
-                  label="Built Area"
-                  value={projectForm.area}
-                  onChange={(e) => setProjectForm({ ...projectForm, area: e.target.value })}
-                  placeholder="5,200 sq.ft."
-                />
-              </div>
-
               <TextInput
-                id="proj-image"
-                label="Cover Image URL"
-                value={projectForm.coverImage}
-                onChange={(e) => setProjectForm({ ...projectForm, coverImage: e.target.value })}
+                id="proj-area"
+                label="Built Area"
+                value={projectForm.area}
+                onChange={(e) => setProjectForm({ ...projectForm, area: e.target.value })}
+                placeholder="5,200 sq.ft."
+              />
+
+              <TextArea
+                id="proj-short-desc"
+                label="Short Description (listing)"
+                rows={2}
+                value={projectForm.shortDescription}
+                onChange={(e) =>
+                  setProjectForm({ ...projectForm, shortDescription: e.target.value })
+                }
+                placeholder="One or two sentences shown on the Projects listing..."
               />
 
               <TextArea
                 id="proj-desc"
-                label="Architectural Concept"
+                label="Detailed Description (fallback narrative)"
                 rows={3}
                 value={projectForm.description}
                 onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
                 placeholder="Describe spatial concept, lighting, and materiality..."
               />
 
+              <label className="flex items-center space-x-2 text-xs font-medium text-ink cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={projectForm.published}
+                  onChange={(e) =>
+                    setProjectForm({ ...projectForm, published: e.target.checked })
+                  }
+                  className="w-4 h-4 accent-black"
+                />
+                <span>Published (visible on the public site)</span>
+              </label>
+
+              {/* Images editor with selectable listing/hero image */}
+              <div className="space-y-3 border-t border-border pt-4">
+                <span className="text-xs uppercase tracking-wider font-medium text-muted block">
+                  Project Images
+                </span>
+                {projectForm.images.map((img, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="proj-cover-select"
+                      checked={projectForm.coverImage === img.url && img.url !== ''}
+                      onChange={() => setProjectForm({ ...projectForm, coverImage: img.url })}
+                      title="Use as listing & hero image"
+                      className="w-4 h-4 accent-black shrink-0"
+                    />
+                    <TextInput
+                      value={img.url}
+                      onChange={(e) => updateProjectImage(idx, e.target.value)}
+                      placeholder="https://... image URL"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeProjectImage(idx)}
+                      className="p-1 text-muted hover:text-error transition-colors shrink-0"
+                      title="Remove image"
+                    >
+                      <LuTrash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between gap-3">
+                  <Button
+                    type="button"
+                    variant="Secondary-Outline"
+                    size="sm"
+                    icon={LuPlus}
+                    iconPosition="left"
+                    label="Add image"
+                    onClick={addProjectImage}
+                  />
+                  <span className="text-[11px] text-muted">
+                    Select the radio button to choose the listing & hero image.
+                  </span>
+                </div>
+              </div>
+
+              {/* Detail page content blocks editor */}
+              <div className="space-y-3 border-t border-border pt-4">
+                <span className="text-xs uppercase tracking-wider font-medium text-muted block">
+                  Detail Page Content Blocks
+                </span>
+                {projectForm.contentBlocks.map((block, idx) => (
+                  <div key={idx} className="border border-border rounded-sm p-3 space-y-2 bg-surface/40">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono text-muted">Block {idx + 1}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveContentBlock(idx, -1)}
+                          disabled={idx === 0}
+                          className="p-1 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <LuArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveContentBlock(idx, 1)}
+                          disabled={idx === projectForm.contentBlocks.length - 1}
+                          className="p-1 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <LuArrowDown className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeContentBlock(idx)}
+                          className="p-1 text-muted hover:text-error transition-colors"
+                          title="Remove block"
+                        >
+                          <LuTrash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <Select
+                      value={block.type}
+                      onChange={(e) => updateContentBlock(idx, { type: e.target.value })}
+                      options={[
+                        { value: 'heading', label: 'Heading' },
+                        { value: 'paragraph', label: 'Paragraph' },
+                        { value: 'image', label: 'Image' },
+                      ]}
+                    />
+                    {block.type === 'image' ? (
+                      <TextInput
+                        value={block.url}
+                        onChange={(e) => updateContentBlock(idx, { url: e.target.value })}
+                        placeholder="https://... image URL"
+                      />
+                    ) : (
+                      <TextArea
+                        rows={block.type === 'heading' ? 1 : 3}
+                        value={block.text}
+                        onChange={(e) => updateContentBlock(idx, { text: e.target.value })}
+                        placeholder={
+                          block.type === 'heading' ? 'Section heading' : 'Paragraph text...'
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="Secondary-Outline"
+                  size="sm"
+                  icon={LuPlus}
+                  iconPosition="left"
+                  label="Add content block"
+                  onClick={addContentBlock}
+                />
+              </div>
+
               <div className="pt-2 flex justify-end space-x-3">
                 <Button
                   type="button"
                   variant="Secondary-Outline"
                   label="Cancel"
-                  onClick={() => setProjectModalOpen(false)}
+                  onClick={() => {
+                    setProjectModalOpen(false);
+                    setEditingProjectId(null);
+                  }}
                 />
                 <Button type="submit" variant="Primary" label="Save Project" />
               </div>

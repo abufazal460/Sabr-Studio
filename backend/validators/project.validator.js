@@ -26,6 +26,11 @@ export const createProjectValidator = [
     .trim()
     .notEmpty()
     .withMessage('Project description is required'),
+  body('shortDescription').optional().trim().isString(),
+  body('contentBlocks').optional().isArray(),
+  body('contentBlocks.*.type')
+    .isIn(['heading', 'paragraph', 'image'])
+    .withMessage('Content block type must be heading, paragraph, or image'),
   body('category')
     .optional()
     .trim()
@@ -57,6 +62,11 @@ export const updateProjectValidator = [
     .trim()
     .notEmpty()
     .withMessage('Description cannot be empty'),
+  body('shortDescription').optional().trim().isString(),
+  body('contentBlocks').optional().isArray(),
+  body('contentBlocks.*.type')
+    .isIn(['heading', 'paragraph', 'image'])
+    .withMessage('Content block type must be heading, paragraph, or image'),
   body('year')
     .optional({ nullable: true })
     .isInt({ min: 1900, max: 2100 }),
