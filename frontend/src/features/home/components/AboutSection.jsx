@@ -1,14 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  motion,
-  useInView,
-  useMotionValue,
-  useTransform,
-  animate,
-} from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { aboutData } from '../../about/data/about.data';
-import { statsData } from '../data/stats.data';
 import { getProjects } from '../../projects/api/projects.api';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 import Badge from '../../../shared/components/Badge';
@@ -49,43 +41,12 @@ const fallbackProjects = [
   },
 ];
 
-const Counter = ({ value, label, start, reduce }) => {
-  const num = parseInt(value, 10) || 0;
-  const suffix = value.replace(/[0-9]/g, '');
-  const mv = useMotionValue(0);
-  const rounded = useTransform(mv, (v) => Math.round(v));
-
-  useEffect(() => {
-    if (reduce) {
-      mv.set(num);
-      return;
-    }
-    if (!start) return;
-    const controls = animate(mv, num, { duration: 1.2, ease: 'easeOut' });
-    return () => controls.stop();
-  }, [start, reduce, num, mv]);
-
-  return (
-    <div className="px-8 py-10 sm:py-14 text-center flex flex-col justify-center space-y-2 bg-white">
-      <div className="font-inter text-4xl sm:text-5xl font-semibold text-ink tracking-tight">
-        <motion.span>{rounded}</motion.span>
-        {suffix}
-      </div>
-      <div className="font-inter text-xs sm:text-sm text-muted uppercase tracking-wider font-medium">
-        {label}
-      </div>
-    </div>
-  );
-};
-
 export const AboutSection = () => {
   const reduce = useReducedMotion();
   const { founder } = aboutData;
   const founderPhotoUrl = buildCloudinaryUrl(founder.photo, { width: 800, height: 1000 });
 
   const [projects, setProjects] = useState(fallbackProjects);
-  const statsRef = useRef(null);
-  const statsInView = useInView(statsRef, { once: true, amount: 0.4 });
 
   useEffect(() => {
     getProjects({ limit: 4 })

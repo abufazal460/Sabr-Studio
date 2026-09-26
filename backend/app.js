@@ -67,11 +67,6 @@ app.use(compression());
 // --- Request timeout (30 seconds default) ---------------------------------
 app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 
-// --- API routes (all under /api, plus /health) ------------------------------
-// apiHandler calls next() for any non-API path so static/SPA handling below runs.
-// apiHandler moved below
-
-
 // --- Health check endpoint ---------------------------------------------------
 // Registered BEFORE static/SPA fallback so it always returns JSON, never HTML.
 app.get('/health', (req, res) => {
@@ -136,10 +131,6 @@ app.use((req, res) => {
     message: `Route ${req.method} ${req.originalUrl} not found`,
   });
 });
-
-// --- API routes (all under /api, plus /health) ------------------------------
-// apiHandler calls next() for any non-API path so static/SPA handling below runs.
-app.use(apiHandler);
 
 // --- Centralized error handler (must be last) -------------------------------
 app.use(errorHandler);

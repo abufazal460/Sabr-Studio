@@ -5,7 +5,7 @@ import EnquiryForm from '../../enquiries/components/EnquiryForm';
 import Seo from '../../../shared/components/Seo';
 
 export const Services = () => {
-  const { eyebrow, title, description, services } = servicesData;
+  const { title, description, services } = servicesData;
 
   return (
     <div className="w-full bg-white">
@@ -20,7 +20,6 @@ export const Services = () => {
           {/* Centered H2 per UI-UX §39 */}
           <div className="text-center max-w-2xl mx-auto mb-16 sm:mb-20">
             <SectionHeading
-              eyebrow={eyebrow}
               title={title}
               description={description}
               align="center"
