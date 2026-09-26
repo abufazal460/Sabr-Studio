@@ -34,10 +34,15 @@ app.use(helmet({ contentSecurityPolicy: false }));
 // --- CORS -------------------------------------------------------------------
 // Same-origin in production, so this is a defensive allow-list. Never a
 // wildcard with credentials. Localhost origins are permitted in development.
-const allowedOrigins = (process.env.CORS_ORIGIN || '')
+let allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+
+// If no explicit origins are configured, fall back to the Vercel deployment URL (if available).
+if (!allowedOrigins.length && process.env.VERCEL_URL) {
+  allowedOrigins = [`https://${process.env.VERCEL_URL}`];
+}
 
 app.use(
   cors({
@@ -64,7 +69,7 @@ app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 
 // --- API routes (all under /api, plus /health) ------------------------------
 // apiHandler calls next() for any non-API path so static/SPA handling below runs.
-app.use(apiHandler);
+// apiHandler moved below
 
 
 // --- Health check endpoint ---------------------------------------------------
@@ -101,6 +106,10 @@ app.get('/health', (req, res) => {
     },
   });
 });
+
+// --- API routes (all under /api, plus /health) ------------------------------
+// apiHandler calls next() for any non-API path so static/SPA handling below runs.
+app.use(apiHandler);
 // --- Production frontend (compiled Vite build) ------------------------------
 // Served only when a build has been placed in backend/public. The dev backend
 // stays API-only and does not require a frontend build.
@@ -128,6 +137,10 @@ app.use((req, res) => {
   });
 });
 
+// --- API routes (all under /api, plus /health) ------------------------------
+// apiHandler calls next() for any non-API path so static/SPA handling below runs.
+app.use(apiHandler);
+
 // --- Centralized error handler (must be last) -------------------------------
 app.use(errorHandler);
 
@@ -135,80 +148,5 @@ app.use(errorHandler);
 // Background connect; services fall back to in-memory data until it resolves.
 connectDB();
 
-// --- Start ------------------------------------------------------------------
-// Vercel imports `app` directly as a serverless handler; only listen elsewhere.
-const PORT = parseInt(process.env.PORT, 10) || 3000;
-let server;
-
-if (!process.env.VERCEL) {
-  server = app.listen(PORT, () => {
-    logger.info(`[Sabr Studio] Server running at http://localhost:${PORT}`);
-  })
-    .on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        logger.error(`[Sabr Studio] Port ${PORT} already in use. Free the port or change the PORT env variable.`);
-        process.exit(1);
-      } else {
-        logger.error('[Server] Startup error:', err);
-        process.exit(1);
-      }
-    });
-}
-
-// --- Graceful Shutdown ----------------------------------------------------
-const shutdown = async (signal) => {
-  logger.info(`[Shutdown] Received ${signal}. Starting graceful shutdown...`);
-  
-  const shutdownTimeout = setTimeout(() => {
-    logger.error('[Shutdown] Forced shutdown after timeout');
-    process.exit(1);
-  }, 30000); // 30 second max shutdown time
-
-  try {
-    // Stop accepting new connections
-    if (server) {
-      server.close(() => {
-        logger.info('[Shutdown] HTTP server closed');
-      });
-    }
-
-    // Attempt to sync any pending fallback data to MongoDB
-    logger.info('[Shutdown] Attempting to sync fallback data to MongoDB...');
-    const syncResult = await syncFallbackToMongoose({
-      orders: true,
-      enquiries: true,
-    });
-    
-    if (syncResult.orders.synced > 0 || syncResult.enquiries.synced > 0) {
-      logger.info('[Shutdown] Fallback data synced:', syncResult);
-    }
-
-    // Clear fallback storage after sync attempt
-    clearAllFallbackData();
-
-    clearTimeout(shutdownTimeout);
-    logger.info('[Shutdown] Graceful shutdown completed');
-    process.exit(0);
-  } catch (err) {
-    logger.error('[Shutdown] Error during shutdown:', err.message);
-    clearTimeout(shutdownTimeout);
-    process.exit(1);
-  }
-};
-
-// Handle shutdown signals
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
-
-// Handle uncaught errors
-process.on('uncaughtException', (err) => {
-  logger.error('[Process] Uncaught Exception:', err.message, err.stack);
-  shutdown('uncaughtException');
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('[Process] Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit immediately - let the error handler process it
-});
 
 export default app;
