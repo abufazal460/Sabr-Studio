@@ -141,23 +141,18 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 let server;
 
 if (!process.env.VERCEL) {
-  const startServer = (port) => {
-    server = app.listen(port)
-      .on('listening', () => {
-        logger.info(`[Sabr Studio] Server running at http://localhost:${port}`);
-      })
-      .on('error', (err) => {
-        if (err.code === 'EADDRINUSE') {
-          const nextPort = port + 1;
-          logger.warn(`[Sabr Studio] Port ${port} in use, trying ${nextPort}`);
-          startServer(nextPort);
-        } else {
-          logger.error('[Server] Startup error:', err);
-          process.exit(1);
-        }
-      });
-  };
-  startServer(PORT);
+  server = app.listen(PORT, () => {
+    logger.info(`[Sabr Studio] Server running at http://localhost:${PORT}`);
+  })
+    .on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.error(`[Sabr Studio] Port ${PORT} already in use. Free the port or change the PORT env variable.`);
+        process.exit(1);
+      } else {
+        logger.error('[Server] Startup error:', err);
+        process.exit(1);
+      }
+    });
 }
 
 // --- Graceful Shutdown ----------------------------------------------------
