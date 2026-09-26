@@ -1,51 +1,57 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { aboutData } from '../data/about.data';
 import Seo from '../../../shared/components/Seo';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 
+// Hidden or prerendered surfaces pause rAF and stop delivering intersection
+// updates, so a hidden initial state applied at mount would stay forever
+// (framer writes it inline and never animates it away). Decide synchronously
+// before first paint: only arm entrance animations on a live, visible document.
+const useCanAnimate = () => {
+  const [canAnimate] = useState(
+    () =>
+      typeof document !== 'undefined' &&
+      document.visibilityState === 'visible' &&
+      typeof IntersectionObserver !== 'undefined' &&
+      typeof requestAnimationFrame !== 'undefined'
+  );
+  return canAnimate;
+};
+
 export const About = () => {
   const reduce = useReducedMotion();
-  const { hero, story, founder } = aboutData;
+  const canAnimate = useCanAnimate();
+  const { hero, story, founderProfile } = aboutData;
   const storyImageUrl = buildCloudinaryUrl(story.image, { width: 1000, height: 1333 });
-  const founderPhotoUrl = buildCloudinaryUrl(founder.photo, { width: 800, height: 1067 });
+  const founderPhotoUrl = buildCloudinaryUrl(founderProfile.portrait, { width: 800, height: 1067 });
 
-  const fromLeft = reduce
-    ? {
-        initial: false,
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.2 },
-        transition: { duration: 0 },
-      }
-    : {
-        initial: { x: '-10%', clipPath: 'inset(0 100% 0 0)' },
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.2 },
-        transition: { duration: 0.7, ease: 'easeOut' },
-      };
+  const openState = { x: '0%', clipPath: 'inset(0 0 0 0)' };
 
-  const fromRight = reduce
-    ? {
-        initial: false,
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.2 },
-        transition: { duration: 0 },
-      }
-    : {
-        initial: { x: '10%', clipPath: 'inset(0 0 0 100%)' },
-        whileInView: { x: '0%', clipPath: 'inset(0 0 0 0)' },
-        viewport: { once: true, amount: 0.2 },
-        transition: { duration: 0.7, ease: 'easeOut' },
-      };
+  const revealFrom = (dir) => {
+    if (reduce || !canAnimate) return {};
+    return {
+      initial:
+        dir === 'left'
+          ? { x: '-10%', clipPath: 'inset(0 100% 0 0)' }
+          : { x: '10%', clipPath: 'inset(0 0 0 100%)' },
+      whileInView: openState,
+      viewport: { once: true, amount: 0.2 },
+      transition: { duration: 0.7, ease: 'easeOut' },
+    };
+  };
 
-  const imageHover = reduce ? undefined : { scale: 1.03 };
+  const fromLeft = revealFrom('left');
+  const fromRight = revealFrom('right');
+
+  const imageHover = reduce || !canAnimate ? undefined : { scale: 1.03 };
   const imageHoverTransition = { duration: 0.35, ease: 'easeOut' };
 
   return (
     <div className="w-full bg-white">
       <Seo
         title="About Our Practice"
-        description="Founded in New Delhi in 2012, Sabr Studio operates at the intersection of monolithic architectural clarity, wabi-sabi stillness, and bespoke artisan joinery."
+        description="Design Sense Architects is a young, idea-driven architecture and interior design office based in New Delhi, designing with soul across homes, hospitality, commercial interiors, and space styling for film and events."
       />
 
       {/* 1. Intro: oversized two-line serif headline + vertical divider + narrow intro column */}
@@ -105,7 +111,17 @@ export const About = () => {
                     key={idx}
                     className="font-inter text-sm sm:text-base leading-relaxed text-ink/80 text-justify"
                   >
-                    {paragraph}
+                    {typeof paragraph === 'string'
+                      ? paragraph
+                      : paragraph.parts.map((part, partIdx) =>
+                          part.emphasis ? (
+                            <strong key={partIdx} className="font-semibold italic">
+                              {part.text}
+                            </strong>
+                          ) : (
+                            <React.Fragment key={partIdx}>{part.text}</React.Fragment>
+                          )
+                        )}
                   </p>
                 ))}
               </motion.div>
@@ -127,7 +143,7 @@ export const About = () => {
               <div className="aspect-[3/4] w-full bg-surface overflow-hidden">
                 <motion.img
                   src={founderPhotoUrl}
-                  alt={founder.name}
+                  alt={founderProfile.portraitAlt}
                   loading="lazy"
                   whileHover={imageHover}
                   transition={imageHoverTransition}
@@ -138,16 +154,16 @@ export const About = () => {
 
             <div className="lg:col-span-6 space-y-5">
               <span className="block font-inter text-[11px] uppercase tracking-[0.25em] text-brown font-semibold">
-                Founder
+                {founderProfile.eyebrow}
               </span>
               <h3 className="font-abhaya text-4xl sm:text-5xl 2xl:text-6xl font-medium leading-tight text-[#33241b]">
-                {founder.name}
+                {founderProfile.name}
               </h3>
               <p className="font-inter text-xs uppercase tracking-[0.2em] text-brown font-medium">
-                {founder.role}
+                {founderProfile.role}
               </p>
               <div className="space-y-4 pt-2">
-                {founder.aboutBio.map((paragraph, idx) => (
+                {founderProfile.bio.map((paragraph, idx) => (
                   <p
                     key={idx}
                     className="font-inter text-sm sm:text-base leading-relaxed text-ink/80"
@@ -160,12 +176,12 @@ export const About = () => {
 
             <motion.aside {...fromRight} className="lg:col-span-3 bg-cream p-8 sm:p-10 space-y-4">
               <span className="block font-abhaya text-5xl 2xl:text-6xl font-medium text-brown">
-                {founder.studioPanel.monogram}
+                {founderProfile.studioPanel.monogram}
               </span>
               <p className="font-inter text-xs leading-relaxed text-brown/90">
-                {founder.studioPanel.line1}
+                {founderProfile.studioPanel.line1}
                 <br />
-                {founder.studioPanel.line2}
+                {founderProfile.studioPanel.line2}
               </p>
             </motion.aside>
           </div>
