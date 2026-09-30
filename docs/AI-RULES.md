@@ -298,8 +298,8 @@ Rule stated plainly: **anything prefixed `VITE_` is readable in the browser.** A
 
 - **One** Node.js process, **one** Hostinger Business plan, Git-import deploy. Express serves `/api/*` **and** the built frontend (`frontend/dist/` copied into `backend/public/`) from the same process — never two separate hosted services (`TECH-23`).
 - A catch-all SPA-fallback route, registered after all `/api/*` routes and after static-file serving, serves `index.html` for any non-API GET — this is what makes direct URL access/refresh on a deep route (`/projects/some-slug`, `/admin/orders`) work instead of 404ing.
-- The static-serving/catch-all block is mounted only when `NODE_ENV === 'production'`; in development, Vite's dev server serves the frontend separately and the backend serves `/api/*` only.
-- Build order: install + `vite build` frontend → copy `dist/` into `backend/public/` → install backend prod deps → start with `node server.js`.
+- The static-serving/catch-all block is mounted only when a frontend build exists at `backend/public/index.html` (it is gitignored and produced by `npm run build`); without a build the backend serves `/api/*` only and logs a warning. In development, Vite's dev server serves the frontend separately and proxies `/api` to the backend.
+- Build order: install + `vite build` frontend → copy `dist/` into `backend/public/` → install backend prod deps → start with `npm run start` (`node backend/dev.js`, listens on `process.env.PORT`, default 3000).
 - Do not introduce a second deployed service, a reverse proxy between two apps, or a different hosting topology without explicit approval — this directly contradicts the documented architecture.
 
 ---
