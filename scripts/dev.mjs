@@ -1,15 +1,29 @@
 // Cross-platform development launcher: runs the Express API (backend) and the
 // Vite dev server (frontend) together. No external process-manager dependency.
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
+// Ensure child dependencies exist before starting
+const backendModules = path.join(root, 'backend', 'node_modules');
+const frontendModules = path.join(root, 'frontend', 'node_modules');
+
+if (!fs.existsSync(backendModules)) {
+  console.log('[dev] Installing backend dependencies...');
+  execFileSync(npm, ['--prefix', 'backend', 'install'], { cwd: root, stdio: 'inherit', shell: true });
+}
+if (!fs.existsSync(frontendModules)) {
+  console.log('[dev] Installing frontend dependencies...');
+  execFileSync(npm, ['--prefix', 'frontend', 'install'], { cwd: root, stdio: 'inherit', shell: true });
+}
+
 const targets = [
-  { name: 'api', color: '\x1b[36m', args: ['--prefix', 'backend', 'run', 'dev'] },
-  { name: 'web', color: '\x1b[35m', args: ['--prefix', 'frontend', 'run', 'dev'] },
+  { name: 'api', color: '\x1b[36m', args: ['--prefix', 'backend', 'run', 'dev'], env: { PORT: '3000' } },
+  { name: 'web', color: '\x1b[35m', args: ['--prefix', 'frontend', 'run', 'dev'], env: { PORT: '5173' } },
 ];
 
 const reset = '\x1b[0m';
@@ -26,7 +40,11 @@ function shutdown(code = 0) {
 }
 
 for (const t of targets) {
-  const child = spawn(npm, t.args, { cwd: root, shell: true });
+  const child = spawn(npm, t.args, {
+    cwd: root,
+    shell: true,
+    env: { ...process.env, ...t.env },
+  });
   children.push(child);
 
   child.stdout.on('data', (d) => {
