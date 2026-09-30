@@ -77,21 +77,21 @@ axiosClient.interceptors.response.use(
       if (status === 400) {
         normalizedError.message = data.message || 'Please check the entered information.';
       } else if (status === 401) {
-        normalizedError.message = 'Session expired. Please log in again.';
+        normalizedError.message = data.message || 'Session expired. Please log in again.';
         // Admin route 401 check
         if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin') && window.location.pathname !== '/admin/login') {
           window.location.href = '/admin/login';
         }
       } else if (status === 403) {
-        normalizedError.message = "You don't have permission to do this.";
+        normalizedError.message = data.message || "You don't have permission to do this.";
       } else if (status === 404) {
         normalizedError.message = data.message || 'Resource not found.';
       } else if (status === 409) {
         normalizedError.message = data.message || 'This operation was already processed.';
       } else if (status === 429) {
-        normalizedError.message = 'Too many attempts. Please wait a moment and try again.';
+        normalizedError.message = data.message || 'Too many attempts. Please wait a moment and try again.';
       } else if (status >= 500) {
-        normalizedError.message = 'Service temporarily unavailable. Please try again later.';
+        normalizedError.message = data.message || 'Service temporarily unavailable. Please try again later.';
       }
     }
 

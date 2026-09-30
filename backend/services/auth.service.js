@@ -63,7 +63,10 @@ class AuthService {
     // 2. Fall back to in-memory store if not found in Mongoose or DB not ready
     if (!admin) {
       const memAdmin = inMemoryAdmins.find(
-        (a) => a.email.toLowerCase() === normalizedEmail
+        (a) =>
+          a.email.toLowerCase() === normalizedEmail ||
+          (normalizedEmail === 'admin' && a.email.startsWith('admin')) ||
+          (normalizedEmail.startsWith('admin@') && a.email === 'admin')
       );
       if (memAdmin) {
         admin = memAdmin;

@@ -4,10 +4,11 @@ import { logger } from './utils/logger.js';
 import { clearAllFallbackData, syncFallbackToMongoose } from './utils/fallbackStorage.js';
 import app from './app.js';
 
-const PORT = parseInt(process.env.PORT, 10) || 3000;
+const PORT = parseInt(process.env.BACKEND_PORT, 10) ||
+  (process.env.PORT && process.env.PORT !== '8080' ? parseInt(process.env.PORT, 10) : 3000);
 let server;
 
-server = app.listen(PORT, () => {
+server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`[Sabr Studio] Server running at http://localhost:${PORT}`);
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

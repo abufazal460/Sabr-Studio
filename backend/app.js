@@ -3,6 +3,7 @@ import 'dotenv/config';
 
 import path from 'path';
 import fs from 'fs';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
@@ -49,7 +50,7 @@ app.use(
     origin(origin, cb) {
       if (!origin) return cb(null, true); // same-origin / non-browser clients
       if (allowedOrigins.includes(origin)) return cb(null, true);
-      if (process.env.NODE_ENV !== 'production' && /^https?:\/\/localhost:\d+$/.test(origin)) {
+      if (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
         return cb(null, true);
       }
       return cb(null, false);
@@ -105,6 +106,36 @@ app.get('/health', (req, res) => {
 // --- API routes (all under /api, plus /health) ------------------------------
 // apiHandler calls next() for any non-API path so static/SPA handling below runs.
 app.use(apiHandler);
+
+// --- Reverse proxy to Vite dev server in local development -------------------
+// When running in development, if a non-API request arrives at port 3000
+// (e.g. from the AI Studio preview iframe or direct browser navigation),
+// transparently forward it to the Vite dev server at http://127.0.0.1:5173.
+// If Vite is not running, fall back to backend/public static assets.
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    if (req.url.startsWith('/api') || req.url.startsWith('/health')) {
+      return next();
+    }
+    const proxyReq = http.request(
+      {
+        host: '127.0.0.1',
+        port: 5173,
+        path: req.url,
+        method: req.method,
+        headers: { ...req.headers, host: 'localhost:5173' },
+      },
+      (proxyRes) => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res);
+      }
+    );
+    proxyReq.on('error', () => {
+      next();
+    });
+    req.pipe(proxyReq);
+  });
+}
 // --- Production frontend (compiled Vite build) ------------------------------
 // Served only when a build has been placed in backend/public. The dev backend
 // stays API-only and does not require a frontend build.

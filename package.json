@@ -15,6 +15,6 @@
     "install:all": "npm --prefix backend install && npm --prefix frontend install"
   },
   "engines": {
-    "node": ">=24 <25"
+    "node": ">=20"
   }
 }

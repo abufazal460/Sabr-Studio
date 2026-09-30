@@ -125,7 +125,11 @@ export default function handleApiRequest(req, res) {
 
   // Helper body reader
   const parseBody = (cb) => {
-    if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+    if (req.body && typeof req.body === 'object') {
+      return cb(req.body);
+    }
+    if (req.readableEnded || req.complete) {
+      req.body = req.body || {};
       return cb(req.body);
     }
     let body = '';

@@ -8,8 +8,8 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 const targets = [
-  { name: 'api', color: '\x1b[36m', args: ['--prefix', 'backend', 'run', 'dev'] },
-  { name: 'web', color: '\x1b[35m', args: ['--prefix', 'frontend', 'run', 'dev'] },
+  { name: 'api', color: '\x1b[36m', args: ['--prefix', 'backend', 'run', 'dev'], env: { PORT: '3000' } },
+  { name: 'web', color: '\x1b[35m', args: ['--prefix', 'frontend', 'run', 'dev'], env: { PORT: '5173' } },
 ];
 
 const reset = '\x1b[0m';
@@ -26,7 +26,11 @@ function shutdown(code = 0) {
 }
 
 for (const t of targets) {
-  const child = spawn(npm, t.args, { cwd: root, shell: true });
+  const child = spawn(npm, t.args, {
+    cwd: root,
+    shell: true,
+    env: { ...process.env, ...t.env },
+  });
   children.push(child);
 
   child.stdout.on('data', (d) => {
