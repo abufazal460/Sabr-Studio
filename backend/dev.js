@@ -1,8 +1,19 @@
-// Local development entry point
-import 'dotenv/config';
-import { logger } from './utils/logger.js';
-import { clearAllFallbackData, syncFallbackToMongoose } from './utils/fallbackStorage.js';
-import app from './app.js';
+// Load backend/.env before importing the application. Static ESM imports are
+// evaluated before this module's body, so dotenv.config() inside app.js would
+// otherwise run after services have already read environment variables.
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '.env') });
+
+const [{ logger }, { clearAllFallbackData, syncFallbackToMongoose }, { default: app }] =
+  await Promise.all([
+    import('./utils/logger.js'),
+    import('./utils/fallbackStorage.js'),
+    import('./app.js'),
+  ]);
 
 const PORT = parseInt(process.env.BACKEND_PORT, 10) ||
   (process.env.PORT && process.env.PORT !== '8080' ? parseInt(process.env.PORT, 10) : 3000);
