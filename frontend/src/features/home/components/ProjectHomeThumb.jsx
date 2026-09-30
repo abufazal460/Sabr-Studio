@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, useAnimationControls, useInView, useReducedMotion } from 'framer-motion';
 import { getProjects } from '../../projects/api/projects.api';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 import SectionHeading from '../../../shared/components/SectionHeading';
-import { Button } from '../../../shared/components/Button';
 
 // Default curated fallback projects when backend is not yet populated
 const fallbackProjects = [
@@ -38,25 +36,8 @@ const fallbackProjects = [
   },
 ];
 
-// One-time entrance, applied only after the section is observed in view.
-// Content is visible by default (no hidden initial styles at mount), so it can
-// never be stranded invisible if the observer or animation frames never run; a
-// timer failsafe clears any inline style left by the animation.
-const containerVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } },
-};
-const itemVariants = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } },
-};
-
 export const ProjectHomeThumb = () => {
   const [projects, setProjects] = useState(fallbackProjects);
-  const sectionRef = useRef(null);
-  const reduce = useReducedMotion();
-  const inView = useInView(sectionRef, { once: true, amount: 0.2 });
-  const controls = useAnimationControls();
 
   useEffect(() => {
     getProjects({ limit: 4 })
@@ -70,90 +51,66 @@ export const ProjectHomeThumb = () => {
       });
   }, []);
 
-  useLayoutEffect(() => {
-    if (reduce || !inView) return undefined;
-    controls.set('hidden');
-    controls.start('visible');
-    const failsafe = setTimeout(() => {
-      const root = sectionRef.current;
-      if (!root) return;
-      root.querySelectorAll('[data-reveal]').forEach((el) => {
-        el.style.opacity = '';
-        el.style.transform = '';
-      });
-    }, 1500);
-    return () => clearTimeout(failsafe);
-  }, [reduce, inView, controls]);
-
-  const revealProps = reduce
-    ? { 'data-reveal': '' }
-    : { 'data-reveal': '', variants: itemVariants };
-
   return (
     <section
-      ref={sectionRef}
-      className="py-20 sm:py-28 lg:py-32 bg-white border-b border-border"
+      className="relative z-10 overflow-x-clip py-20 sm:py-28 lg:py-32 bg-white border-b border-border"
       aria-label="Selected Projects Strip"
     >
-      <motion.div
-        {...(reduce ? {} : { animate: controls, variants: containerVariants })}
-        className="contents"
-      >
-        <motion.div
-          {...revealProps}
-          className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 mb-12 sm:mb-16"
+      {/* Keep this section above the preceding desktop layer so the
+          heading, grid, and CTA stay visible and usable at every width. */}
+      <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 mb-12 sm:mb-16">
+        <SectionHeading title="Projects" align="center" />
+      </div>
+
+      {/* 4-image grid: 2 across on mobile/tablet, 4 across on desktop (UI-UX §35).
+          All available items (up to four) render immediately; further projects are
+          reached through the "View All Projects" link below. */}
+      <div className="w-full">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border">
+          {projects.map((proj) => {
+            const imageUrl = buildCloudinaryUrl(proj.coverImage, { width: 800, height: 1060 });
+            return (
+              <Link
+                key={proj.id}
+                to={`/projects/${proj.slug}`}
+                className="relative block aspect-[3/4] overflow-hidden bg-surface"
+              >
+                <img
+                  src={imageUrl}
+                  alt={proj.title}
+                  loading="lazy"
+                  className="w-full h-full object-cover object-center"
+                />
+
+                {/* Static label scrim — always visible so
+                    project titles stay readable on touch devices and at 320px. */}
+                <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/20 to-transparent p-3 sm:p-5 text-white">
+                  <span className="font-inter text-[10px] sm:text-xs uppercase tracking-widest font-medium text-white/80 mb-1 leading-tight">
+                    {proj.category}
+                  </span>
+                  <h3 className="font-abhaya text-base sm:text-2xl font-medium leading-tight break-words">
+                    {proj.title}
+                  </h3>
+                  <span className="mt-2 sm:mt-4 inline-flex self-start font-inter text-[10px] sm:text-xs uppercase tracking-widest font-semibold px-3 sm:px-4 py-1.5 sm:py-2 border border-white rounded-sm">
+                    View Project
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Static CTA — same resting Secondary-Outline look (border, type, 44px
+          target), usable with keyboard, touch, and mouse at every width. */}
+      <div className="text-center mt-12 px-5 sm:px-8">
+        <Link
+          to="/projects"
+          className="inline-flex min-h-[44px] items-center justify-center rounded-sm border border-ink bg-transparent px-6 py-3 font-inter text-sm font-medium tracking-wide text-ink select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
         >
-          <SectionHeading
-            title="Projects"
-            align="center"
-          />
-        </motion.div>
-
-        {/* Edge-to-edge 4-image row (UI-UX §35: 4 -> 2 -> 1, touching on desktop) */}
-        <motion.div {...revealProps} className="w-full">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border">
-            {projects.map((proj) => {
-              const imageUrl = buildCloudinaryUrl(proj.coverImage, { width: 800, height: 1060 });
-              return (
-                <Link
-                  key={proj.id}
-                  to={`/projects/${proj.slug}`}
-                  className="group relative block aspect-[3/4] overflow-hidden bg-surface"
-                >
-                  <img
-                    src={imageUrl}
-                    alt={proj.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover object-center"
-                  />
-
-                  {/* Hover overlay with centered white label (UI-UX §35) */}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out motion-reduce:transition-none flex flex-col items-center justify-center p-6 text-center text-white">
-                    <span className="font-inter text-xs uppercase tracking-widest font-medium text-white/80 mb-2">
-                      {proj.category}
-                    </span>
-                    <h3 className="font-abhaya text-2xl font-medium mb-4">
-                      {proj.title}
-                    </h3>
-                    <span className="font-inter text-xs uppercase tracking-widest font-semibold px-4 py-2 border border-white text-white rounded-sm">
-                      View Project
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </motion.div>
-
-        <motion.div {...revealProps} className="text-center mt-12">
-          <Button
-            to="/projects"
-            variant="Secondary-Outline"
-            size="default"
-            label="View All Projects"
-          />
-        </motion.div>
-      </motion.div>
+          View All Projects
+        </Link>
+      </div>
     </section>
   );
 };
