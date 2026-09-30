@@ -23,7 +23,10 @@ export const projectService = {
       if (filter.category && filter.category !== 'All') {
         query.category = new RegExp(`^${filter.category}$`, 'i');
       }
-      return await Project.find(query).sort({ createdAt: -1 }).lean();
+      const results = await Project.find(query).sort({ createdAt: -1 }).lean();
+      if (results && results.length > 0) {
+        return results;
+      }
     }
 
     let items = inMemoryProjects.filter((p) => p.published);
@@ -41,10 +44,11 @@ export const projectService = {
   async getPublicProjectBySlug(slug) {
     const isMongoConnected = Project.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Project.findOne({
+      const item = await Project.findOne({
         $or: [{ slug }, { _id: slug.match(/^[0-9a-fA-F]{24}$/) ? slug : null }],
         published: true,
       }).lean();
+      if (item) return item;
     }
 
     const item = inMemoryProjects.find(
@@ -59,7 +63,8 @@ export const projectService = {
   async getAdminProjects() {
     const isMongoConnected = Project.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Project.find().sort({ createdAt: -1 }).lean();
+      const results = await Project.find().sort({ createdAt: -1 }).lean();
+      if (results && results.length > 0) return results;
     }
     return [...inMemoryProjects];
   },
@@ -70,9 +75,10 @@ export const projectService = {
   async getAdminProjectById(id) {
     const isMongoConnected = Project.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Project.findOne({
+      const item = await Project.findOne({
         $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { slug: id }],
       }).lean();
+      if (item) return item;
     }
     return inMemoryProjects.find((p) => p.id === id || p._id === id || p.slug === id) || null;
   },

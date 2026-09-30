@@ -71,9 +71,11 @@ sabr-studio/
 - **Root Cause B (Masked Error in Axios)**: In `frontend/src/shared/api/axiosClient.js`, the response error interceptor unconditionally replaced `normalizedError.message` with `"Session expired. Please log in again."` for any 401 response, completely overwriting the backend's explicit `"Invalid email or password"` message.
 - **Root Cause C (Body Stream Hang on Empty Body)**: In `backend/apiHandler.js`, `parseBody` checked `Object.keys(req.body).length > 0`. If `req.body` was already consumed by Express's `express.json()` middleware but was empty (`{}`), `parseBody` attempted to listen for stream `data` and `end` events on an already-ended stream, hanging the request until the 30s timeout.
 
-### Failure 3: Retail Data Not Displaying
-- **Observed status**: Retail catalog page displayed error state: "Failed to retrieve retail catalog" / Network Error.
-- **Root Cause**: The catalog failed solely because the backend dev server had crashed upon boot (Failure 1). When the backend is listening on port 3000, `GET /api/retail` correctly returns all 6 in-memory products from `inMemoryRetail`.
+### Failure 3: Retail Data Not Displaying / Empty Database
+- **Observed status**: Retail catalog page displayed error state: "Failed to retrieve retail catalog" / Network Error or empty collection.
+- **Root Cause A (Dev server down)**: The catalog failed initially because the backend dev server had crashed upon boot (Failure 1).
+- **Root Cause B (Empty Database Fallback)**: When MongoDB is connected (`readyState === 1`) but the remote Atlas cluster has not yet been seeded with documents, `Retail.find()` and `Project.find()` returned empty arrays (`[]`), leaving the frontend with no items.
+- **Fix**: Updated `backend/services/retail.service.js` and `backend/services/project.service.js` so that if a connected MongoDB database has 0 items, queries automatically fall back to the in-memory seed catalog.
 
 ### Failure 4: Service Page Data
 - **Observed status**: Reported as "not showing their data".
@@ -82,6 +84,11 @@ sabr-studio/
 ### Failure 5: Vite Dev Server Port Creep
 - **Observed status**: When port 5173 was briefly occupied or lingering, Vite would silently fall back to port 5174 without updating the developer or scripts.
 - **Root Cause**: `frontend/vite.config.js` lacked `server.strictPort: true`.
+
+### Failure 6: Dependency Discovery on Container Boot
+- **Observed status**: Container start scripts ran `npm install` at repository root, leaving `backend/node_modules` and `frontend/node_modules` unpopulated unless installed separately.
+- **Root Cause**: Root `package.json` lacked a `postinstall` script linking to the separate applications.
+- **Fix**: Added `"postinstall": "npm --prefix backend install && npm --prefix frontend install"` to root `package.json`, and added automatic dependency existence checks in `scripts/dev.mjs` and `scripts/build.mjs`.
 
 ---
 
@@ -95,31 +102,39 @@ sabr-studio/
 2. **/scripts/dev.mjs**:
    - Explicitly passes `PORT: '3000'` in the child environment for the `api` target and `PORT: '5173'` for the `web` target.
    - Merges `t.env` into `process.env` when spawning children.
+   - Added automatic dependency check: auto-installs `backend/node_modules` or `frontend/node_modules` if missing.
 
-3. **/frontend/vite.config.js**:
+3. **/scripts/build.mjs**:
+   - Added automatic dependency check ensuring `frontend/node_modules` exists before running `npm run build`.
+
+4. **/frontend/vite.config.js**:
    - Fixed `__dirname` resolution using standard `fileURLToPath(import.meta.url)` in ESM.
    - Added `strictPort: true` under `server` so Vite fails clearly if port 5173 is unavailable rather than silently jumping to 5174.
    - Maintained `/api` and `/health` proxies targeting `http://localhost:3000`.
 
-4. **/backend/app.js**:
+5. **/backend/app.js**:
    - Updated CORS regex to match `127.0.0.1` as well as `localhost` origins: `/^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)`.
    - Added development reverse proxy to forward non-API requests (`!req.url.startsWith('/api') && !req.url.startsWith('/health')`) to the Vite dev server on port 5173 when running in development mode.
    - Preserved static serving of `backend/public` (with SPA fallback) when compiled frontend build is present.
 
-5. **/backend/apiHandler.js**:
+6. **/backend/apiHandler.js**:
    - Fixed `parseBody`: Immediately calls `cb(req.body)` if `req.body` is an object, or if `req.readableEnded` / `req.complete` is true, preventing request hangs on empty/pre-parsed bodies.
 
-6. **/backend/models/admin.model.js**:
+7. **/backend/models/admin.model.js**:
    - Expanded `inMemoryAdmins` to include records with `email: 'admin@sabrstudio.com'` and `email: 'admin@sabrstudio.example'` alongside `'admin'`.
 
-7. **/backend/services/auth.service.js**:
+8. **/backend/services/auth.service.js**:
    - Improved `inMemoryAdmins` lookup to handle normalized emails matching `'admin'`, `'admin@sabrstudio.com'`, or `'admin@sabrstudio.example'`.
 
-8. **/frontend/src/shared/api/axiosClient.js**:
-   - Preserved backend error messages (`normalizedError.message = data.message || ...`) in 401/403/429/500 handlers rather than overwriting with generic messages.
+9. **/backend/services/retail.service.js & /backend/services/project.service.js**:
+   - Added empty-database fallback: If MongoDB is connected but the collection has 0 items, queries automatically fall back to seed data so the UI displays retail objects and projects.
 
-9. **/package.json & /backend/package.json**:
-   - Updated `"engines": { "node": ">=20" }` to maintain compatibility with Node 22+ without engine warnings.
+10. **/frontend/src/shared/api/axiosClient.js**:
+    - Preserved backend error messages (`normalizedError.message = data.message || ...`) in 401/403/429/500 handlers rather than overwriting with generic messages.
+
+11. **/package.json & /backend/package.json**:
+    - Added `postinstall` script in root `package.json`.
+    - Updated `"engines": { "node": ">=20" }` to maintain compatibility with Node 22+ without engine warnings.
 
 ---
 
@@ -140,13 +155,13 @@ sabr-studio/
   ```bash
   npm run dev:backend
   ```
-  *(or `npm --prefix backend run dev`)*
+  *(or `cd backend && npm run dev`)*
 
 - **Start frontend only**:
   ```bash
   npm run dev:frontend
   ```
-  *(or `npm --prefix frontend run dev`)*
+  *(or `cd frontend && npm run dev`)*
 
 - **Build production frontend and bundle into backend**:
   ```bash
@@ -257,7 +272,7 @@ sabr-studio/
 | Check / Test | Command / Flow | Result | Status |
 |---|---|---|---|
 | Node Version Check | `node -v` | v22.23.2 | PASSED |
-| Frontend Build | `npm run build:frontend` | Built in 5.37s to `frontend/dist` | PASSED |
+| Frontend Build | `npm run build:frontend` | Built to `frontend/dist` | PASSED |
 | Root Production Build | `npm run build` | Built frontend and copied to `backend/public` | PASSED |
 | Dev Server Concurrency | `npm run dev` | Port 5173 (Vite) and Port 3000 (Express) both listening | PASSED |
 | Direct Backend Health | `curl http://localhost:3000/health` | 200 OK, JSON status 'ok' | PASSED |

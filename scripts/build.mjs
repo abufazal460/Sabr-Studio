@@ -13,6 +13,11 @@ const distDir = path.join(frontendDir, 'dist');
 const publicDir = path.join(root, 'backend', 'public');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
+if (!fs.existsSync(path.join(frontendDir, 'node_modules'))) {
+  console.log('[build] Installing frontend dependencies...');
+  execFileSync(npm, ['--prefix', 'frontend', 'install'], { cwd: root, stdio: 'inherit', shell: true });
+}
+
 console.log('[build] Building frontend (vite build)...');
 execFileSync(npm, ['run', 'build'], { cwd: frontendDir, stdio: 'inherit', shell: true });
 

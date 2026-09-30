@@ -13,7 +13,10 @@ export const retailService = {
       if (filter.category && filter.category !== 'All') {
         query.category = new RegExp(`^${filter.category}$`, 'i');
       }
-      return await Retail.find(query).sort({ createdAt: -1 }).lean();
+      const results = await Retail.find(query).sort({ createdAt: -1 }).lean();
+      if (results && results.length > 0) {
+        return results;
+      }
     }
 
     let items = inMemoryRetail.filter(
@@ -33,11 +36,12 @@ export const retailService = {
   async getPublicRetailBySlug(slug) {
     const isMongoConnected = Retail.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Retail.findOne({
+      const item = await Retail.findOne({
         $or: [{ slug }, { _id: slug.match(/^[0-9a-fA-F]{24}$/) ? slug : null }],
         published: true,
         availability: true,
       }).lean();
+      if (item) return item;
     }
 
     const item = inMemoryRetail.find(
@@ -56,7 +60,8 @@ export const retailService = {
   async getAdminRetail() {
     const isMongoConnected = Retail.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Retail.find().sort({ createdAt: -1 }).lean();
+      const results = await Retail.find().sort({ createdAt: -1 }).lean();
+      if (results && results.length > 0) return results;
     }
     return [...inMemoryRetail];
   },
@@ -67,9 +72,10 @@ export const retailService = {
   async getAdminRetailById(id) {
     const isMongoConnected = Retail.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Retail.findOne({
+      const item = await Retail.findOne({
         $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { slug: id }],
       }).lean();
+      if (item) return item;
     }
     return inMemoryRetail.find((r) => r.id === id || r._id === id || r.slug === id) || null;
   },
