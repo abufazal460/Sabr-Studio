@@ -36,37 +36,37 @@ export const ServiceTeaser = () => {
   const sectionRef = useRef(null);
   const projectRef = useRef(null);
 
-  // Keep this section and the project section that overlays it the same height/width
-  // at every breakpoint so the pin-and-cover handoff stays aligned.
+  // The pin-and-cover handoff is a desktop (lg+) design: it needs the projects
+  // strip in its horizontal 4-across layout so both sections have similar
+  // heights. Below lg the stacked layout would force a huge equalized height
+  // (mostly blank space) and pin the viewport through it, so on small screens
+  // both sections keep their natural, content-based height and scroll normally.
   useEffect(() => {
     // Capture the following project section before GSAP pinning reparents this section.
     if (!projectRef.current) {
       projectRef.current = sectionRef.current?.nextElementSibling || null;
     }
-    const equalize = () => {
-      const svc = sectionRef.current;
-      const proj = projectRef.current;
-      if (!svc || !proj) return;
-      svc.style.height = '';
-      proj.style.height = '';
-      const height = Math.max(svc.scrollHeight, proj.scrollHeight);
-      svc.style.height = `${height}px`;
-      proj.style.height = `${height}px`;
-      ScrollTrigger.refresh();
-    };
 
-    equalize();
-    window.addEventListener('resize', equalize);
-    window.addEventListener('load', equalize);
-    return () => {
-      window.removeEventListener('resize', equalize);
-      window.removeEventListener('load', equalize);
-    };
-  }, []);
+    const mm = gsap.matchMedia();
 
-  // Pin this section; the following project section scrolls up and covers it.
-  useEffect(() => {
-    const ctx = gsap.context(() => {
+    mm.add('(min-width: 1024px)', () => {
+      const equalize = () => {
+        const svc = sectionRef.current;
+        const proj = projectRef.current;
+        if (!svc || !proj) return;
+        svc.style.height = '';
+        proj.style.height = '';
+        const height = Math.max(svc.scrollHeight, proj.scrollHeight);
+        svc.style.height = `${height}px`;
+        proj.style.height = `${height}px`;
+        ScrollTrigger.refresh();
+      };
+
+      equalize();
+      window.addEventListener('resize', equalize);
+      window.addEventListener('load', equalize);
+
+      // Pin this section; the following project section scrolls up and covers it.
       ScrollTrigger.create({
         trigger: sectionRef.current,
         start: 'top top',
@@ -74,9 +74,18 @@ export const ServiceTeaser = () => {
         pin: true,
         pinSpacing: false,
       });
-    }, sectionRef);
 
-    return () => ctx.revert();
+      return () => {
+        window.removeEventListener('resize', equalize);
+        window.removeEventListener('load', equalize);
+        // Restore natural heights when dropping below lg (matchMedia also
+        // kills the ScrollTrigger and unwinds the pin).
+        if (sectionRef.current) sectionRef.current.style.height = '';
+        if (projectRef.current) projectRef.current.style.height = '';
+      };
+    });
+
+    return () => mm.revert();
   }, []);
 
   const headingEnter = reduce
