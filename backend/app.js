@@ -1,9 +1,13 @@
-// Load environment variables before any module reads process.env at import time.
-import 'dotenv/config';
-
+// Load environment variables from this file's directory before any module
+// reads process.env at import time. The default dotenv lookup uses
+// process.cwd(), so starting the backend from the repo root (or a serverless
+// bundler with a different cwd) silently misses backend/.env and flips the
+// app into no-DB / fallback mode. An explicit path keeps root and
+// backend-directory launches identical.
+import dotenv from 'dotenv';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -19,6 +23,10 @@ import { logger } from './utils/logger.js';
 import { clearAllFallbackData, syncFallbackToMongoose, fallbackOrders, fallbackEnquiries } from './utils/fallbackStorage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// dotenv.config() must run after __dirname exists but before any
+// process.env read below (CORS list, cookie flags, NODE_ENV, PORT).
+dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 
 // Behind Hostinger/Vercel reverse proxies: needed for correct req.ip (rate

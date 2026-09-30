@@ -82,8 +82,8 @@ export const AdminLogin = () => {
           <TextInput
             id="admin-email"
             name="email"
-            type="email"
-            label="Email Address"
+            type="text"
+            label="Email Address or Username"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
