@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { motion, useAnimationControls, useInView, useReducedMotion } from 'framer-motion';
 import { getProjects } from '../../projects/api/projects.api';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 import SectionHeading from '../../../shared/components/SectionHeading';
 import { Button } from '../../../shared/components/Button';
-
-gsap.registerPlugin(ScrollTrigger);
 
 // Default curated fallback projects when backend is not yet populated
 const fallbackProjects = [
@@ -41,10 +38,25 @@ const fallbackProjects = [
   },
 ];
 
+// One-time entrance, applied only after the section is observed in view.
+// Content is visible by default (no hidden initial styles at mount), so it can
+// never be stranded invisible if the observer or animation frames never run; a
+// timer failsafe clears any inline style left by the animation.
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } },
+};
+const itemVariants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } },
+};
+
 export const ProjectHomeThumb = () => {
   const [projects, setProjects] = useState(fallbackProjects);
   const sectionRef = useRef(null);
-  const processRef = useRef(null);
+  const reduce = useReducedMotion();
+  const inView = useInView(sectionRef, { once: true, amount: 0.2 });
+  const controls = useAnimationControls();
 
   useEffect(() => {
     getProjects({ limit: 4 })
@@ -58,106 +70,90 @@ export const ProjectHomeThumb = () => {
       });
   }, []);
 
-  // Keep this section and the process section that overlays it the same height/width
-  // at every breakpoint so the pin-and-cover handoff stays aligned.
-  useEffect(() => {
-    // Capture the following process section before GSAP pinning reparents this section.
-    if (!processRef.current) {
-      processRef.current = sectionRef.current?.nextElementSibling || null;
-    }
-    const equalize = () => {
-      const proj = sectionRef.current;
-      const proc = processRef.current;
-      if (!proj || !proc) return;
-      proj.style.height = '';
-      proc.style.height = '';
-      const height = Math.max(proj.scrollHeight, proc.scrollHeight);
-      proj.style.height = `${height}px`;
-      proc.style.height = `${height}px`;
-      ScrollTrigger.refresh();
-    };
-
-    equalize();
-    window.addEventListener('resize', equalize);
-    window.addEventListener('load', equalize);
-    return () => {
-      window.removeEventListener('resize', equalize);
-      window.removeEventListener('load', equalize);
-    };
-  }, []);
-
-  // Pin this section; the following process section scrolls up and covers it.
-  useEffect(() => {
-    const ctx = gsap.context(() => {
-      ScrollTrigger.create({
-        trigger: sectionRef.current,
-        start: 'top top',
-        end: () => '+=' + (sectionRef.current?.offsetHeight || window.innerHeight),
-        pin: true,
-        pinSpacing: false,
+  useLayoutEffect(() => {
+    if (reduce || !inView) return undefined;
+    controls.set('hidden');
+    controls.start('visible');
+    const failsafe = setTimeout(() => {
+      const root = sectionRef.current;
+      if (!root) return;
+      root.querySelectorAll('[data-reveal]').forEach((el) => {
+        el.style.opacity = '';
+        el.style.transform = '';
       });
-    }, sectionRef);
+    }, 1500);
+    return () => clearTimeout(failsafe);
+  }, [reduce, inView, controls]);
 
-    return () => ctx.revert();
-  }, []);
+  const revealProps = reduce
+    ? { 'data-reveal': '' }
+    : { 'data-reveal': '', variants: itemVariants };
 
   return (
     <section
       ref={sectionRef}
-      className="relative z-10 py-20 sm:py-28 lg:py-32 bg-white border-b border-border"
+      className="py-20 sm:py-28 lg:py-32 bg-white border-b border-border"
       aria-label="Selected Projects Strip"
     >
-      <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 mb-12 sm:mb-16">
-        <SectionHeading
-          title="Projects"
-          align="center"
-        />
-      </div>
+      <motion.div
+        {...(reduce ? {} : { animate: controls, variants: containerVariants })}
+        className="contents"
+      >
+        <motion.div
+          {...revealProps}
+          className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 mb-12 sm:mb-16"
+        >
+          <SectionHeading
+            title="Projects"
+            align="center"
+          />
+        </motion.div>
 
-      {/* Edge-to-edge 4-image row (UI-UX §35: 4 -> 2 -> 1, touching on desktop) */}
-      <div className="w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border">
-          {projects.map((proj) => {
-            const imageUrl = buildCloudinaryUrl(proj.coverImage, { width: 800, height: 1060 });
-            return (
-              <Link
-                key={proj.id}
-                to={`/projects/${proj.slug}`}
-                className="group relative block aspect-[3/4] overflow-hidden bg-surface"
-              >
-                <img
-                  src={imageUrl}
-                  alt={proj.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover object-center"
-                />
+        {/* Edge-to-edge 4-image row (UI-UX §35: 4 -> 2 -> 1, touching on desktop) */}
+        <motion.div {...revealProps} className="w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border">
+            {projects.map((proj) => {
+              const imageUrl = buildCloudinaryUrl(proj.coverImage, { width: 800, height: 1060 });
+              return (
+                <Link
+                  key={proj.id}
+                  to={`/projects/${proj.slug}`}
+                  className="group relative block aspect-[3/4] overflow-hidden bg-surface"
+                >
+                  <img
+                    src={imageUrl}
+                    alt={proj.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover object-center"
+                  />
 
-                {/* Hover overlay with centered white label (UI-UX §35) */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out motion-reduce:transition-none flex flex-col items-center justify-center p-6 text-center text-white">
-                  <span className="font-inter text-xs uppercase tracking-widest font-medium text-white/80 mb-2">
-                    {proj.category}
-                  </span>
-                  <h3 className="font-abhaya text-2xl font-medium mb-4">
-                    {proj.title}
-                  </h3>
-                  <span className="font-inter text-xs uppercase tracking-widest font-semibold px-4 py-2 border border-white text-white rounded-sm">
-                    View Project
-                  </span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
+                  {/* Hover overlay with centered white label (UI-UX §35) */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out motion-reduce:transition-none flex flex-col items-center justify-center p-6 text-center text-white">
+                    <span className="font-inter text-xs uppercase tracking-widest font-medium text-white/80 mb-2">
+                      {proj.category}
+                    </span>
+                    <h3 className="font-abhaya text-2xl font-medium mb-4">
+                      {proj.title}
+                    </h3>
+                    <span className="font-inter text-xs uppercase tracking-widest font-semibold px-4 py-2 border border-white text-white rounded-sm">
+                      View Project
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </motion.div>
 
-      <div className="text-center mt-12">
-        <Button
-          to="/projects"
-          variant="Secondary-Outline"
-          size="default"
-          label="View All Projects"
-        />
-      </div>
+        <motion.div {...revealProps} className="text-center mt-12">
+          <Button
+            to="/projects"
+            variant="Secondary-Outline"
+            size="default"
+            label="View All Projects"
+          />
+        </motion.div>
+      </motion.div>
     </section>
   );
 };

@@ -122,6 +122,13 @@ if (fs.existsSync(indexHtml)) {
     if (path.extname(req.path)) return next();
     return res.sendFile(indexHtml);
   });
+} else if (!process.env.VERCEL) {
+  // On Vercel the frontend is served as static output, so a missing
+  // backend/public there is expected and must not warn.
+  console.warn(
+    '[static] backend/public/index.html not found — serving API only. ' +
+    'Run "npm run build" from the repo root to build the frontend into backend/public.'
+  );
 }
 
 // --- 404 (JSON) for anything still unmatched --------------------------------

@@ -35,7 +35,7 @@ export const HeroSlider = () => {
 
   return (
     <section
-      className="relative w-full h-[100svh] min-h-[560px] flex items-center justify-center overflow-hidden bg-black"
+      className="relative w-full min-h-[100svh] flex items-center justify-center overflow-hidden bg-black"
       aria-label="Sabr Studio Introduction"
     >
       {/* Background Images: horizontal slide track (transform translate), both images stay mounted/preloaded */}
@@ -62,7 +62,7 @@ export const HeroSlider = () => {
       <div className="absolute inset-0 bg-black/40 z-10" aria-hidden="true" />
 
       {/* Hero Content Shell */}
-      <div className="relative z-20 max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 w-full text-center text-white py-16">
+      <div className="relative z-20 max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 w-full text-center text-white py-12 sm:py-16">
         <motion.div
           key={`copy-${currentSlide}`}
           {...copyEnter}
