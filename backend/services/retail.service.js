@@ -13,10 +13,7 @@ export const retailService = {
       if (filter.category && filter.category !== 'All') {
         query.category = new RegExp(`^${filter.category}$`, 'i');
       }
-      const results = await Retail.find(query).sort({ createdAt: -1 }).lean();
-      if (results && results.length > 0) {
-        return results;
-      }
+      return await Retail.find(query).sort({ createdAt: -1 }).lean();
     }
 
     let items = inMemoryRetail.filter(
@@ -60,8 +57,7 @@ export const retailService = {
   async getAdminRetail() {
     const isMongoConnected = Retail.db?.readyState === 1;
     if (isMongoConnected) {
-      const results = await Retail.find().sort({ createdAt: -1 }).lean();
-      if (results && results.length > 0) return results;
+      return await Retail.find().sort({ createdAt: -1 }).lean();
     }
     return [...inMemoryRetail];
   },

@@ -38,10 +38,19 @@ export const verifyPaymentValidator = [
 
 export const updateOrderStatusValidator = [
   body('orderStatus')
-    .notEmpty()
-    .withMessage('orderStatus is required')
+    .optional()
     .isIn(['pending', 'confirmed', 'completed', 'cancelled'])
     .withMessage('orderStatus must be one of: pending, confirmed, completed, cancelled'),
+  body('status')
+    .optional()
+    .isIn(['pending', 'confirmed', 'completed', 'cancelled'])
+    .withMessage('status must be one of: pending, confirmed, completed, cancelled'),
+  body().custom((value, { req }) => {
+    if (!req.body.orderStatus && !req.body.status) {
+      throw new Error('orderStatus is required');
+    }
+    return true;
+  }),
   body('paymentStatus').custom((value) => {
     if (value !== undefined) {
       throw new Error(

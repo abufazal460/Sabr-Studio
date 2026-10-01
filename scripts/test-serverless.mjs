@@ -4,10 +4,11 @@ const { default: app } = await import('../api/index.js');
 const http = await import('http');
 const server = http.createServer(app);
 server.listen(3999, async () => {
-  const get = (p, opts={}) => new Promise((res) => {
+  const get = (p, opts={}) => new Promise((res, rej) => {
     const req = http.request({ host: 'localhost', port: 3999, path: p, method: opts.method || 'GET', headers: opts.headers || {} }, (r) => {
-      let b = ''; r.on('data', (c) => b += c); r.on('end', () => res({ s: r.statusCode, ct: r.headers['content-type'] || '', body: b.slice(0, 120) }));
+      let b = ''; r.on('data', (c) => b += c); r.on('end', () => res({ s: r.statusCode, ct: r.headers['content-type'] || '', cookie: r.headers['set-cookie'] || '', body: b.slice(0, 400) }));
     });
+    req.on('error', rej);
     if (opts.body) req.write(opts.body);
     req.end();
   });
@@ -22,8 +23,15 @@ server.listen(3999, async () => {
   const r5 = await get('/projects');
   console.log('GET /projects (SPA)  ->', r5.s, r5.ct);
   const r6 = await get('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'admin', password: 'admin' }) });
-  console.log('POST /api/auth/login ->', r6.s, r6.ct);
-  console.log('SET-COOKIE:', r6.body.includes('success') ? '(see headers)' : '');
+  console.log('POST /api/auth/login ->', r6.s, r6.ct, r6.body.slice(0,120));
+  console.log('SET-COOKIE:', r6.cookie ? String(r6.cookie).slice(0,120) : '(none)');
+  const cookie = Array.isArray(r6.cookie) ? r6.cookie[0].split(';')[0] : String(r6.cookie || '').split(';')[0];
+  const r7 = await get('/api/auth/me', { headers: cookie ? { Cookie: cookie } : {} });
+  console.log('GET /api/auth/me      ->', r7.s, r7.ct, r7.body.slice(0,120));
+  const r8 = await get('/api/retail');
+  console.log('GET /api/retail       ->', r8.s, r8.ct, r8.body.slice(0,120));
+  const r9 = await get('/api/enquiries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+  console.log('POST /api/enquiries {}->', r9.s, r9.ct, r9.body.slice(0,160), '(must be fast 400, not hang)');
   server.close(() => { console.log('SERVERLESS SIMULATION DONE - module loaded WITHOUT listen() crash'); process.exit(0); });
 });
 

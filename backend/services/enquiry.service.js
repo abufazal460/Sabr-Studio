@@ -15,7 +15,7 @@ export const enquiryService = {
       email: data.email.trim(),
       phone: String(data.phone).trim(),
       message: data.message.trim(),
-      source: data.source || '/contact',
+      source: data.source || data.sourceRoute || '/contact',
       status: 'new',
     };
 
