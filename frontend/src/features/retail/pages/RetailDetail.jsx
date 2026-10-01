@@ -86,7 +86,7 @@ export const RetailDetail = () => {
           <ErrorState
             title="Failed to Load Edition"
             message={error}
-            retryAction={fetchProduct}
+            onRetry={fetchProduct}
           />
         </div>
       </div>

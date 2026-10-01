@@ -3,8 +3,13 @@ import bcrypt from 'bcrypt';
 import mongoose from 'mongoose';
 import { Admin, inMemoryAdmins } from '../models/admin.model.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sabr_studio_dev_jwt_secret_key_8f7b2c9d1e4a5f6e';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+function getJwtSecret() {
+  return process.env.JWT_SECRET || 'sabr_studio_dev_jwt_secret_key_8f7b2c9d1e4a5f6e';
+}
+
+function getJwtExpiresIn() {
+  return process.env.JWT_EXPIRES_IN || '24h';
+}
 
 /**
  * Service to handle admin authentication operations
@@ -23,8 +28,8 @@ class AuthService {
       role: admin.role || 'admin',
     };
 
-    return jwt.sign(payload, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN,
+    return jwt.sign(payload, getJwtSecret(), {
+      expiresIn: getJwtExpiresIn(),
     });
   }
 
@@ -34,7 +39,7 @@ class AuthService {
    * @returns {Object} Decoded payload
    */
   verifyToken(token) {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, getJwtSecret());
   }
 
   /**

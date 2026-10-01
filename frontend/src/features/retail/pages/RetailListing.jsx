@@ -121,7 +121,7 @@ export const RetailListing = () => {
             <ErrorState
               title="Unable to load retail catalog"
               message={error}
-              retryAction={fetchProducts}
+              onRetry={fetchProducts}
             />
           ) : filteredProducts.length === 0 ? (
             <EmptyState
