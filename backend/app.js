@@ -9,7 +9,6 @@ import path from 'path';
 import fs from 'fs';
 import http from 'http';
 import { fileURLToPath } from 'url';
-import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';

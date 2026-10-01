@@ -1,5 +1,161 @@
 # Frontend–Backend Connection Diagnosis
 
+## UPDATE 2026-10-01 — Definitive root cause (supersedes the analysis below)
+
+### The single confirmed cause of every failure
+
+`backend/app.js` contains a **duplicate `import fs from 'fs';`** — one at line 9 and a
+second at line 12 — in **every committed branch** (`HEAD`, `main`, `origin/main`,
+`origin/fazal`; verified with `git show <ref>:backend/app.js | grep -c "^import fs from 'fs';"` → `2`).
+In an ES module a repeated default-import binding is a hard
+`SyntaxError: Identifier 'fs' has already been declared`, so `backend/app.js` **cannot be
+loaded at all**.
+
+Consequences, both environments:
+
+| Environment | Chain of failure | Observed symptom |
+|---|---|---|
+| Local dev | `node backend/dev.js` → dynamic `import('./app.js')` throws → server never binds `:3000` → Vite proxy (`/api` → `http://localhost:3000`) gets `ECONNREFUSED` | Frontend "Network error", admin login fails, retail/projects empty |
+| Vercel | `api/index.js` (`import app from '../backend/app.js'`) throws on invocation | **`500 FUNCTION_INVOCATION_FAILED`** on `/api/*` and `/health` |
+
+Evidence captured 2026-10-01:
+- Live: `GET https://sabr-studio.vercel.app/api/health` → `HTTP 500` body `A server error has occurred / FUNCTION_INVOCATION_FAILED / bom1::w9x97-...` (same for `/health`, `/api/projects`, `/api/retail`).
+- Live browser `https://sabr-studio.vercel.app/projects` renders "Unable to load projects — Network error. Please check your connection and try again." (The Vercel 500 page is non-JSON and carries no CORS headers, so the browser blocks it and Axios reports a network error rather than a 500.)
+- Local working tree (duplicate already removed): `node --check` passes on all `backend/**/*.js`; backend binds `:3000`; endpoints all return real data (see verification below).
+
+### The fix
+
+Remove the second `import fs from 'fs';` so only one remains. **This fix is already present
+in the uncommitted working tree** (`git diff backend/app.js` shows the duplicate line being
+deleted). No other code change is required — the routing, auth, CORS, cookie, proxy, and
+`vercel.json` configuration are all correct and were verified working once the module loads.
+
+> **BLOCKER (requires you):** the fix is uncommitted, and Vercel deploys from `origin/main`,
+> which still has the duplicate. The live `500`s will persist until `backend/app.js` is
+> committed to the deployed branch and redeployed. Per instructions I did **not** commit,
+> push, or deploy.
+
+### Verification actually run (2026-10-01, local, working-tree fix in place)
+
+Commands were run from the repo root against `node backend/dev.js` on `:3000` and the
+user's Vite dev server on `:5173`:
+
+- `GET http://localhost:3000/health` → **200**, `database.status: "connected"` (state 1).
+- `GET http://localhost:3000/api/projects` → **200**, populated project array (real records).
+- `GET http://localhost:3000/api/retail` → **200**, populated retail array (real records).
+- `POST http://localhost:3000/api/auth/login` body `{"email":"admin","password":"admin"}` → **200** `success:true`, sets httpOnly `token` cookie, returns sanitized admin (`role:"admin"`, no password/token in body).
+- `GET http://localhost:3000/api/auth/me` with that cookie → **200**, returns the admin identity (protected route authorized).
+- `GET http://localhost:5173/api/projects` (through the Vite proxy) → **200**, real data.
+- `GET http://localhost:5173/api/retail` (through the Vite proxy) → **200**.
+- `npm --prefix frontend run build` → **✓ built** (only `dev`/`build`/`preview` scripts exist; there is no lint script).
+- Production bundle contains **no** localhost API URL: `VITE_API_BASE_URL=/api` (relative). The single `http://localhost` string in `dist/assets/index-*.js` is a React scheduler internal (`window.location.href || "http://localhost"`), not an API endpoint.
+
+Local admin login and retail/projects data therefore **work end-to-end** once the backend
+process is running from the fixed file.
+
+### Items confirmed NOT to be bugs
+
+- **Services page has no API dependency** — it renders from `frontend/src/features/services/data/services.data.js`. There is intentionally no `/api/services` backend route, so "services data" cannot fail over the network. (The earlier "service pages show no data" was the same backend-down/network-error cause affecting the shell, not a services endpoint.)
+- **API base URL** is same-origin `/api` everywhere (`frontend/src/shared/api/axiosClient.js`: `baseURL: import.meta.env.VITE_API_BASE_URL || '/api'`, `withCredentials: true`).
+- **Vite proxy** targets `http://localhost:3000` for `/api` and `/health`, matching the backend `PORT=3000`.
+- **CORS** uses an allow-list with `credentials: true` (never `*` with credentials); same-origin in production.
+- **Cookie**: name `token`, httpOnly, `secure` in production, `SameSite` from `COOKIE_SAME_SITE` (default `lax`).
+- **Serverless adapter**: `api/index.js` default-exports the Express `app` (no `listen()` inside the function) — correct for Vercel.
+- **Node version**: local shell is v25.5.0; `.nvmrc` = 24 and `engines.node >= 20`. The app runs on both; Vercel uses Node 24. Not a cause.
+
+### Folder structure relevant to the connection
+
+```
+sabr-studio/
+  api/index.js                 # Vercel serverless entry: export default Express app
+  vercel.json                  # framework null; build frontend; output frontend/dist; rewrites
+  package.json                 # root scripts: dev / build / start (orchestrate backend+frontend)
+  scripts/{dev,build,serve,test-serverless}.mjs
+  backend/
+    app.js                     # Express app (health, CORS, apiHandler, static/SPA) <-- FIX HERE
+    dev.js                     # local entry: loads backend/.env, imports app.js, listen(PORT)
+    apiHandler.js              # /api/* router (auth, projects, retail, enquiries, orders, admin)
+    config/db.js               # mongoose connect w/ globalThis cache; in-memory fallback if no URI
+    controllers/ services/ models/ middlewares/ validators/ utils/
+    .env                       # IGNORED by git — never committed
+  frontend/
+    vite.config.js             # dev server :5173 (strictPort), proxy /api,/health -> :3000
+    src/shared/api/axiosClient.js   # baseURL '/api', withCredentials
+    src/features/*/api/*.api.js     # auth.api, projects.api, retail.api, ...
+```
+
+### API connection contract
+
+- Frontend base path: **`/api`** (same-origin; relative — no host baked into the bundle).
+- Local dev: browser → `http://localhost:5173/api/...` → Vite proxy → `http://localhost:3000/api/...`.
+- Production (Vercel): browser → `https://<site>/api/...` → rewrite `/api/(.*)` → `/api/index` (the Express function). `/health` → `/api/index`. All other paths → `/index.html` (SPA).
+- Backend routes: `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/projects[/:slug]`, `GET /api/retail[/:slug]`, `POST /api/enquiries`, checkout/orders, `/api/admin/*` (protected). `GET /health` and `GET /api/health`.
+- Auth: JWT in httpOnly cookie `token`; `withCredentials` on the client; `protect` middleware verifies the cookie or a `Bearer` header.
+
+### Environment variables (NAMES only — never commit values)
+
+Declared in root `.env.example`; local values live in the git-ignored `backend/.env`.
+Browser-exposed (Vite) vars live in `frontend/.env` and MUST be `VITE_`-prefixed and
+non-secret.
+
+- Backend (server-only, `backend/.env` / Vercel env): `NODE_ENV`, `PORT`, `MONGODB_URI`,
+  `JWT_SECRET`, `JWT_EXPIRES_IN`, `ADMIN_PASSWORD`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`,
+  `CORS_ORIGIN`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `CLOUDINARY_CLOUD_NAME`,
+  `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`,
+  `EMAILJS_PUBLIC_KEY`, `EMAILJS_PRIVATE_KEY`.
+- Frontend (browser-safe, `frontend/.env`): `VITE_API_BASE_URL` (=`/api`), `VITE_RAZORPAY_KEY_ID` (public key only).
+- Never place `JWT_SECRET`, `MONGODB_URI`, `CLOUDINARY_API_SECRET`, `EMAILJS_PRIVATE_KEY`,
+  `ADMIN_PASSWORD`, or `RAZORPAY_KEY_SECRET` into any `VITE_` variable.
+
+### Local ports & exact commands
+
+- Backend: port **3000** — `node backend/dev.js` (or `npm --prefix backend run dev` for nodemon).
+- Frontend: port **5173** (strictPort) — `npm --prefix frontend run dev`.
+- Both together: `npm run dev` (root `scripts/dev.mjs`).
+- Single-server production preview on :3000: `npm run build` then `npm run start`.
+- If `:3000` is occupied, free it before starting; do not start a second backend on another
+  port while the Vite proxy targets 3000.
+
+### Vercel settings (what was verified vs not)
+
+- Verified from repo: `vercel.json` → `framework: null`, `buildCommand: npm run build --prefix frontend`, `outputDirectory: frontend/dist`, rewrites `/api/(.*)`→`/api/index`, `/health`→`/api/index`, `/(.*)`→`/index.html`. `api/index.js` exists and default-exports the Express app, so the function is discovered (a rewrite alone would not create it).
+- Verified live: all `/api/*` and `/health` currently return **500 FUNCTION_INVOCATION_FAILED** (the duplicate-import crash).
+- **Unverified (needs dashboard):** Vercel env-var presence (notably `MONGODB_URI`), the deployed commit SHA, and function runtime logs. A missing `MONGODB_URI` does NOT cause the 500 — the app falls back to in-memory data gracefully; the crash is purely the SyntaxError. No Preview deployment was created and nothing was promoted to Production.
+
+### Hostinger (unverified)
+
+No Hostinger account/plan access was available, so its build/start/static-serving behavior is
+**unverified**. The repo supports a persistent single-server model (`npm run build` →
+`npm run start`, backend serves `backend/public` + API on one port) suitable for a Node-capable
+VPS/Hostinger plan; a plan that cannot run a persistent Node process would need the static +
+separate-API model instead.
+
+### Troubleshooting quick reference
+
+- **"Network Error" in the frontend (local):** is the backend actually listening on `:3000`?
+  `netstat -ano | grep :3000`. If not, run `node backend/dev.js` and read the console —
+  a `SyntaxError`/`Identifier 'fs' has already been declared` means the duplicate import is back.
+- **`500 FUNCTION_INVOCATION_FAILED` (Vercel):** the function threw while loading. First check
+  `backend/app.js` parses: `node --check backend/app.js`. Then confirm the deployed branch
+  contains the fix (single `import fs`). Redeploy after committing.
+- **Admin login fails:** confirm the request is `POST /api/auth/login` with JSON `{email, password}`;
+  a `400` means validation (email/password required), `401` means bad credentials. The dev
+  in-memory admin accepts `admin` / `admin`; production should set `ADMIN_PASSWORD` and seed a real admin.
+- **Retail/projects empty but HTTP 200:** API is connected — the database has no matching
+  records. Distinguish "connected, no data" from a request failure. Populate MongoDB or rely on
+  the in-memory fallback data.
+
+### Checks run / results / unverified
+
+- Run & passed: `node --check` on all backend files; local `/health`, `/api/projects`,
+  `/api/retail`, `POST /api/auth/login`, `GET /api/auth/me`; Vite-proxied `/api/projects`
+  and `/api/retail`; frontend production build; bundle has no localhost API URL; live Vercel
+  probe (all 500) and live `/projects` browser render.
+- Unverified: Vercel env vars + deployed commit + function logs (no dashboard access);
+  Hostinger (no account access); no Preview deployment created; nothing pushed to Production.
+
+---
+
 ## Confirmed findings
 
 - The frontend Axios client uses the same-origin `/api` base path, and `frontend/vite.config.js` proxies `/api` and `/health` to `http://localhost:3000`.
