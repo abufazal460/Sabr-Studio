@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getProjects } from '../../projects/api/projects.api';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 import SectionHeading from '../../../shared/components/SectionHeading';
+import { Button } from '../../../shared/components/Button';
 
 // Default curated fallback projects when backend is not yet populated
 const fallbackProjects = [
@@ -101,15 +102,15 @@ export const ProjectHomeThumb = () => {
         </div>
       </div>
 
-      {/* Static CTA — same resting Secondary-Outline look (border, type, 44px
-          target), usable with keyboard, touch, and mouse at every width. */}
+      {/* Static CTA — demo Secondary-Outline look on white (black border,
+          fills black on hover). Same 44px target, keyboard/touch accessible. */}
       <div className="text-center mt-12 px-5 sm:px-8">
-        <Link
+        <Button
           to="/projects"
-          className="inline-flex min-h-[44px] items-center justify-center rounded-sm border border-ink bg-transparent px-6 py-3 font-inter text-sm font-medium tracking-wide text-ink select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
-        >
-          View All Projects
-        </Link>
+          variant="Secondary-Outline"
+          size="default"
+          label="View All Projects"
+        />
       </div>
     </section>
   );
