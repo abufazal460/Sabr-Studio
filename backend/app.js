@@ -6,8 +6,6 @@
 // backend-directory launches identical.
 import dotenv from 'dotenv';
 import path from 'path';
-import fs from 'fs';
-import http from 'http';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
@@ -41,12 +39,20 @@ app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 
 // --- CORS -------------------------------------------------------------------
-// Same-origin in production, so this is a defensive allow-list. Never a
-// wildcard with credentials. Localhost origins are permitted in development.
+// Separate local servers: the Vite dev server (http://localhost:5173) calls
+// this API (http://localhost:3000) cross-origin, so the frontend origin must
+// be allow-listed here with credentials enabled (the auth cookie). Never a
+// wildcard with credentials.
 let allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+
+// Local development default when no explicit allow-list is configured.
+// Production keeps the explicit CORS_ORIGIN list (or Vercel URL fallback).
+if (!allowedOrigins.length && process.env.NODE_ENV !== 'production') {
+  allowedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+}
 
 // If no explicit origins are configured, fall back to the Vercel deployment URL (if available).
 if (!allowedOrigins.length && process.env.VERCEL_URL) {
@@ -64,6 +70,9 @@ app.use(
       return cb(null, false);
     },
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Requested-With'],
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -76,8 +85,21 @@ app.use(compression());
 // --- Request timeout (30 seconds default) ---------------------------------
 app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 
+// --- Root status route ---------------------------------------------------------
+// API-only marker: confirms the backend is running without serving the
+// frontend, frontend dist files, or an SPA fallback. Real status detail
+// lives on the health endpoints; unknown routes still fall through to the
+// JSON 404 handler below.
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Sabr Studio API is running',
+    health: '/api/health',
+  });
+});
+
 // --- Health check endpoint ---------------------------------------------------
-// Registered BEFORE static/SPA fallback so it always returns JSON, never HTML.
+// Registered BEFORE the API router so it always returns JSON.
 app.get('/health', (req, res) => {
   const dbState = mongoose?.connection?.readyState;
   const dbStatuses = {
@@ -112,63 +134,11 @@ app.get('/health', (req, res) => {
 });
 
 // --- API routes (all under /api, plus /health) ------------------------------
-// apiHandler calls next() for any non-API path so static/SPA handling below runs.
+// This backend is API-only. It never serves the frontend build or an SPA
+// fallback; the React app is served separately (Vite dev server on :5173
+// locally, static output on Vercel). apiHandler calls next() for any non-API
+// path, which falls through to the JSON 404 handler below.
 app.use(apiHandler);
-
-// --- Reverse proxy to Vite dev server in local development -------------------
-// When running in development, if a non-API request arrives at port 3000
-// (e.g. from the AI Studio preview iframe or direct browser navigation),
-// transparently forward it to the Vite dev server at http://127.0.0.1:5173.
-// If Vite is not running, fall back to backend/public static assets.
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req, res, next) => {
-    if (req.url.startsWith('/api') || req.url.startsWith('/health')) {
-      return next();
-    }
-    const proxyReq = http.request(
-      {
-        host: '127.0.0.1',
-        port: 5173,
-        path: req.url,
-        method: req.method,
-        headers: { ...req.headers, host: 'localhost:5173' },
-      },
-      (proxyRes) => {
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
-        proxyRes.pipe(res);
-      }
-    );
-    proxyReq.on('error', () => {
-      next();
-    });
-    req.pipe(proxyReq);
-  });
-}
-// --- Production frontend (compiled Vite build) ------------------------------
-// Served only when a build has been placed in backend/public. The dev backend
-// stays API-only and does not require a frontend build.
-const publicDir = path.join(__dirname, 'public');
-const indexHtml = path.join(publicDir, 'index.html');
-
-if (fs.existsSync(indexHtml)) {
-  app.use(express.static(publicDir));
-
-  // SPA fallback for non-API client routes (React Router deep links / refresh).
-  // Paths with a file extension that were not served by express.static are
-  // genuinely missing assets â€” let them fall through to the JSON 404 handler
-  // instead of returning HTML (which would surface as a MIME error).
-  app.get(/^(?!\/api).*/, (req, res, next) => {
-    if (path.extname(req.path)) return next();
-    return res.sendFile(indexHtml);
-  });
-} else if (!process.env.VERCEL) {
-  // On Vercel the frontend is served as static output, so a missing
-  // backend/public there is expected and must not warn.
-  console.warn(
-    '[static] backend/public/index.html not found — serving API only. ' +
-    'Run "npm run build" from the repo root to build the frontend into backend/public.'
-  );
-}
 
 // --- 404 (JSON) for anything still unmatched --------------------------------
 app.use((req, res) => {
