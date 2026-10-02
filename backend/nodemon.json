@@ -1,0 +1,12 @@
+{
+  "watch": ["."],
+  "ext": "js,mjs",
+  "ignore": [
+    "data/**",
+    "../data/**",
+    "public/**",
+    "node_modules/**",
+    "*.json",
+    "test*.js"
+  ]
+}

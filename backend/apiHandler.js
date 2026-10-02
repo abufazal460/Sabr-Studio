@@ -1,3 +1,7 @@
+import fs from 'fs';
+import nodePath from 'path';
+import { fileURLToPath } from 'url';
+
 import { authController } from './controllers/auth.controller.js';
 import { projectController } from './controllers/project.controller.js';
 import { retailController } from './controllers/retail.controller.js';
@@ -31,10 +35,13 @@ import {
   updateOrderStatusValidator,
 } from './validators/order.validator.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = nodePath.dirname(__filename);
+
 export function apiHandler(req, res, next) {
   // If next is provided (Express/Connect middleware style) and the path is not
-  // an API/health path, pass through to static + SPA handling downstream.
-  if (next && req.url && !req.url.startsWith('/api') && !req.url.startsWith('/health')) {
+  // an API/health/root status path, pass through to static + SPA handling downstream.
+  if (next && req.url && !req.url.startsWith('/api') && !req.url.startsWith('/health') && req.url !== '/' && !req.url.startsWith('/?')) {
     return next();
   }
   return handleApiRequest(req, res);
@@ -169,10 +176,32 @@ export default function handleApiRequest(req, res) {
   };
 
   // -------------------------------------------------------------
-  // Health-check endpoint (unauthenticated)
+  // Root status endpoint & Health-check endpoint (unauthenticated)
   // -------------------------------------------------------------
+  if ((path === '/' || path === '/api' || path === '/api/') && method === 'GET') {
+    return res.status(200).json({
+      success: true,
+      message: 'Sabr Studio API is running',
+      health: '/api/health',
+    });
+  }
+
   if ((path === '/health' || path === '/api/health') && method === 'GET') {
     return res.status(200).json({ status: 'ok' });
+  }
+
+  if ((path === '/api/audit/download' || path === '/CONNECTIVITY_AUDIT.md') && method === 'GET') {
+    try {
+      const auditFile = nodePath.resolve(__dirname, '../CONNECTIVITY_AUDIT.md');
+      if (fs.existsSync(auditFile)) {
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="CONNECTIVITY_AUDIT.md"');
+        const content = fs.readFileSync(auditFile, 'utf-8');
+        return res.send ? res.send(content) : res.end(content);
+      }
+    } catch (e) {
+      console.error('[DownloadAudit] Error serving audit file:', e);
+    }
   }
 
   // -------------------------------------------------------------
@@ -424,8 +453,11 @@ export default function handleApiRequest(req, res) {
     });
   };
 
-  // Auth and admin groups have dedicated limiters; health is unauthenticated.
+  // Auth and admin groups have dedicated limiters; health and root status are unauthenticated.
   const isRateLimitExempt =
+    path === '/' ||
+    path === '/api' ||
+    path === '/api/' ||
     path === '/health' ||
     path === '/api/health' ||
     path.startsWith('/api/auth') ||

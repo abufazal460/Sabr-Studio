@@ -5,6 +5,13 @@
   "type": "module",
   "description": "Sabr Studio — monorepo with separately-run Vite React frontend and Express API.",
   "scripts": {
+
+    "dev": "node scripts/dev.mjs",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "test": "node scripts/test-all-routes.mjs",
+    "test:routes": "node scripts/test-all-routes.mjs",
+
     "build": "node scripts/build.mjs",
     "build:frontend": "npm --prefix frontend run build",
     "vercel-build": "npm --prefix frontend run build",

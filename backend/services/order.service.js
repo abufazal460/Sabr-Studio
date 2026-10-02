@@ -27,7 +27,7 @@ export const orderService = {
     const orderItems = [];
 
     for (const item of items) {
-      const id = item.itemId || item.productId || item.id;
+      const id = item.itemId || item.productId || item.product || item.id;
       const qty = Math.max(1, Number(item.quantity) || 1);
 
       // Re-verify against retail database first, then projects if purchasable
@@ -329,6 +329,9 @@ export const orderService = {
       ).lean();
       return updated;
     }
+
+    const fallbackUpdated = fallbackOrders.update(id, { orderStatus: newOrderStatus });
+    if (fallbackUpdated) return fallbackUpdated;
 
     const ord = inMemoryOrders.find(
       (o) => o.id === id || o._id === id || o.orderNumber === id

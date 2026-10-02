@@ -53,7 +53,21 @@ async function retryRequest(requestConfig, attempt = 0) {
 // Response interceptor to normalize error handling and data envelope across the application
 axiosClient.interceptors.response.use(
   (response) => response.data,
-  (error) => {
+  async (error) => {
+    const config = error.config;
+    const isGet = !config?.method || config.method.toUpperCase() === 'GET';
+
+    // Auto-retry transient network errors and 502/503/504 up to 2 times
+    if (config && isGet && (!config._retryCount || config._retryCount < 2)) {
+      const isNetworkErr = !error.response || error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK';
+      const isGatewayErr = [502, 503, 504].includes(error.response?.status);
+      if (isNetworkErr || isGatewayErr) {
+        config._retryCount = (config._retryCount || 0) + 1;
+        await sleep(600 * config._retryCount);
+        return axiosClient(config);
+      }
+    }
+
     let normalizedError = {
       success: false,
       message: 'Something went wrong',
@@ -65,7 +79,7 @@ axiosClient.interceptors.response.use(
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       normalizedError.message = 'Request timed out. Please try again.';
     } else if (!error.response) {
-      normalizedError.message = 'Network error. Please check your connection and try again.';
+      normalizedError.message = 'Unable to connect to backend server. Please ensure the backend is running at http://127.0.0.1:3000.';
     } else {
       const status = error.response.status;
       const data = error.response.data || {};
@@ -90,6 +104,8 @@ axiosClient.interceptors.response.use(
         normalizedError.message = data.message || 'This operation was already processed.';
       } else if (status === 429) {
         normalizedError.message = data.message || 'Too many attempts. Please wait a moment and try again.';
+      } else if (status === 502) {
+        normalizedError.message = data.message || 'Backend server is starting up or unreachable on port 3000.';
       } else if (status >= 500) {
         normalizedError.message = data.message || 'Service temporarily unavailable. Please try again later.';
       }
