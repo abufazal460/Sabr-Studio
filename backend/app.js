@@ -37,12 +37,17 @@ app.set('trust proxy', 1);
 // --- Security headers -------------------------------------------------------
 // CSP is disabled because the frontend renders images from external CDNs
 // (Unsplash/Cloudinary) and relies on inline styles injected at runtime.
-// All other Helmet protections remain active.
-app.use(helmet({ contentSecurityPolicy: false }));
+// Cross-Origin-Resource-Policy is set to cross-origin so frontend on port 5173
+// can communicate seamlessly with backend on port 3000 without browser CORP blocks.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: false,
+}));
 
 // --- CORS -------------------------------------------------------------------
 // Same-origin in production, so this is a defensive allow-list. Never a
-// wildcard with credentials. Localhost origins are permitted in development.
+// wildcard with credentials. Localhost and preview domains are permitted.
 let allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((o) => o.trim())
@@ -58,7 +63,12 @@ app.use(
     origin(origin, cb) {
       if (!origin) return cb(null, true); // same-origin / non-browser clients
       if (allowedOrigins.includes(origin)) return cb(null, true);
-      if (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+      
+      // Allow localhost on any port, 127.0.0.1, and cloud dev/preview domains
+      const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+      const isCloudPreview = /^https:\/\/[a-z0-9-]+\.(run\.app|web\.app|firebaseapp\.com|vercel\.app)$/i.test(origin);
+
+      if (process.env.NODE_ENV !== 'production' || isLocalhost || isCloudPreview) {
         return cb(null, true);
       }
       return cb(null, false);
@@ -75,6 +85,16 @@ app.use(compression());
 
 // --- Request timeout (30 seconds default) ---------------------------------
 app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
+
+// --- Root API status endpoint ------------------------------------------------
+// Minimal status response confirming the backend is running (API-only mode).
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Sabr Studio API is running',
+    health: '/api/health',
+  });
+});
 
 // --- Health check endpoint ---------------------------------------------------
 // Registered BEFORE static/SPA fallback so it always returns JSON, never HTML.
@@ -114,61 +134,6 @@ app.get('/health', (req, res) => {
 // --- API routes (all under /api, plus /health) ------------------------------
 // apiHandler calls next() for any non-API path so static/SPA handling below runs.
 app.use(apiHandler);
-
-// --- Reverse proxy to Vite dev server in local development -------------------
-// When running in development, if a non-API request arrives at port 3000
-// (e.g. from the AI Studio preview iframe or direct browser navigation),
-// transparently forward it to the Vite dev server at http://127.0.0.1:5173.
-// If Vite is not running, fall back to backend/public static assets.
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req, res, next) => {
-    if (req.url.startsWith('/api') || req.url.startsWith('/health')) {
-      return next();
-    }
-    const proxyReq = http.request(
-      {
-        host: '127.0.0.1',
-        port: 5173,
-        path: req.url,
-        method: req.method,
-        headers: { ...req.headers, host: 'localhost:5173' },
-      },
-      (proxyRes) => {
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
-        proxyRes.pipe(res);
-      }
-    );
-    proxyReq.on('error', () => {
-      next();
-    });
-    req.pipe(proxyReq);
-  });
-}
-// --- Production frontend (compiled Vite build) ------------------------------
-// Served only when a build has been placed in backend/public. The dev backend
-// stays API-only and does not require a frontend build.
-const publicDir = path.join(__dirname, 'public');
-const indexHtml = path.join(publicDir, 'index.html');
-
-if (fs.existsSync(indexHtml)) {
-  app.use(express.static(publicDir));
-
-  // SPA fallback for non-API client routes (React Router deep links / refresh).
-  // Paths with a file extension that were not served by express.static are
-  // genuinely missing assets â€” let them fall through to the JSON 404 handler
-  // instead of returning HTML (which would surface as a MIME error).
-  app.get(/^(?!\/api).*/, (req, res, next) => {
-    if (path.extname(req.path)) return next();
-    return res.sendFile(indexHtml);
-  });
-} else if (!process.env.VERCEL) {
-  // On Vercel the frontend is served as static output, so a missing
-  // backend/public there is expected and must not warn.
-  console.warn(
-    '[static] backend/public/index.html not found — serving API only. ' +
-    'Run "npm run build" from the repo root to build the frontend into backend/public.'
-  );
-}
 
 // --- 404 (JSON) for anything still unmatched --------------------------------
 app.use((req, res) => {

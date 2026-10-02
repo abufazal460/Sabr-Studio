@@ -8,6 +8,8 @@
     "dev": "node scripts/dev.mjs",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
+    "test": "node scripts/test-all-routes.mjs",
+    "test:routes": "node scripts/test-all-routes.mjs",
     "build": "node scripts/build.mjs",
     "build:frontend": "npm --prefix frontend run build",
     "start": "npm --prefix backend run start",

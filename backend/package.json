@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node dev.js",
-    "dev": "nodemon dev.js"
+    "dev": "nodemon dev.js",
+    "test:routes": "node ../scripts/test-all-routes.mjs"
   },
   "engines": {
     "node": ">=20"

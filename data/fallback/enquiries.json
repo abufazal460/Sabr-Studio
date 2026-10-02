@@ -1,5 +1,17 @@
 [
   {
+    "name": "Frontend Proxy Lead",
+    "email": "fe@example.com",
+    "phone": "9876543210",
+    "message": "Test via Vite proxy",
+    "source": "/contact",
+    "status": "new",
+    "_id": "fb-1790943156655-74f7rrpuu",
+    "id": "fb-1790943156655-5uw7v4n61",
+    "createdAt": "2026-10-02T12:12:36.655Z",
+    "updatedAt": "2026-10-02T12:12:36.655Z"
+  },
+  {
     "name": "Test User",
     "email": "test@example.com",
     "phone": "+1234567890",
