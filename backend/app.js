@@ -6,8 +6,6 @@
 // backend-directory launches identical.
 import dotenv from 'dotenv';
 import path from 'path';
-import fs from 'fs';
-import http from 'http';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
@@ -46,12 +44,17 @@ app.use(helmet({
 }));
 
 // --- CORS -------------------------------------------------------------------
-// Same-origin in production, so this is a defensive allow-list. Never a
-// wildcard with credentials. Localhost and preview domains are permitted.
+
 let allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+
+// Local development default when no explicit allow-list is configured.
+// Production keeps the explicit CORS_ORIGIN list (or Vercel URL fallback).
+if (!allowedOrigins.length && process.env.NODE_ENV !== 'production') {
+  allowedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+}
 
 // If no explicit origins are configured, fall back to the Vercel deployment URL (if available).
 if (!allowedOrigins.length && process.env.VERCEL_URL) {
@@ -74,6 +77,9 @@ app.use(
       return cb(null, false);
     },
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Requested-With'],
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -86,6 +92,13 @@ app.use(compression());
 // --- Request timeout (30 seconds default) ---------------------------------
 app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 
+
+// --- Root status route ---------------------------------------------------------
+// API-only marker: confirms the backend is running without serving the
+// frontend, frontend dist files, or an SPA fallback. Real status detail
+// lives on the health endpoints; unknown routes still fall through to the
+// JSON 404 handler below.
+=======
 // --- Root API status endpoint ------------------------------------------------
 // Minimal status response confirming the backend is running (API-only mode).
 app.get('/', (req, res) => {
@@ -97,7 +110,7 @@ app.get('/', (req, res) => {
 });
 
 // --- Health check endpoint ---------------------------------------------------
-// Registered BEFORE static/SPA fallback so it always returns JSON, never HTML.
+// Registered BEFORE the API router so it always returns JSON.
 app.get('/health', (req, res) => {
   const dbState = mongoose?.connection?.readyState;
   const dbStatuses = {
@@ -132,7 +145,10 @@ app.get('/health', (req, res) => {
 });
 
 // --- API routes (all under /api, plus /health) ------------------------------
-// apiHandler calls next() for any non-API path so static/SPA handling below runs.
+// This backend is API-only. It never serves the frontend build or an SPA
+// fallback; the React app is served separately (Vite dev server on :5173
+// locally, static output on Vercel). apiHandler calls next() for any non-API
+// path, which falls through to the JSON 404 handler below.
 app.use(apiHandler);
 
 // --- 404 (JSON) for anything still unmatched --------------------------------

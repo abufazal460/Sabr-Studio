@@ -4,8 +4,6 @@ node_modules/
 # Production builds
 dist/
 frontend/dist/
-backend/public/*
-!backend/public/.gitkeep
 
 # Runtime data / uploads / logs (never commit)
 backend/data/
