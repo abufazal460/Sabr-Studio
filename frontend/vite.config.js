@@ -89,14 +89,12 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-<<<<<<< HEAD
         target: 'http://localhost:3000',
         changeOrigin: false,
       },
       '/health': {
         target: 'http://localhost:3000',
         changeOrigin: false,
-=======
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
         configure: (proxy) => {
@@ -116,7 +114,6 @@ export default defineConfig({
       '/health': {
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
->>>>>>> b5e9861710d3e66e02e5abd88bf06d004f21a175
       },
     },
   },
