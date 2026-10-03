@@ -23,7 +23,11 @@ export const projectService = {
       if (filter.category && filter.category !== 'All') {
         query.category = new RegExp(`^${filter.category}$`, 'i');
       }
-      return await Project.find(query).sort({ createdAt: -1 }).lean();
+      const dbItems = await Project.find(query).sort({ createdAt: -1 }).lean();
+      // Fallback to in‑memory data if DB collection is empty
+      if (Array.isArray(dbItems) && dbItems.length) {
+        return dbItems;
+      }
     }
 
     let items = inMemoryProjects.filter((p) => p.published);
