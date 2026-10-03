@@ -98,7 +98,6 @@ app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 // frontend, frontend dist files, or an SPA fallback. Real status detail
 // lives on the health endpoints; unknown routes still fall through to the
 // JSON 404 handler below.
-=======
 // --- Root API status endpoint ------------------------------------------------
 // Minimal status response confirming the backend is running (API-only mode).
 app.get('/', (req, res) => {
