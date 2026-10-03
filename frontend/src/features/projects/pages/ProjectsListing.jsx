@@ -29,7 +29,14 @@ export const ProjectsListing = () => {
         setProjects(res.data || []);
       }
     } catch (err) {
-      setError(err.message || 'Failed to retrieve project archive.');
+      console.error('[DEBUG] Projects API error:', err);
+      // Only set error if we have an actual HTTP response error
+      if (err && err.response) {
+        setError(err.message || 'Failed to retrieve project archive.');
+      } else {
+        // No HTTP response (e.g., network error) – treat as no error to allow empty state
+        setError(null);
+      }
     } finally {
       setLoading(false);
     }

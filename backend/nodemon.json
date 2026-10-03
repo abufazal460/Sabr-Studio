@@ -1,0 +1,6 @@
+{
+  "watch": ["./apiHandler.js", "./app.js", "./dev.js", "./config", "./controllers", "./middlewares", "./models", "./services", "./utils", "./validators", "./constants"],
+  "ext": "js,mjs,cjs,json",
+  "ignore": ["node_modules", "data/**", "*.log", "dist/**", "public/**"],
+  "legacyWatch": false
+}
