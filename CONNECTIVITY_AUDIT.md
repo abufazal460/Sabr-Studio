@@ -232,3 +232,144 @@ Acceptance test performed in the live browser after removing the circular-config
    order to prove real HMAC signature verification (current dev path accepts simulated signatures).
 3. **Cosmetic (optional):** `frontend/src/features/admin-dashboard/pages/AdminDashboardPage.jsx`
    renders a list without a React `key` prop (console warning only; no functional impact).
+
+---
+
+## 10. Complete problem-by-problem log (every issue, nothing omitted)
+
+Format per item: **Where → Symptom → Root cause → How solved → Verification.**
+Group A = real code bugs fixed. Group B = investigation/process problems hit and resolved.
+Group C = things checked and found already-correct (no change needed). Group D = still open /
+blocked (honestly not "solved").
+
+### Group A — Code bugs found and FIXED
+
+**A1. axios circular-config crash — THE primary user-facing bug.**
+- **Where:** `frontend/src/shared/api/axiosClient.js`, the request interceptor
+  (`axiosClient.interceptors.request.use(...)`).
+- **Symptom:** Projects and Retail pages show "Unable to load…" and the app logs
+  `[API] No response from backend` + "Unable to connect to backend server. Please ensure the
+  backend is running at http://127.0.0.1:3000." — even though the backend, proxy, and DB are all
+  healthy. No `/api/*` request appears in the browser Network panel at all.
+- **Root cause:** The interceptor did `config.__originalRequest = config;` — assigning the config
+  object onto **itself** (circular reference). Axios **1.20.0** deep-clones/merges the request
+  config before dispatch (`isPlainObject` → `assignValue` → `forEach` in `axios.js`), which recurses
+  infinitely on the cycle and throws **`RangeError: Maximum call stack size exceeded`** synchronously,
+  *before the XHR adapter ever runs*. Because it is a thrown JS error (not an HTTP response),
+  `error.response` is `undefined`, so the response interceptor's `!error.response` branch fired and
+  **mislabelled a code crash as a network/backend-down error**. That misleading message is why the
+  bug looked like a connectivity problem.
+- **How solved:** Removed the request interceptor entirely. `__originalRequest` was written but
+  **never read anywhere** in the frontend (grep-confirmed: only 1 hit = the assignment itself), so it
+  was dead + harmful. The response interceptor (envelope unwrap `response.data`, GET retry, error
+  normalization) is untouched.
+- **Verification:** (a) In-page isolation matrix: fresh `axios.create()` with no interceptor → 200;
+  with the request-only circular interceptor → `Maximum call stack size exceeded`; with response
+  interceptors only → 200. (b) After the fix, the live UI renders real data — see A2/§7:
+  Projects 3 cards, Retail 6 products, Admin dashboard stats. (c) Network panel now shows
+  `GET /api/projects [200] xhr` (the request finally reaches the wire).
+
+**A2. Vite bound IPv4-only — `localhost` → `::1` connection refused.**
+- **Where:** `frontend/vite.config.js` — `server.host` and `preview.host`.
+- **Symptom:** Opening `http://localhost:5173` could fail with `ERR_CONNECTION_REFUSED` before any
+  API call, on machines where `localhost` resolves to IPv6 `::1` first (common on Windows).
+- **Root cause:** `host: '0.0.0.0'` binds IPv4 only; the IPv6 loopback `::1` had nothing listening.
+- **How solved:** Set `host: true` for both `server` and `preview` (dual-stack: binds `::` and
+  `0.0.0.0`), with an explanatory comment.
+- **Verification:** `[::]:5173` now listening; `[::1]:5173/api/projects` → 200 with real data.
+
+### Group B — Investigation / process problems hit, and how each was resolved
+
+**B1. First conclusion was WRONG (blamed the automation browser).**
+- **Where:** My earlier Phase-4 analysis.
+- **Symptom:** Because raw `fetch`/`XHR` returned 200 and every `console.error` was attributed to
+  the injected `arms-rum-browser.js`, I concluded the failure was an automation-browser artifact and
+  that "no code change is warranted." The user rejected this — they still saw the error in their
+  normal browser.
+- **Root cause of the misdiagnosis:** I compared raw fetch/XHR (which bypass the app's interceptors)
+  against the app, and mistook "the network path works" for "the app works." I did not initially test
+  the app's **own axios client** in isolation.
+- **How solved:** Ran the decisive probe — `import('/src/shared/api/axiosClient.js')` in the page and
+  call `client.get('/projects')`. It failed with `ERR_NETWORK` **even in a clean isolated context
+  with no RUM**, proving an app bug. Then rebuilt `axios.create()` adding interceptors one at a time
+  to pinpoint the request interceptor (A1). Corrected §3/§7 of this file.
+- **Verification:** A1 isolation matrix + post-fix UI. Lesson saved to project memory so this
+  misdiagnosis is not repeated.
+
+**B2. The audit file itself was corrupted.**
+- **Where:** repo-root `CONNECTIVITY_AUDIT.md`.
+- **Symptom:** It contained **two different documents merged** with a literal `=======` git-conflict
+  marker (line 168), plus stale/contradictory claims (e.g. "DB has 0 projects, `data:[]`" in the top
+  half vs "4 projects / 6 retail" in the bottom half) and unverified assertions.
+- **Root cause:** A prior unresolved merge/paste left both versions concatenated.
+- **How solved:** Rewrote the file as one clean, accurate document from actually-verified evidence
+  (fresh harness run + live browser), discarding the fabricated/stale halves.
+- **Verification:** Current file has no `=======` marker; counts match the live harness (46/46) and
+  browser results.
+
+**B3. browser-use `evaluate_script` runs in an ISOLATED world.**
+- **Where:** browser debugging tooling.
+- **Symptom:** Monkey-patching `XMLHttpRequest`/`fetch` inside `evaluate_script` captured nothing
+  (`window.__reqs: []`) because the app's axios runs in the page's main world.
+- **Root cause:** Isolated-world JS does not share globals/prototypes with the main world.
+- **How solved:** Used CDP-level `list_network_requests` to see the app's real requests, and used
+  `import()` of the app's module (which executes the real client code) to capture the actual error.
+- **Verification:** This is exactly how A1 was proven.
+
+**B4. Tool-schema friction during browser testing.**
+- **Where:** browser-use `click`.
+- **Symptom:** `click` rejected extra params ("must NOT have additional properties") and "No snapshot
+  found."
+- **How solved:** Called `take_snapshot` first and used the `uid` schema; where needed, clicked
+  programmatically via `evaluate_script`.
+- **Verification:** Admin login form was filled + submitted successfully this way (§7).
+
+### Group C — Checked and confirmed ALREADY CORRECT (no change made)
+
+**C1. Backend routing** — all 34 distinct method+path routes registered in `apiHandler.js` and traced
+to real handlers/services; 0 missing; unknown routes return JSON 404 (never HTML). Verified by read +
+harness 46/46.
+
+**C2. Vite proxy 5173 → 3000** — `/api` and `/health` forward correctly (`changeOrigin:true`).
+Verified: proxy section FE-1..FE-5 all 200; in-page fetch/XHR through the proxy 200.
+
+**C3. CORS + cookies + auth** — allow-list covers localhost any-port + preview domains,
+`credentials:true`, correct methods/headers, preflight 204; JWT httpOnly `token` cookie; `protect`
+accepts cookie/Bearer. Verified: login 200 + Set-Cookie, `me` 200 with session, 401 without.
+
+**C4. Response shape / envelope** — backend returns `{success,data}`; frontend reads `res.data`
+correctly (interceptor unwraps `response.data`). Not a data-shape problem. Verified: Projects/Retail
+render real records after A1 fix.
+
+**C5. Database** — MongoDB connected and seeded (real ObjectIds). The earlier "empty `[]`" was a
+stale baseline state, not a bug. Verified: `/health` readyState 1 + real docs returned.
+
+**C6. Frontend API URLs** — `getProjects` → `axiosClient.get('/projects')` with `baseURL:'/api'`
+= `/api/projects` (relative, same-origin). No `/api/api/...` doubling, no hardcoded absolute URL, no
+env-var mismatch (`VITE_API_BASE_URL=/api` at runtime). Verified by reading runtime `client.defaults`.
+
+### Group D — Still OPEN / BLOCKED (not solved; stated honestly)
+
+**D1. `POST /api/admin/uploads` is a stub (F3).** Returns a static URL; no Multer/Cloudinary; no
+frontend caller. **Blocked** on owner Cloudinary credentials + a multipart UI. Not fixed (would be an
+unrelated feature and needs owner direction).
+
+**D2. Razorpay verification is permissive in dev (F4).** Accepts `simulated`/secret-less payments by
+design; real HMAC runs only when `RAZORPAY_KEY_SECRET` + all fields are present. **Blocked** on owner
+sandbox keys + a sandbox order to prove live signature verification.
+
+**D3. `Idempotency-Key` unused server-side (F5).** Sent by the frontend and allowed by CORS, but
+`apiHandler.js` never reads it (`utils/idempotency.js` not wired). Only the client submit-lock guards
+duplicates. **Not fixed** (no evidence of user impact; changing it is out of scope).
+
+**D4. `autoStartBackendPlugin` EADDRINUSE risk (F2).** Vite auto-spawns the backend if health is
+unreachable; a slow-but-bound backend could cause EADDRINUSE. `dev.js` already logs + exits safely.
+**Left as-is** (guardrail exists, no observed impact).
+
+**D5. React "unique key prop" warning (cosmetic).** `AdminDashboardPage.jsx` maps rows without a
+`key`. Console warning only; **no connectivity/functional impact**. Out of scope for this task.
+
+### One-line summary
+The single real defect breaking frontend↔backend communication was **A1** (axios circular-config
+`RangeError`, misreported as "backend down"); **A2** removed an IPv6 edge-case; everything else in the
+request path (C1–C6) was already correct; **D1–D5** remain open/blocked and are documented above.

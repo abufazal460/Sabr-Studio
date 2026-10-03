@@ -86,7 +86,7 @@ axiosClient.interceptors.response.use(
       // "no response" apart from "server returned 500".
       normalizedError.status = 0;
       normalizedError.code = error.code || 'ERR_NETWORK';
-      normalizedError.message = 'Unable to connect to backend server. Please ensure the backend is running at http://127.0.0.1:3000.';
+      normalizedError.message = 'Unable to connect to backend server. Please ensure the backend is running at http://localhost:3000.';
       if (typeof window !== 'undefined' && import.meta.env?.DEV) {
         console.error('[API] No response from backend:', {
           url: error.config?.baseURL ? `${error.config.baseURL}${error.config.url || ''}` : error.config?.url,
