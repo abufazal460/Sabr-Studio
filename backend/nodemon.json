@@ -3,4 +3,14 @@
   "ext": "js,mjs,cjs,json",
   "ignore": ["node_modules", "data/**", "*.log", "dist/**", "public/**"],
   "legacyWatch": false
+  "watch": ["."],
+  "ext": "js,mjs",
+  "ignore": [
+    "data/**",
+    "../data/**",
+    "public/**",
+    "node_modules/**",
+    "*.json",
+    "test*.js"
+  ]
 }

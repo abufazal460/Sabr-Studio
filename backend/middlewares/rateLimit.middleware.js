@@ -5,10 +5,12 @@ import rateLimit from 'express-rate-limit';
  * References: SECURITY.md §7 (RATE-02, RATE-03), prompts/05-auth.md §9, §12
  */
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 // Strict rate limit for POST /api/auth/login (RATE-02)
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per windowMs per IP
+  max: isDev ? 100 : 5, // Relaxed in dev, strictly 5 in production
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
@@ -26,7 +28,7 @@ export const authLimiter = rateLimit({
 // Admin-scoped rate limiter for /api/admin/* (RATE-03)
 export const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: isDev ? 1000 : 50,
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
@@ -44,7 +46,7 @@ export const adminLimiter = rateLimit({
 // General API rate limiter (100 requests per 15 minutes per IP)
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: isDev ? 1000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
@@ -62,7 +64,7 @@ export const generalLimiter = rateLimit({
 // Enquiry/contact form rate limiter (5 requests per 15 minutes per IP)
 export const enquiryLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: isDev ? 100 : 5,
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,

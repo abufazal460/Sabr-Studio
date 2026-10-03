@@ -19,7 +19,7 @@ const PORT = parseInt(process.env.BACKEND_PORT, 10) ||
   (process.env.PORT && process.env.PORT !== '8080' ? parseInt(process.env.PORT, 10) : 3000);
 let server;
 
-server = app.listen(PORT, '0.0.0.0', () => {
+server = app.listen(PORT, () => {
   logger.info(`[Sabr Studio] Server running at http://localhost:${PORT}`);
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

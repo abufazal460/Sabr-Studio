@@ -22,6 +22,8 @@ function resolveFallbackDir() {
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
     return path.join('/tmp', 'sabr-studio-fallback');
   }
+  const rootFallback = path.join(__dirname, '../../data/fallback');
+  if (fs.existsSync(rootFallback)) return rootFallback;
   return path.join(__dirname, '../data/fallback');
 }
 

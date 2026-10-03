@@ -35,14 +35,16 @@ app.set('trust proxy', 1);
 // --- Security headers -------------------------------------------------------
 // CSP is disabled because the frontend renders images from external CDNs
 // (Unsplash/Cloudinary) and relies on inline styles injected at runtime.
-// All other Helmet protections remain active.
-app.use(helmet({ contentSecurityPolicy: false }));
+// Cross-Origin-Resource-Policy is set to cross-origin so frontend on port 5173
+// can communicate seamlessly with backend on port 3000 without browser CORP blocks.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: false,
+}));
 
 // --- CORS -------------------------------------------------------------------
-// Separate local servers: the Vite dev server (http://localhost:5173) calls
-// this API (http://localhost:3000) cross-origin, so the frontend origin must
-// be allow-listed here with credentials enabled (the auth cookie). Never a
-// wildcard with credentials.
+
 let allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((o) => o.trim())
@@ -64,7 +66,12 @@ app.use(
     origin(origin, cb) {
       if (!origin) return cb(null, true); // same-origin / non-browser clients
       if (allowedOrigins.includes(origin)) return cb(null, true);
-      if (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+      
+      // Allow localhost on any port, 127.0.0.1, and cloud dev/preview domains
+      const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+      const isCloudPreview = /^https:\/\/[a-z0-9-]+\.(run\.app|web\.app|firebaseapp\.com|vercel\.app)$/i.test(origin);
+
+      if (process.env.NODE_ENV !== 'production' || isLocalhost || isCloudPreview) {
         return cb(null, true);
       }
       return cb(null, false);
@@ -85,11 +92,15 @@ app.use(compression());
 // --- Request timeout (30 seconds default) ---------------------------------
 app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 
+
 // --- Root status route ---------------------------------------------------------
 // API-only marker: confirms the backend is running without serving the
 // frontend, frontend dist files, or an SPA fallback. Real status detail
 // lives on the health endpoints; unknown routes still fall through to the
 // JSON 404 handler below.
+=======
+// --- Root API status endpoint ------------------------------------------------
+// Minimal status response confirming the backend is running (API-only mode).
 app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
