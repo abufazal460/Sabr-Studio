@@ -1,325 +1,375 @@
-# CONNECTIVITY_AUDIT.md — Sabr Studio frontend/backend route audit (baseline)
+# CONNECTIVITY_AUDIT.md — Sabr Studio frontend ↔ backend route & connectivity audit
 
-Scope: frontend `http://localhost:5173` (Vite) + backend `http://localhost:3000` (Express)
-as separate servers. Backend stays API-only (no frontend files, no SPA fallback).
-Baseline written BEFORE any Phase-3 fix, from actual code. No secret values recorded.
+Scope: frontend `http://localhost:5173` (Vite) + backend `http://localhost:3000`
+(Express), kept as **separate applications**. Backend is API-only (serves no frontend
+files, no SPA fallback). Frontend reaches the backend through the Vite dev proxy
+(`/api`, `/health` → `:3000`). No secret values are recorded anywhere in this file.
 
-Branch: `fazal`. Entry files: `backend/app.js`, `backend/dev.js`, `backend/apiHandler.js`,
-`backend/controllers/*`, `services/*`, `models/*`, `validators/*`,
-`middlewares/protect.middleware.js`, `frontend/src/shared/api/axiosClient.js`,
-`frontend/vite.config.js`, `api/index.js` + `vercel.json` (deploy only).
+Branch: `fazal`. Entry points inspected: `backend/app.js`, `backend/dev.js`,
+`backend/apiHandler.js` (the hand-written dispatcher — the authoritative router),
+`backend/controllers/*`, `backend/services/*`, `backend/models/*`, `backend/validators/*`,
+`backend/middlewares/protect.middleware.js`, `backend/config/db.js`,
+`backend/utils/seedDevelopmentData.js`, `frontend/src/shared/api/axiosClient.js`,
+`frontend/vite.config.js`, `frontend/.env`, `scripts/test-all-routes.mjs`.
 
-Env presence (names only, values redacted):
-- `frontend/.env` keys: `VITE_API_BASE_URL` (= relative `/api`, via Vite proxy), `VITE_RAZORPAY_KEY_ID`.
-- `backend/.env` keys: `NODE_ENV`, `PORT` (=3000), `MONGODB_URI`, `JWT_SECRET`,
-  `JWT_EXPIRES_IN`, `ADMIN_PASSWORD`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `CORS_ORIGIN`
-  (covers 5173), `RAZORPAY_KEY_ID/SECRET`, `CLOUDINARY_*` (3 keys), `EMAILJS_*` (5 keys).
-
-Wiring (verified): axios `baseURL = VITE_API_BASE_URL || '/api'` + `withCredentials`;
-Vite `5173 strictPort`, proxy `/api` + `/health` to `:3000`; backend CORS allow-list +
-`credentials:true`, explicit methods/headers; auth cookie `token` (httpOnly, lax default);
-`protect` accepts cookie aliases or Bearer; root `package.json` has no dev/start scripts;
-
-## Baseline inventory — 34 distinct method+path registrations (41-listing cross-check)
-
-Status: IMPLEMENTED = registered + traced; MISSING = claimed but absent;
-BROKEN = registered but cannot meet contract; UNVERIFIED = live test pending.
-
-| # | Method | Path | Code location | Handler/service | Frontend caller | Status |
-|---|--------|------|---------------|-----------------|-----------------|--------|
-| 1 | GET | `/` | app.js | inline API-running marker | manual | IMPLEMENTED |
-| 2 | GET | `/health` | app.js | inline detailed JSON | proxy | IMPLEMENTED |
-| 3 | GET | `/api/health` | apiHandler | inline `{status:ok}` | proxy | IMPLEMENTED |
-| 4 | POST | `/api/auth/login` | apiHandler | authController.login -> authService.loginAdmin (Mongo/in-memory, bcrypt, sets token cookie) | auth.api loginAdmin, AuthContext.login | IMPLEMENTED |
-| 5 | GET | `/api/auth/me` | apiHandler via protect | authController.getMe | getCurrentAdmin, AuthContext.checkAuth | IMPLEMENTED |
-| 6 | POST | `/api/auth/logout` | apiHandler | authController.logout (clears cookie) | logoutAdmin, AuthContext.logout | IMPLEMENTED |
-| 7 | GET | `/api/projects` | apiHandler | projectController.getPublicProjects (published; ?category=) | projects.api getProjects | IMPLEMENTED |
-| 8 | GET | `/api/projects/:slug` | apiHandler startsWith | getPublicProjectBySlug (published-only) | getProjectBySlug | IMPLEMENTED |
-| 9 | GET | `/api/retail` | apiHandler | retailController.getPublicRetail (published+available; ?category=) | retail.api getRetailProducts | IMPLEMENTED |
-| 10 | GET | `/api/retail/:slug` | apiHandler startsWith | getPublicRetailBySlug | getRetailProductBySlug | IMPLEMENTED |
-| 11 | POST | `/api/enquiries` | apiHandler + validators | enquiryController.createEnquiry (Mongo else JSON fallback) | enquiries.api createEnquiry, EnquiryForm | IMPLEMENTED |
-| 12 | POST | `/api/checkout` | apiHandler alias branch | orderController.checkout (alias of /orders/checkout) | none (frontend uses /orders/checkout) | IMPLEMENTED |
-| 13 | POST | `/api/orders/checkout` | apiHandler alias branch | orderController.checkout -> createCheckoutSession | cart checkout.api createCheckoutSession | IMPLEMENTED |
-| 14 | POST | `/api/checkout/verify` | apiHandler alias branch | orderController.verifyPayment (alias of /orders/verify) | none (frontend uses /orders/verify) | IMPLEMENTED |
-| 15 | POST | `/api/orders/verify` | apiHandler alias branch | orderController.verifyPayment (HMAC check) | checkout.api verifyPayment | IMPLEMENTED |
-| 16 | GET | `/api/admin/stats` | apiHandler protect+adminLimiter | inline aggregation + revenue | dashboard getDashboardStats | IMPLEMENTED |
-| 17 | GET | `/api/admin/projects` | apiHandler | getAdminProjects | admin getProjects | IMPLEMENTED |
-| 18 | POST | `/api/admin/projects` | apiHandler + createProjectValidator | createProject (title+description) | createProject | IMPLEMENTED |
-| 19 | GET | `/api/admin/projects/:id` | apiHandler startsWith | getAdminProjectById | NO caller (list-only UI) | IMPLEMENTED |
-| 20 | PUT | `/api/admin/projects/:id` | apiHandler + updateProjectValidator | updateProject | updateProject | IMPLEMENTED |
-| 21 | DELETE | `/api/admin/projects/:id` | apiHandler | deleteProject | deleteProject | IMPLEMENTED |
-| 22 | GET | `/api/admin/retail` | apiHandler | getAdminRetail | getRetailItems | IMPLEMENTED |
-| 23 | POST | `/api/admin/retail` | apiHandler + createRetailValidator | createRetailItem | createRetailItem | IMPLEMENTED |
-| 24 | GET | `/api/admin/retail/:id` | apiHandler startsWith | getAdminRetailById | NO caller | IMPLEMENTED |
-| 25 | PUT | `/api/admin/retail/:id` | apiHandler + updateRetailValidator | updateRetailItem | updateRetailItem | IMPLEMENTED |
-| 26 | DELETE | `/api/admin/retail/:id` | apiHandler | deleteRetailItem | deleteRetailItem | IMPLEMENTED |
-| 27 | GET | `/api/admin/enquiries` | apiHandler | getAdminEnquiries | getEnquiries | IMPLEMENTED |
-| 28 | GET | `/api/admin/enquiries/:id` | apiHandler startsWith | getAdminEnquiryById | NO caller | IMPLEMENTED |
-| 29 | PATCH | `/api/admin/enquiries/:id/status` | apiHandler exact /status before bare-id | updateEnquiryStatus (new/in-progress/resolved) | updateEnquiryStatus | IMPLEMENTED |
-| 30 | DELETE | `/api/admin/enquiries/:id` | apiHandler | deleteEnquiry | admin pages | IMPLEMENTED |
-
-## Baseline risks (evidence, unfixed at baseline)
-
-1. Checkout canonical drift: docs say `/api/checkout`, frontend only calls
-   `/api/orders/checkout` (+ verify pair). Both work via alias branches; contract ambiguous.
-2. `Idempotency-Key` sent by frontend + allowed by CORS, but backend never reads it
-   (`utils/idempotency.js` unused by `apiHandler.js`). Only guard is client submit-lock.
-3. Uploads stub vs docs (`multipart/form-data` -> Multer -> Cloudinary). Latent: no UI uploads.
-4. Empty-list ambiguity: `200 {data:[]}` when DB empty/disconnected by design; use `/health`
-   `database.status/state` to distinguish. UI shows EmptyState.
-5. Strict limits: login 5/15min/IP, enquiries 5/15min, admin 10/15min, general 100/15min.
-6. Verify leniency: `signature==='simulated'` or any paymentId without secret passes in dev —
-   not production proof.
-
-## Phase 2 safe test plan
-
-Health first (`:3000/` + `/health` + `/api/health`, then via `:5173` proxy); public GETs
-direct + proxy incl. real slugs; `POST /api/enquiries` local/test DB only; auth only with
-owner/documented creds (redact secrets), then cookie `me` + admin GETs + logout + 401 cases;
-checkout/verify local/test DB, known ids, no real money; uploads NOT claimed until real
-
-## Phase 2 results (safe tests, backend :3000 + proxy :5173, values redacted)
-
-DB state (direct Mongo count via backend deps + backend/.env): database `test`;
-`projects:0, retails:0, enquiries:2 (pre-existing rows only), orders:0, admins:0`.
-That explains all `200 {data:[]}` below: healthy-but-empty, NOT a routing failure.
-`/health` reported `database connected, state 1` throughout.
-
-| Route | URL(s) tested | Result |
-|-------|---------------|--------|
-| GET / | `:3000/` | PASS 200 `{success,message,health:/api/health}` JSON |
-| GET /health | `:3000/health` + `:5173/health` (proxy) | PASS 200 detailed JSON both paths |
-| GET /api/health | `:3000/api/health` + `:5173/api/health` | PASS 200 `{status:ok}` both paths |
-| GET /api/projects | direct + proxy | PASS 200 `{success,data:[]}` (DB has 0 projects) |
-| GET /api/projects/:slug | `:3000/api/projects/no-such-slug-xyz` | PASS 404 `not found or unpublished` (correct) |
-| GET /api/retail | direct + `:5173/api/retail?category=Chair` | PASS 200 `{data:[]}` (DB has 0 retails) |
-| GET /api/retail/:slug | `:3000/api/retail/no-such-slug-xyz` | PASS 404 `not found, out of stock, or unpublished` |
-| POST /api/enquiries valid | `:3000/api/enquiries` test payload | PASS 201 `{success,message,data:{id,name,status,createdAt}}`; row verified in Mongo, then probe row deleted (count back to 2) |
-| POST /api/enquiries invalid `{}` | direct | PASS 400 `Enquiry validation failed` + 5 field errors |
-| POST /api/auth/login bad creds | `:3000` + `:5173/api/auth/login` (non-existent user) | PASS 401 `Invalid email or password`, CORS `Allow-Origin :5173 + Credentials true`, NO Set-Cookie — direct and proxy identical |
-| GET /api/auth/me no cookie | direct | PASS 401 (guarded) |
-| GET /api/admin/* no cookie | `/stats`, `/projects`, `/enquiries` | PASS 401 (guarded) |
-| GET /api/admin/projects bad cookie | `Cookie: token=invalid` | PASS 401 `Invalid or expired...` |
-| PATCH /api/admin/enquiries/:id/status no cookie | `.../x/status` | 400 validator ran before auth in this manual probe (missing/invalid body path); admin routes with valid-shape requests return 401 without cookie (see /stats, /projects). Protected status: guarded (401 without valid session). |
-| POST /api/admin/uploads no/invalid cookie | `{}` JSON | PASS 401 both cases (guarded; stub body never reached) |
-| POST /api/orders/checkout empty items | both `/orders/checkout` + alias `/checkout` | PASS 400 `Cart items must be a non-empty array` on BOTH aliases |
-| POST /api/orders/checkout unknown item | `no-such-item` | PASS 404 `unavailable or no longer in catalog` (server re-validates) |
-| POST /api/orders/verify + alias, `{}` | both `/orders/verify` + `/checkout/verify` | PASS 400 `Either orderId or razorpayOrderId must be provided` on both |
-| POST /api/orders/verify unknown order | `{orderId:no-such-order,...}` | PASS 404 `Order not found for verification` |
-| OPTIONS preflight | `/api/auth/login`, `/api/orders/checkout` from Origin `:5173` incl. `Idempotency-Key` | PASS 204 + `Allow-Origin :5173`, `Credentials true`, methods + headers incl. `Idempotency-Key` |
-| Unknown API + non-API | `/api/does-not-exist`, `/nope-frontend` | PASS 404 JSON `Route ... not found`, `Content-Type: application/json` (never HTML) |
-| Frontend root | `:5173/` | PASS 200 `text/html` (Vite serves UI; backend serves no HTML) |
-
-NOT run (blocked, by rule): login with real/admin creds (no owner-provided password used;
-in-memory + `ADMIN_PASSWORD` paths exist but values never touched); any authenticated
-
-## Phase 3 — decision: NO code fix (evidence)
-
-Every provided route is already registered and reachable; proxy + CORS + cookie wiring
-already correct; backend already API-only. The only BROKEN item (uploads stub) has no
-frontend caller and changing it without owner direction (real Cloudinary credentials +
-multipart UI) would be an unrelated feature, forbidden by scope. The `[]` lists are a
-data state (empty `test` DB collections), not a query bug — services correctly fall back
-to Mongo-first then in-memory, and `/health` reports DB state. So no file was edited in
-Phase 3 beyond this audit file. Prior separation work (already in tree) is unchanged:
-root has no dev/start scripts, `backend/app.js` has no static/proxy serving.
-
-## Final counts
-
-- Provided-listing lines: 41 (incl. alias double-counts + header groups).
-- Confirmed distinct method+path registrations: 34.
-- Implemented: 33. Broken (stub, unused): 1 (`POST /api/admin/uploads`).
-- Missing: 0. Unknown routes correctly stay 404 JSON.
-- Passed safe tests: 20 groups above. Failed: 0. Blocked/unverified: authenticated admin
-  session flows, real catalog checkout/verify, real upload, browser DevTools panel.
-
-## Owner actions still needed (exact)
-
-1. Seed or point to a test catalog (projects + retail) if checkout/verify must be proven
-   end-to-end; current `test` DB has 0/0.
-2. Provide explicit admin test credentials (or approve documented fallback) to verify the
-   authenticated admin session + CRUD + logout-cookie flow; only generic-401 path tested.
-3. Provide Razorpay sandbox keys + a sandbox order to prove real signature verification;
-   current code passes simulated/secret-less dev payments by design.
-4. Approve real `POST /api/admin/uploads` implementation (Multer-memory -> Cloudinary,
-   `multipart/form-data`, real `images[]` handling) + a test image before claiming uploads.
-5. Re-check browser DevTools Network/Console on `:5173` for projects, retail, admin login
-   during a manual pass (shell verified proxy + preflight, not the browser panel).
-
-`GET/PATCH/POST/PUT/DELETE /api/admin/*` with a real session; real checkout against catalog
-items (catalog empty); real Razorpay signature; real Cloudinary multipart upload; browser
-DevTools Network/Console panel (no browser automation in this shell — proxy + CORS headers
-verified via preflight instead).
-
-Cloudinary path tested; browser Network+Console for projects/retail/login; non-API paths
-must stay JSON 404, never HTML.
-
-| 31 | GET | `/api/admin/orders` | apiHandler | getAdminOrders | getOrders | IMPLEMENTED |
-| 32 | GET | `/api/admin/orders/:id` | apiHandler startsWith | getAdminOrderById | NO caller | IMPLEMENTED |
-| 33 | PATCH | `/api/admin/orders/:id/status` | apiHandler + validator (rejects paymentStatus/amount) | updateOrderStatus | updateOrderStatus | IMPLEMENTED |
-| 34 | POST | `/api/admin/uploads` | apiHandler BUT stub | inline static Unsplash URL, NO multer/cloudinary; NO frontend caller | none | BROKEN |
-
-Provided list double-counts checkout/verify aliases, so 41 lines = 34 distinct
-registrations. Zero MISSING. Dispatch order verified: enquiries/orders `/status` PATCH
-checked before bare-id GET so it is not swallowed. No `DELETE /api/admin/orders/:id`
-exists (matches provided list; not a gap).
-
-`backend/public` absent; `Test-Path backend/public = False`.
-=======
-# Sabr Studio — Backend & Frontend Complete Connectivity & API Flow Audit
-
-## 1. Executive Summary & Target Architecture Verification
-
-- **Frontend Server**: Runs independently at `http://localhost:5173` via Vite 5 (`frontend/vite.config.js`).
-- **Backend API Server**: Runs independently at `http://localhost:3000` via Express + Node.js 22 (`backend/app.js`).
-- **Communication Flow**: Frontend interacts with backend via HTTP API requests. In local development, `frontend/vite.config.js` forwards `/api` and `/health` requests to `http://localhost:3000` (`changeOrigin: true`).
-- **Backend Asset Isolation**: Confirmed. Backend serves **zero frontend files or HTML bundles**. All unmatched routes return an explicit JSON `404 Not Found`.
-- **Automated Verification Command**: `npm run test:routes` (runs `scripts/test-all-routes.mjs`).
+Env var NAMES present (values redacted, never printed):
+- `frontend/.env`: `VITE_API_BASE_URL` (= `/api`, relative → Vite proxy), `VITE_RAZORPAY_KEY_ID`.
+- `backend/.env`: `NODE_ENV`, `PORT`, `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`,
+  `ADMIN_PASSWORD`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `CORS_ORIGIN`,
+  `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
+  `CLOUDINARY_API_SECRET`, `EMAILJS_*`.
 
 ---
 
-## 2. Re-Verification of Existing Audit Findings & Root Cause Analysis
+## 1. Overall status
 
-### Investigation of User-Reported Network Errors (`/projects`, `/retail`, `/admin/login`)
-
-1. **Root Cause 1: CORS Origin Rejection in Cloud / Preview Environments**
-   - *Evidence*: `backend/app.js` previously only permitted origins matching `/^https?:\/\/(localhost|127\.0\.0\.1):\d+$/`. When accessing the application via cloud preview URLs (such as `*.run.app` or `*.vercel.app`), the browser sent an `Origin` header that failed this regex.
-   - *Browser Impact*: The browser blocked the response due to missing `Access-Control-Allow-Origin`, resulting in `error.response === undefined` and Axios throwing a `"Network error. Please check your connection and try again."` message on `/projects`, `/retail`, and `/admin/login`.
-   - *Resolution*: Updated `backend/app.js` CORS policy to explicitly allow localhost on any port, `127.0.0.1`, and cloud preview domains (`*.run.app`, `*.vercel.app`, `*.web.app`, etc.) with credentials.
-
-2. **Root Cause 2: Nodemon Process Restarts on File Persistence (ECONNRESET)**
-   - *Evidence*: When an inquiry was submitted or an order drafted, `fallbackStorage.js` wrote to local JSON files (`enquiries.json`, `orders.json`). Nodemon watched all files by default and triggered an immediate server restart, terminating in-flight connections with `ECONNRESET` / `socket hang up`.
-   - *Resolution*: Configured `backend/nodemon.json` to ignore `data/**`, `../data/**`, and `*.json` files.
-
-3. **Root Cause 3: Premature Rate Limiting Throttling (HTTP 429)**
-   - *Evidence*: `adminLimiter` (10 requests / 15 min) and `authLimiter` (5 requests / 15 min) were too restrictive for regular development usage, triggering 429 errors during multi-tab browsing or test suites.
-   - *Resolution*: Relaxed development rate limits (`1000` in dev for admin, `100` for auth/enquiries) while maintaining strict production throttling.
-
-4. **Root Cause 4: Order Status Update Omitting Fallback Storage**
-   - *Evidence*: `orderService.updateOrderStatus()` checked only MongoDB and static `inMemoryOrders`, but omitted `fallbackOrders`. Admin updates to newly drafted orders resulted in 404 errors.
-   - *Resolution*: Added fallback store persistence to `updateOrderStatus()`.
-
-5. **Investigation of Known Upload Stub (`/api/admin/uploads`)**
-   - *Investigation*: Inspecting `backend/apiHandler.js` (lines 420-435) confirms this endpoint is currently a **STUB** returning a static Unsplash URL fallback.
-   - *Credential Verification*: Environment check confirms that `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` are **NOT configured**.
-   - *Classification*: Marked as **BLOCKED / STUB**. The route endpoint responds to authenticated callers, but live cloud storage upload is blocked until the owner supplies Cloudinary credentials.
+- **Route inventory: 34 distinct method+path registrations** (the provided 41-line listing
+  double-counts the checkout/verify aliases and header groups). **0 missing.**
+- **33 / 34 fully implemented and verified end-to-end.** The 34th (`POST /api/admin/uploads`)
+  is a registered **stub** (returns a static URL; no Multer/Cloudinary) and has **no frontend caller**.
+- **Automated contract harness `npm run test:routes` → 46 / 46 PASS (100%)**, including the
+  5173→3000 proxy section (FE-1..FE-5) and authenticated login/me. Fresh run this session.
+- **MongoDB connected and seeded** (real ObjectIds returned, e.g. `6ac1119f…`); projects/retail
+  return real documents, not empty arrays.
+- Backend remains **API-only** — no static/SPA serving; unknown routes return JSON 404.
+- **Two code fixes** applied: (F1) `frontend/vite.config.js` dual-stack host binding, and
+  (F6 — the real user-facing bug) `frontend/src/shared/api/axiosClient.js` removed a request
+  interceptor that created a circular config reference and crashed axios before the XHR was sent.
+- **Browser-verified working** after the F6 fix: Projects, Retail, and Admin login + protected
+  dashboard all render real DB-backed data with no "Unable to connect to backend server" error.
 
 ---
 
-## 3. Status-Code Contract & Verification Rules
+## 2. Verified route inventory (34 distinct method+path pairs)
 
-Every route is evaluated against its true application contract:
-- **System & Status**: Expected `200` when healthy.
-- **Successful Reads / Updates / Logins**: Expected `200`.
-- **Successful Creation**: Expected `201` for new resources (`POST /api/enquiries`, `POST /api/admin/projects`, `POST /api/admin/retail`, `POST /api/admin/uploads`).
-- **Unauthenticated Access to Protected Routes**: Expected `401 Unauthorized` (security boundary enforcement).
-- **Invalid Credentials**: Expected `401 Unauthorized` on wrong password.
-- **Validation Failures**: Expected `400 Bad Request` on malformed/missing required fields.
-- **Non-Existent Resources**: Expected `404 Not Found`.
+Status key: IMPLEMENTED = registered in `apiHandler.js` + traced to a real handler/service;
+STUB = registered but does not meet the documented contract; caller column = frontend usage.
 
----
+| # | Method | Path | Handler / service | Frontend caller | Status |
+|---|--------|------|-------------------|-----------------|--------|
+| 1 | GET | `/` | app.js inline API marker | manual | IMPLEMENTED |
+| 2 | GET | `/health` | app.js detailed JSON (incl. `mongoose.connection.readyState`) | proxy | IMPLEMENTED |
+| 3 | GET | `/api/health` | apiHandler `{status:ok}` | proxy | IMPLEMENTED |
+| 4 | POST | `/api/auth/login` | authController.login → authService.loginAdmin (Mongo→in-memory, bcrypt, sets `token` cookie) | auth.api, AuthContext.login | IMPLEMENTED |
+| 5 | GET | `/api/auth/me` | authController.getMe (via `protect`) | getCurrentAdmin, AuthContext.checkAuth | IMPLEMENTED |
+| 6 | POST | `/api/auth/logout` | authController.logout (clears cookie) | logoutAdmin, AuthContext.logout | IMPLEMENTED |
+| 7 | GET | `/api/projects` | projectController.getPublicProjects (published; `?category=`) | projects.api getProjects | IMPLEMENTED |
+| 8 | GET | `/api/projects/:slug` | getPublicProjectBySlug (published-only) | getProjectBySlug | IMPLEMENTED |
+| 9 | GET | `/api/retail` | retailController.getPublicRetail (published+available; `?category=`) | retail.api getRetailProducts | IMPLEMENTED |
+| 10 | GET | `/api/retail/:slug` | getPublicRetailBySlug | getRetailProductBySlug | IMPLEMENTED |
+| 11 | POST | `/api/enquiries` | enquiryController.createEnquiry (+ validators; Mongo else JSON fallback) | enquiries.api, EnquiryForm | IMPLEMENTED |
+| 12 | POST | `/api/checkout` | orderController.checkout (alias of #13) | none (FE uses #13) | IMPLEMENTED |
+| 13 | POST | `/api/orders/checkout` | orderController.checkout → createCheckoutSession (server re-validates cart) | cart checkout.api | IMPLEMENTED |
+| 14 | POST | `/api/checkout/verify` | orderController.verifyPayment (alias of #15) | none (FE uses #15) | IMPLEMENTED |
+| 15 | POST | `/api/orders/verify` | orderController.verifyPayment (HMAC when secret set) | checkout.api verifyPayment | IMPLEMENTED |
+| 16 | GET | `/api/admin/stats` | inline aggregation + revenue (protect + adminLimiter) | dashboard getDashboardStats | IMPLEMENTED |
+| 17 | GET | `/api/admin/projects` | getAdminProjects | admin getProjects | IMPLEMENTED |
+| 18 | POST | `/api/admin/projects` | createProject (+ createProjectValidator) | createProject | IMPLEMENTED |
+| 19 | GET | `/api/admin/projects/:id` | getAdminProjectById | none (list-only UI) | IMPLEMENTED |
+| 20 | PUT | `/api/admin/projects/:id` | updateProject (+ updateProjectValidator) | updateProject | IMPLEMENTED |
+| 21 | DELETE | `/api/admin/projects/:id` | deleteProject | deleteProject | IMPLEMENTED |
+| 22 | GET | `/api/admin/retail` | getAdminRetail | getRetailItems | IMPLEMENTED |
+| 23 | POST | `/api/admin/retail` | createRetailItem (+ createRetailValidator) | createRetailItem | IMPLEMENTED |
+| 24 | GET | `/api/admin/retail/:id` | getAdminRetailById | none | IMPLEMENTED |
+| 25 | PUT | `/api/admin/retail/:id` | updateRetailItem (+ updateRetailValidator) | updateRetailItem | IMPLEMENTED |
+| 26 | DELETE | `/api/admin/retail/:id` | deleteRetailItem | deleteRetailItem | IMPLEMENTED |
+| 27 | GET | `/api/admin/enquiries` | getAdminEnquiries | getEnquiries | IMPLEMENTED |
+| 28 | GET | `/api/admin/enquiries/:id` | getAdminEnquiryById | none | IMPLEMENTED |
+| 29 | PATCH | `/api/admin/enquiries/:id/status` | updateEnquiryStatus (new/in-progress/resolved) — matched before bare-`:id` | updateEnquiryStatus | IMPLEMENTED |
+| 30 | DELETE | `/api/admin/enquiries/:id` | deleteEnquiry | admin pages | IMPLEMENTED |
+| 31 | GET | `/api/admin/orders` | getAdminOrders | getOrders | IMPLEMENTED |
+| 32 | GET | `/api/admin/orders/:id` | getAdminOrderById | none | IMPLEMENTED |
+| 33 | PATCH | `/api/admin/orders/:id/status` | updateOrderStatus (validator rejects `paymentStatus`/`amount`) | updateOrderStatus | IMPLEMENTED |
+| 34 | POST | `/api/admin/uploads` | **STUB**: inline static URL, no Multer/Cloudinary | none | STUB (blocked on creds) |
 
-## 4. Full Route Inventory & Verification Table
-
-Total Method + Full-Path Route Registrations Audited: **34**  
-Total Automated Contract Tests Executed: **46** (including security negative test cases)  
-- **Passed (Fully Verified)**: **33 / 34 routes** (45 / 46 test cases)  
-- **Blocked / Stub**: **1 / 34 routes** (`POST /api/admin/uploads` — live cloud upload requires Cloudinary keys)  
-- **Failed**: **0**
-
-| # | Group | Method | Path | Auth Required | Expected | Observed | Contract Result | Classification | Redacted Response Summary |
-|---|---|---|---|---|---|---|---|---|---|
-| **1** | System | `GET` | `/` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"message":"Sabr Studio API is running"}` |
-| **2** | System | `GET` | `/health` | Public | **200** | **200** | PASS | **Passed** | `{"status":"ok","uptime":...}` |
-| **3** | System | `GET` | `/api/health` | Public | **200** | **200** | PASS | **Passed** | `{"status":"ok"}` |
-| *4-neg* | Auth | `POST` | `/api/auth/login` | Public | **401** | **401** | PASS | **Passed** | `{"success":false,"message":"Invalid credentials"}` |
-| **4** | Auth | `POST` | `/api/auth/login` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"admin":...}}` (`token` cookie set) |
-| *5-neg* | Auth | `GET` | `/api/auth/me` | Unauth | **401** | **401** | PASS | **Passed** | `{"success":false,"message":"Authentication required"}` |
-| **5** | Auth | `GET` | `/api/auth/me` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"admin":...}}` |
-| **6** | Auth | `POST` | `/api/auth/logout` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"message":"Logged out successfully"}` |
-| *6-post*| Auth | `GET` | `/api/auth/me` | Post-Logout | **401** | **401** | PASS | **Passed** | `{"success":false,"message":"Authentication required"}` |
-| **7** | Projects | `GET` | `/api/projects` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"data":[4 projects]}` |
-| **8** | Projects | `GET` | `/api/projects/:slug` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"slug":"the-vasant-vihar-residence",...}}` |
-| *8-neg* | Projects | `GET` | `/api/projects/:invalid` | Public | **404** | **404** | PASS | **Passed** | `{"success":false,"message":"Project not found"}` |
-| **9** | Retail | `GET` | `/api/retail` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"data":[6 items]}` |
-| **10** | Retail | `GET` | `/api/retail/:slug` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"slug":"komorebi-lounge-chair",...}}` |
-| *10-neg*| Retail | `GET` | `/api/retail/:invalid` | Public | **404** | **404** | PASS | **Passed** | `{"success":false,"message":"Product not found"}` |
-| *11-neg*| Enquiries| `POST` | `/api/enquiries` | Public | **400** | **400** | PASS | **Passed** | `{"success":false,"message":"Enquiry validation failed"}` |
-| **11** | Enquiries| `POST` | `/api/enquiries` | Public | **201** | **201** | PASS | **Passed** | `{"success":true,"message":"Enquiry submitted successfully"}` |
-| **12** | Checkout | `POST` | `/api/checkout` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"orderId":...,"razorpayOrderId":...}}` |
-| **13** | Checkout | `POST` | `/api/orders/checkout` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"orderId":...}}` |
-| **14** | Checkout | `POST` | `/api/checkout/verify` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"message":"Payment verified successfully"}` |
-| **15** | Checkout | `POST` | `/api/orders/verify` | Public | **200** | **200** | PASS | **Passed** | `{"success":true,"message":"Payment verified successfully"}` |
-| *16-neg*| Admin | `GET` | `/api/admin/stats` | Unauth | **401** | **401** | PASS | **Passed** | `{"success":false,"message":"Authentication required"}` |
-| **16** | Admin | `GET` | `/api/admin/stats` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"totalProjects":...,"revenue":...}}` |
-| **17** | Admin | `GET` | `/api/admin/projects` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":[projects list]}` |
-| **18** | Admin | `POST` | `/api/admin/projects` | Protected | **201** | **201** | PASS | **Passed** | `{"success":true,"data":{"id":...}}` |
-| **19** | Admin | `GET` | `/api/admin/projects/:id` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"title":...}}` |
-| **20** | Admin | `PUT` | `/api/admin/projects/:id` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"title":"... (Updated)"}}` |
-| **21** | Admin | `DELETE`| `/api/admin/projects/:id`| Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"message":"Project deleted successfully"}` |
-| **22** | Admin | `GET` | `/api/admin/retail` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":[retail list]}` |
-| **23** | Admin | `POST` | `/api/admin/retail` | Protected | **201** | **201** | PASS | **Passed** | `{"success":true,"data":{"id":...}}` |
-| **24** | Admin | `GET` | `/api/admin/retail/:id` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"title":...}}` |
-| **25** | Admin | `PUT` | `/api/admin/retail/:id` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"price":29500}}` |
-| **26** | Admin | `DELETE`| `/api/admin/retail/:id` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"message":"Retail item deleted successfully"}` |
-| **27** | Admin | `GET` | `/api/admin/enquiries` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":[enquiries list]}` |
-| **28** | Admin | `GET` | `/api/admin/enquiries/:id`| Protected| **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"name":...}}` |
-| **29** | Admin | `PATCH` | `/api/admin/enquiries/:id/status`| Protected| **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"status":"in-progress"}}` |
-| **30** | Admin | `DELETE`| `/api/admin/enquiries/:id`| Protected| **200** | **200** | PASS | **Passed** | `{"success":true,"message":"Enquiry deleted successfully"}` |
-| **31** | Admin | `GET` | `/api/admin/orders` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":[orders list]}` |
-| **32** | Admin | `GET` | `/api/admin/orders/:id` | Protected | **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"orderNumber":...}}` |
-| **33** | Admin | `PATCH` | `/api/admin/orders/:id/status`| Protected| **200** | **200** | PASS | **Passed** | `{"success":true,"data":{"orderStatus":"confirmed"}}` |
-| **34** | Admin | `POST` | `/api/admin/uploads` | Protected | **201** | **201** | PASS | **Blocked/Stub** | Returns static Unsplash URL fallback; live Cloudinary upload blocked (requires credentials) |
+Dispatch-order check: the `/status` PATCH branches (enquiries #29, orders #33) are matched
+BEFORE the bare-`:id` GET branches, so they are not swallowed. No `DELETE /api/admin/orders/:id`
+exists — this matches the provided listing and is not a gap.
 
 ---
 
-## 5. Frontend Proxy & Browser Flows Verification
+## 3. Findings
 
-Direct testing through the Vite development proxy (`http://localhost:5173` ⟷ `http://localhost:3000`):
+**F1 — Vite bound IPv4-only; `localhost` → `::1` refused (High). FIXED.**
+Windows resolves `localhost` to `::1` (IPv6) first. `frontend/vite.config.js` had
+`server.host:'0.0.0.0'` / `preview.host:'0.0.0.0'` (IPv4-only), so a browser hitting
+`http://localhost:5173` over `::1` got `ERR_CONNECTION_REFUSED` before any API call.
+Fix: `host: true` on both `server` and `preview` (dual-stack: binds `::` and `0.0.0.0`).
+Verified: `[::]:5173` now listening; `[::1]:5173/api/projects` → 200 with real data.
 
-| Test ID | Client Call via Port 5173 | Forwarded Target Port 3000 | Expected | Observed | Cookie / Auth Flow | Result |
-|---|---|---|---|---|---|---|
-| `FE-1` | `GET /api/health` | `http://localhost:3000/api/health` | **200** | **200** | Proxied cleanly | **PASS** |
-| `FE-2` | `GET /api/projects` | `http://localhost:3000/api/projects` | **200** | **200** | JSON projects array returned | **PASS** |
-| `FE-3` | `GET /api/retail` | `http://localhost:3000/api/retail` | **200** | **200** | JSON catalog array returned | **PASS** |
-| `FE-4` | `POST /api/auth/login` | `http://localhost:3000/api/auth/login` | **200** | **200** | `Set-Cookie: token=...; HttpOnly` received | **PASS** |
-| `FE-5` | `GET /api/auth/me` | `http://localhost:3000/api/auth/me` | **200** | **200** | Session cookie forwarded | **PASS** |
+**F2 — `autoStartBackendPlugin` EADDRINUSE risk (Low, not fixed; by design guardrail exists).**
+`vite.config.js` auto-spawns `node backend/dev.js` if `:3000/api/health` is unreachable.
+If a backend is already bound but slow to answer health, the spawn can hit EADDRINUSE.
+`backend/dev.js` already logs and `process.exit(1)` on EADDRINUSE, so it degrades safely.
+Left as-is (no evidence of user impact; changing it is out of scope).
+
+**F3 — `POST /api/admin/uploads` is a stub (Medium, blocked on owner credentials).**
+Returns a static URL; no Multer/Cloudinary wiring. No frontend caller exists. Real upload
+requires `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` + a
+multipart UI. Not implemented — would be an unrelated feature and needs owner direction.
+
+**F4 — Payment verify is permissive in dev (Medium, by design; not production-proof).**
+`order.service.js verifyPayment` accepts `signature==='simulated'`, `NODE_ENV==='test'`, or
+any `paymentId` when `RAZORPAY_KEY_SECRET` is unset. Real HMAC-SHA256 runs only when the
+secret + all Razorpay fields are present. The harness passes with FAKE signatures by design;
+this is NOT proof of live Razorpay verification.
+
+**F5 — `Idempotency-Key` unused server-side (Low).**
+The header is sent by the frontend and allowed by CORS, but `apiHandler.js` never reads it
+(`utils/idempotency.js` is not wired). Only guard is the client-side submit-lock.
+
+**F6 — axios request interceptor created a circular config reference → `RangeError` before the XHR was sent (CRITICAL, real user-facing bug). FIXED.**
+`frontend/src/shared/api/axiosClient.js` had a request interceptor:
+```js
+axiosClient.interceptors.request.use((config) => { config.__originalRequest = config; return config; }, ...);
+```
+`config.__originalRequest = config` makes the config object reference **itself**. Axios 1.20.0
+deep-clones/merges the request config (`isPlainObject` → `assignValue` → `forEach`), which recurses
+infinitely on that cycle and throws **`RangeError: Maximum call stack size exceeded`** synchronously
+— *before* the XHR adapter runs. Consequences that matched every observed symptom:
+- No `/api/projects` (or `/api/retail`) request ever appears in the Network panel (fails pre-flight).
+- The thrown `RangeError` has **no `error.response`**, so the response interceptor's `!error.response`
+  branch fires → `code: ERR_NETWORK` → message "Unable to connect to backend server…".
+- Raw `fetch()`/`XMLHttpRequest`/bare `axios.request()` to the same URL return **200** (they don't run
+  this interceptor) — which is why the backend/proxy looked fine while the app failed.
+- Systemic across Projects AND Retail (both import the same shared `axiosClient`).
+
+Isolation proof (in-page, same origin): a fresh `axios.create()` with **no** interceptor → 200; with the
+**request-only** circular interceptor → `Maximum call stack size exceeded`; with the response
+interceptors only → 200. `__originalRequest` was written but **never read anywhere** in the frontend
+(dead + harmful). Fix: removed the request interceptor entirely. The `arms-rum-browser.js`
+console attribution seen earlier was incidental (it wraps `console.*`); the crash was in app code, and
+it reproduces in a clean isolated context with no RUM — so the earlier "environment artifact"
+conclusion was WRONG and is corrected here.
 
 ---
 
-## 6. Changed Files & Rationales
+## 4. Phase-2/Phase-4 test evidence
 
-1. **`backend/app.js`**:
-   - Added minimal JSON `GET /` status endpoint.
-   - Removed legacy reverse-proxy and static asset handlers to preserve the API-only boundary.
-   - Broadened CORS allow-list to support localhost on any port and cloud preview domains (`*.run.app`, `*.vercel.app`).
-2. **`backend/apiHandler.js`**:
-   - Registered root and health exemptions.
-   - Added `GET /api/audit/download` endpoint for direct audit report retrieval.
-3. **`backend/middlewares/rateLimit.middleware.js`**:
-   - Relaxed rate limiting in development mode (`process.env.NODE_ENV !== 'production'`) to prevent developer lockout.
-4. **`backend/services/order.service.js`**:
-   - Integrated `fallbackOrders` into `updateOrderStatus` to ensure admin status updates succeed in offline/fallback mode.
-   - Extended cart item resolution to accept `product`, `productId`, `itemId`, and `id`.
-5. **`backend/nodemon.json`**:
-   - Configured nodemon to ignore local fallback JSON files, preventing server resets during write operations.
-6. **`package.json`**:
-   - Added `"test:routes": "node scripts/test-all-routes.mjs"`.
+### 4a. Automated harness (fresh run this session) — 46 / 46 PASS
+`node scripts/test-all-routes.mjs` against backend `:3000` and via proxy `:5173`.
+Highlights: public GETs 200 with real DB docs; `:slug` 200; invalid slug 404; enquiry
+invalid 400 / valid 201; checkout + both aliases 200; verify + both aliases 200 (fake sigs,
+per F4); admin unauth 401; full admin CRUD 200/201; uploads 201 (stub, per F3); logout 200
+then me 401; **proxy FE-1..FE-5 (health/projects/retail/login/me) all 200 through :5173.**
+
+### 4b. In-browser network truth (automation browser, origin `http://localhost:5173`)
+Direct probes executed in the page, through the Vite proxy:
+- `GET /api/projects` → **200**, `{success:true,data:[4 projects]}` (real ObjectIds).
+- `GET /api/retail` → **200**, `{success:true,data:[…]}` (real ObjectIds).
+- Both `fetch()` AND raw `XMLHttpRequest` (the same adapter axios uses) succeed with 200.
 
 ---
 
-## 7. Remaining External Service Actions Required from Owner
+## 5. Wiring verified (no mismatch)
 
-1. **Cloudinary Asset Storage (`/api/admin/uploads`)**:
-   - *Status*: Operating in stub/mock fallback mode.
-   - *Required Action*: To activate live media uploads, configure in `.env`:
-     - `CLOUDINARY_CLOUD_NAME`
-     - `CLOUDINARY_API_KEY`
-     - `CLOUDINARY_API_SECRET`
-2. **MongoDB Atlas Database**:
-   - *Status*: Operating cleanly in resilient in-memory & local fallback mode (`data/fallback/`).
-   - *Required Action*: To switch to live cloud database persistence, configure `MONGODB_URI` in `.env`.
-3. **Razorpay Live Gateway**:
-   - *Status*: Payment verification functions in test simulation mode.
-   - *Required Action*: To accept real customer payments, configure `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`.
+- axios `baseURL = import.meta.env.VITE_API_BASE_URL || '/api'` (relative → same-origin → proxy); `withCredentials:true`; timeout 15s.
+- Vite proxy forwards `/api` and `/health` to `http://127.0.0.1:3000` (`changeOrigin:true`).
+- Backend CORS: allow-list incl. localhost any-port + cloud preview domains, `credentials:true`,
+  methods GET/HEAD/PUT/PATCH/POST/DELETE/OPTIONS, headers incl. `Idempotency-Key`, preflight 204.
+- Auth: JWT in httpOnly cookie `token` (SameSite lax, Secure false in dev); `protect` accepts cookie aliases or Bearer.
+- `getProjects` calls `axiosClient.get('/projects')` → `/api/projects` (relative, same-origin). No hardcoded absolute URL. No frontend URL bug.
 
+---
+
+## 6. Changed files (exact paths)
+
+1. `frontend/vite.config.js` — `server.host` and `preview.host`: `'0.0.0.0'` → `true`
+   (dual-stack bind; fixes F1 `::1`/ERR_CONNECTION_REFUSED).
+2. `frontend/src/shared/api/axiosClient.js` — **removed the request interceptor** that set
+   `config.__originalRequest = config` (circular self-reference). This was the real user-facing
+   bug (F6): axios 1.20 deep-clone hit `RangeError: Maximum call stack size exceeded` before the
+   XHR was sent, which the response error interceptor misreported as "Unable to connect to backend
+   server". `__originalRequest` was never read anywhere, so removal is safe and minimal. The
+   response interceptor (envelope unwrap + retry + normalization) is unchanged.
+
+No backend files were changed — routing, proxy, CORS, cookie, and DB wiring were already correct
+(proven by the 46/46 harness). No unrelated refactors. Frontend and backend remain independently
+startable from their own directories.
+
+---
+
+## 7. Browser verification after the F6 fix (real UI, origin `http://localhost:5173`)
+
+Acceptance test performed in the live browser after removing the circular-config interceptor:
+
+| Flow | Network | Rendered result | Verdict |
+|------|---------|-----------------|---------|
+| Projects (`/projects`) | `GET /api/projects` → **200 xhr** (visible in Network, real request) | 3 project cards render — "Aura Wellness Haven", "The Vasant Vihar Residence", "Studio Pavilion & Creative Workspace" + images | PASS |
+| Retail (`/retail`) | `GET /api/retail` → **200** | 6 products render — "Wabi Daybed", "Nami Ceramic Vessel", "Mori Sculptural Credenza", "Zenith Linen Pendant", "Sora Oak Coffee Table", "Komorebi Lounge Chair" + 6 images | PASS |
+| Admin Login (`/admin/login`) | `POST /api/auth/login` → 200 (cookie set); `GET /api/admin/stats` → 200 | Redirects to `/admin` dashboard: Projects 4, Retail 6, Enquiries 2, Orders 12 | PASS |
+
+- No `[API] No response from backend` and no "Unable to connect to backend server" after the fix.
+- The only remaining console entries are the **expected** pre-login `401 /api/auth/me` (session probe
+  before sign-in — correct behavior) and a cosmetic React "unique key prop" warning in
+  `AdminDashboardPage.jsx` (a `map` over rows without `key`); neither affects connectivity. The key
+  warning is a pre-existing UI nit, out of scope for this connectivity task.
+- Scenario classification (per the investigation brief): this was **Scenario A** — no axios request
+  appeared in Network — because the crash happened during request construction, before the XHR. Root
+  cause was in the shared API layer (interceptor), not the backend, proxy, response shape, or state.
+
+---
+
+## 8. Passed / Failed / Blocked (clearly separated)
+
+- **PASSED (verified):** 33 / 34 routes end-to-end (harness 46/46); proxy 5173→3000; CORS +
+  preflight; cookie auth login/me/logout; admin CRUD; checkout + verify (simulated, see F4);
+  DB connected + seeded; backend API-only isolation; F1 dual-stack fix; **F6 axios fix — Projects,
+  Retail, and Admin login/dashboard render real data in the live browser (§7).**
+- **FAILED:** none.
+- **BLOCKED / UNVERIFIED:**
+  - `POST /api/admin/uploads` real media upload (stub; needs Cloudinary creds + multipart UI) — F3.
+  - Live Razorpay signature verification (dev path is permissive/simulated) — F4.
+
+---
+
+## 9. Exact owner actions still required
+
+1. **Uploads:** set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` and
+   approve implementing `POST /api/admin/uploads` (Multer memory → Cloudinary, `multipart/form-data`,
+   real `images[]`) plus an upload UI, before uploads can be claimed working.
+2. **Payments:** provide Razorpay sandbox `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` and a sandbox
+   order to prove real HMAC signature verification (current dev path accepts simulated signatures).
+3. **Cosmetic (optional):** `frontend/src/features/admin-dashboard/pages/AdminDashboardPage.jsx`
+   renders a list without a React `key` prop (console warning only; no functional impact).
+
+---
+
+## 10. Complete problem-by-problem log (every issue, nothing omitted)
+
+Format per item: **Where → Symptom → Root cause → How solved → Verification.**
+Group A = real code bugs fixed. Group B = investigation/process problems hit and resolved.
+Group C = things checked and found already-correct (no change needed). Group D = still open /
+blocked (honestly not "solved").
+
+### Group A — Code bugs found and FIXED
+
+**A1. axios circular-config crash — THE primary user-facing bug.**
+- **Where:** `frontend/src/shared/api/axiosClient.js`, the request interceptor
+  (`axiosClient.interceptors.request.use(...)`).
+- **Symptom:** Projects and Retail pages show "Unable to load…" and the app logs
+  `[API] No response from backend` + "Unable to connect to backend server. Please ensure the
+  backend is running at http://127.0.0.1:3000." — even though the backend, proxy, and DB are all
+  healthy. No `/api/*` request appears in the browser Network panel at all.
+- **Root cause:** The interceptor did `config.__originalRequest = config;` — assigning the config
+  object onto **itself** (circular reference). Axios **1.20.0** deep-clones/merges the request
+  config before dispatch (`isPlainObject` → `assignValue` → `forEach` in `axios.js`), which recurses
+  infinitely on the cycle and throws **`RangeError: Maximum call stack size exceeded`** synchronously,
+  *before the XHR adapter ever runs*. Because it is a thrown JS error (not an HTTP response),
+  `error.response` is `undefined`, so the response interceptor's `!error.response` branch fired and
+  **mislabelled a code crash as a network/backend-down error**. That misleading message is why the
+  bug looked like a connectivity problem.
+- **How solved:** Removed the request interceptor entirely. `__originalRequest` was written but
+  **never read anywhere** in the frontend (grep-confirmed: only 1 hit = the assignment itself), so it
+  was dead + harmful. The response interceptor (envelope unwrap `response.data`, GET retry, error
+  normalization) is untouched.
+- **Verification:** (a) In-page isolation matrix: fresh `axios.create()` with no interceptor → 200;
+  with the request-only circular interceptor → `Maximum call stack size exceeded`; with response
+  interceptors only → 200. (b) After the fix, the live UI renders real data — see A2/§7:
+  Projects 3 cards, Retail 6 products, Admin dashboard stats. (c) Network panel now shows
+  `GET /api/projects [200] xhr` (the request finally reaches the wire).
+
+**A2. Vite bound IPv4-only — `localhost` → `::1` connection refused.**
+- **Where:** `frontend/vite.config.js` — `server.host` and `preview.host`.
+- **Symptom:** Opening `http://localhost:5173` could fail with `ERR_CONNECTION_REFUSED` before any
+  API call, on machines where `localhost` resolves to IPv6 `::1` first (common on Windows).
+- **Root cause:** `host: '0.0.0.0'` binds IPv4 only; the IPv6 loopback `::1` had nothing listening.
+- **How solved:** Set `host: true` for both `server` and `preview` (dual-stack: binds `::` and
+  `0.0.0.0`), with an explanatory comment.
+- **Verification:** `[::]:5173` now listening; `[::1]:5173/api/projects` → 200 with real data.
+
+### Group B — Investigation / process problems hit, and how each was resolved
+
+**B1. First conclusion was WRONG (blamed the automation browser).**
+- **Where:** My earlier Phase-4 analysis.
+- **Symptom:** Because raw `fetch`/`XHR` returned 200 and every `console.error` was attributed to
+  the injected `arms-rum-browser.js`, I concluded the failure was an automation-browser artifact and
+  that "no code change is warranted." The user rejected this — they still saw the error in their
+  normal browser.
+- **Root cause of the misdiagnosis:** I compared raw fetch/XHR (which bypass the app's interceptors)
+  against the app, and mistook "the network path works" for "the app works." I did not initially test
+  the app's **own axios client** in isolation.
+- **How solved:** Ran the decisive probe — `import('/src/shared/api/axiosClient.js')` in the page and
+  call `client.get('/projects')`. It failed with `ERR_NETWORK` **even in a clean isolated context
+  with no RUM**, proving an app bug. Then rebuilt `axios.create()` adding interceptors one at a time
+  to pinpoint the request interceptor (A1). Corrected §3/§7 of this file.
+- **Verification:** A1 isolation matrix + post-fix UI. Lesson saved to project memory so this
+  misdiagnosis is not repeated.
+
+**B2. The audit file itself was corrupted.**
+- **Where:** repo-root `CONNECTIVITY_AUDIT.md`.
+- **Symptom:** It contained **two different documents merged** with a literal `=======` git-conflict
+  marker (line 168), plus stale/contradictory claims (e.g. "DB has 0 projects, `data:[]`" in the top
+  half vs "4 projects / 6 retail" in the bottom half) and unverified assertions.
+- **Root cause:** A prior unresolved merge/paste left both versions concatenated.
+- **How solved:** Rewrote the file as one clean, accurate document from actually-verified evidence
+  (fresh harness run + live browser), discarding the fabricated/stale halves.
+- **Verification:** Current file has no `=======` marker; counts match the live harness (46/46) and
+  browser results.
+
+**B3. browser-use `evaluate_script` runs in an ISOLATED world.**
+- **Where:** browser debugging tooling.
+- **Symptom:** Monkey-patching `XMLHttpRequest`/`fetch` inside `evaluate_script` captured nothing
+  (`window.__reqs: []`) because the app's axios runs in the page's main world.
+- **Root cause:** Isolated-world JS does not share globals/prototypes with the main world.
+- **How solved:** Used CDP-level `list_network_requests` to see the app's real requests, and used
+  `import()` of the app's module (which executes the real client code) to capture the actual error.
+- **Verification:** This is exactly how A1 was proven.
+
+**B4. Tool-schema friction during browser testing.**
+- **Where:** browser-use `click`.
+- **Symptom:** `click` rejected extra params ("must NOT have additional properties") and "No snapshot
+  found."
+- **How solved:** Called `take_snapshot` first and used the `uid` schema; where needed, clicked
+  programmatically via `evaluate_script`.
+- **Verification:** Admin login form was filled + submitted successfully this way (§7).
+
+### Group C — Checked and confirmed ALREADY CORRECT (no change made)
+
+**C1. Backend routing** — all 34 distinct method+path routes registered in `apiHandler.js` and traced
+to real handlers/services; 0 missing; unknown routes return JSON 404 (never HTML). Verified by read +
+harness 46/46.
+
+**C2. Vite proxy 5173 → 3000** — `/api` and `/health` forward correctly (`changeOrigin:true`).
+Verified: proxy section FE-1..FE-5 all 200; in-page fetch/XHR through the proxy 200.
+
+**C3. CORS + cookies + auth** — allow-list covers localhost any-port + preview domains,
+`credentials:true`, correct methods/headers, preflight 204; JWT httpOnly `token` cookie; `protect`
+accepts cookie/Bearer. Verified: login 200 + Set-Cookie, `me` 200 with session, 401 without.
+
+**C4. Response shape / envelope** — backend returns `{success,data}`; frontend reads `res.data`
+correctly (interceptor unwraps `response.data`). Not a data-shape problem. Verified: Projects/Retail
+render real records after A1 fix.
+
+**C5. Database** — MongoDB connected and seeded (real ObjectIds). The earlier "empty `[]`" was a
+stale baseline state, not a bug. Verified: `/health` readyState 1 + real docs returned.
+
+**C6. Frontend API URLs** — `getProjects` → `axiosClient.get('/projects')` with `baseURL:'/api'`
+= `/api/projects` (relative, same-origin). No `/api/api/...` doubling, no hardcoded absolute URL, no
+env-var mismatch (`VITE_API_BASE_URL=/api` at runtime). Verified by reading runtime `client.defaults`.
+
+### Group D — Still OPEN / BLOCKED (not solved; stated honestly)
+
+**D1. `POST /api/admin/uploads` is a stub (F3).** Returns a static URL; no Multer/Cloudinary; no
+frontend caller. **Blocked** on owner Cloudinary credentials + a multipart UI. Not fixed (would be an
+unrelated feature and needs owner direction).
+
+**D2. Razorpay verification is permissive in dev (F4).** Accepts `simulated`/secret-less payments by
+design; real HMAC runs only when `RAZORPAY_KEY_SECRET` + all fields are present. **Blocked** on owner
+sandbox keys + a sandbox order to prove live signature verification.
+
+**D3. `Idempotency-Key` unused server-side (F5).** Sent by the frontend and allowed by CORS, but
+`apiHandler.js` never reads it (`utils/idempotency.js` not wired). Only the client submit-lock guards
+duplicates. **Not fixed** (no evidence of user impact; changing it is out of scope).
+
+**D4. `autoStartBackendPlugin` EADDRINUSE risk (F2).** Vite auto-spawns the backend if health is
+unreachable; a slow-but-bound backend could cause EADDRINUSE. `dev.js` already logs + exits safely.
+**Left as-is** (guardrail exists, no observed impact).
+
+**D5. React "unique key prop" warning (cosmetic).** `AdminDashboardPage.jsx` maps rows without a
+`key`. Console warning only; **no connectivity/functional impact**. Out of scope for this task.
+
+### One-line summary
+The single real defect breaking frontend↔backend communication was **A1** (axios circular-config
+`RangeError`, misreported as "backend down"); **A2** removed an IPv6 edge-case; everything else in the
+request path (C1–C6) was already correct; **D1–D5** remain open/blocked and are documented above.

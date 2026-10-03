@@ -71,15 +71,30 @@ axiosClient.interceptors.response.use(
     let normalizedError = {
       success: false,
       message: 'Something went wrong',
-      status: error.response?.status || 500,
+      status: error.response?.status ?? 0,
       errors: [],
-      code: error.code,
+      code: error.code || 'ERR_NETWORK',
     };
 
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      normalizedError.status = 408;
+      normalizedError.code = error.code || 'ECONNABORTED';
       normalizedError.message = 'Request timed out. Please try again.';
     } else if (!error.response) {
-      normalizedError.message = 'Unable to connect to backend server. Please ensure the backend is running at http://127.0.0.1:3000.';
+      // No HTTP response at all: backend down, proxy down, DNS, or CORS-blocked.
+      // Keep status 0 (distinct from HTTP 500) so pages can tell
+      // "no response" apart from "server returned 500".
+      normalizedError.status = 0;
+      normalizedError.code = error.code || 'ERR_NETWORK';
+      normalizedError.message = 'Unable to connect to backend server. Please ensure the backend is running at http://localhost:3000.';
+      if (typeof window !== 'undefined' && import.meta.env?.DEV) {
+        console.error('[API] No response from backend:', {
+          url: error.config?.baseURL ? `${error.config.baseURL}${error.config.url || ''}` : error.config?.url,
+          method: error.config?.method,
+          code: normalizedError.code,
+          detail: error.message,
+        });
+      }
     } else {
       const status = error.response.status;
       const data = error.response.data || {};
@@ -113,16 +128,6 @@ axiosClient.interceptors.response.use(
 
     return Promise.reject(normalizedError);
   }
-);
-
-// Request interceptor to add retry logic for supported methods
-axiosClient.interceptors.request.use(
-  (config) => {
-    // Store original request for potential retry
-    config.__originalRequest = config;
-    return config;
-  },
-  (error) => Promise.reject(error)
 );
 
 /**
