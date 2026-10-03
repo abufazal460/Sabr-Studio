@@ -20,14 +20,17 @@ export const RetailListing = () => {
     setLoading(true);
     setError(null);
     try {
+      // Axios interceptor returns response.data, which is the backend envelope:
+      // { success: true, data: [...] }
       const res = await getRetailProducts();
-      if (res.success && Array.isArray(res.data)) {
-        setProducts(res.data);
-      } else {
-        setProducts(res.data || []);
-      }
+      const items = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setProducts(items);
     } catch (err) {
-      setError(err.message || 'Failed to retrieve retail catalog.');
+      // Axios error interceptor rejects with a normalized plain object:
+      // { success: false, message: '...', status: N }
+      const message = err?.message || 'Failed to retrieve retail catalog.';
+      console.error('[Retail] API error:', message);
+      setError(message);
     } finally {
       setLoading(false);
     }

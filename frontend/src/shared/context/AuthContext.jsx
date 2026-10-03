@@ -10,9 +10,11 @@ export const AuthProvider = ({ children }) => {
   // Check current session on app load using httpOnly cookie (GET /api/auth/me)
   const checkAuth = useCallback(async () => {
     try {
+      // Axios interceptor returns response.data = { success, data: { admin } }
       const res = await axiosClient.get('/auth/me');
-      const adminData = res.data?.admin || res.data?.user;
-      if (res.success && adminData) {
+      const payload = res?.data || {};
+      const adminData = payload.admin || payload.user || null;
+      if (res?.success && adminData) {
         setAdmin(adminData);
       } else {
         setAdmin(null);
@@ -30,15 +32,18 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      // Axios interceptor returns response.data = { success, data: { admin }, message }
       const res = await axiosClient.post('/auth/login', { email, password });
-      const adminData = res.data?.admin || res.data?.user;
-      if (res.success && adminData) {
+      const payload = res?.data || {};
+      const adminData = payload.admin || payload.user || null;
+      if (res?.success && adminData) {
         setAdmin(adminData);
         return { success: true };
       }
-      return { success: false, message: res.message || 'Login failed' };
+      return { success: false, message: res?.message || 'Login failed' };
     } catch (err) {
-      return { success: false, message: err.message || 'Invalid credentials' };
+      // Normalized error from interceptor: { success: false, message: '...' }
+      return { success: false, message: err?.message || 'Invalid credentials' };
     }
   };
 

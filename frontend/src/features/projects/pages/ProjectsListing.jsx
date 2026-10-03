@@ -22,21 +22,18 @@ export const ProjectsListing = () => {
     setLoading(true);
     setError(null);
     try {
+      // Axios interceptor returns response.data, which is the backend envelope:
+      // { success: true, data: [...] }
       const res = await getProjects();
-      if (res.success && Array.isArray(res.data)) {
-        setProjects(res.data);
-      } else {
-        setProjects(res.data || []);
-      }
+      const items = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setProjects(items);
     } catch (err) {
-      console.error('[DEBUG] Projects API error:', err);
-      // Only set error if we have an actual HTTP response error
-      if (err && err.response) {
-        setError(err.message || 'Failed to retrieve project archive.');
-      } else {
-        // No HTTP response (e.g., network error) – treat as no error to allow empty state
-        setError(null);
-      }
+      // Axios error interceptor rejects with a normalized plain object:
+      // { success: false, message: '...', status: N }
+      // It does NOT have a .response property.
+      const message = err?.message || 'Failed to retrieve project archive.';
+      console.error('[Projects] API error:', message);
+      setError(message);
     } finally {
       setLoading(false);
     }

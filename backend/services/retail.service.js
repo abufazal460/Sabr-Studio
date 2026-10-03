@@ -6,26 +6,51 @@ export const retailService = {
    * Get public retail items (published AND available only)
    * References: DATABASE.md §2.2; prompts/06-features.md §4.3
    */
-  async getPublicRetail(filter = {}) {
-    const isMongoConnected = Retail.db?.readyState === 1;
-    if (isMongoConnected) {
-      const query = { published: true, availability: true };
-      if (filter.category && filter.category !== 'All') {
-        query.category = new RegExp(`^${filter.category}$`, 'i');
-      }
-      return await Retail.find(query).sort({ createdAt: -1 }).lean();
-    }
+async getPublicRetail(filter = {}) {
+  const isMongoConnected = Retail.db?.readyState === 1;
 
-    let items = inMemoryRetail.filter(
-      (r) => r.published && r.availability !== false && r.inStock !== false
-    );
-    if (filter.category && filter.category !== 'All') {
-      items = items.filter(
-        (r) => r.category?.toLowerCase() === filter.category.toLowerCase()
+  if (isMongoConnected) {
+    const query = {
+      published: true,
+      availability: true,
+      inStock: true,
+    };
+
+    if (filter?.category && filter.category !== 'All') {
+      query.category = new RegExp(
+        `^${filter.category.trim()}$`,
+        'i'
       );
     }
-    return items;
-  },
+
+    const dbItems = await Retail.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+    if (dbItems && dbItems.length) {
+      return dbItems;
+    }
+
+  }
+
+  let items = inMemoryRetail.filter(
+    (item) =>
+      item.published === true &&
+      item.availability === true &&
+      item.inStock === true
+  );
+
+  if (filter?.category && filter.category !== 'All') {
+    const category = filter.category.trim().toLowerCase();
+
+    items = items.filter(
+      (item) =>
+        item.category?.trim().toLowerCase() === category
+    );
+  }
+
+  return items;
+},
+
 
   /**
    * Get public retail item by slug (published AND available only)

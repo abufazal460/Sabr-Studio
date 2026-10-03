@@ -8,19 +8,21 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const [{ logger }, { clearAllFallbackData, syncFallbackToMongoose }, { default: app }] =
+const [{ logger }, { clearAllFallbackData, syncFallbackToMongoose }, { default: app }, { seedDevelopmentData }] =
   await Promise.all([
     import('./utils/logger.js'),
     import('./utils/fallbackStorage.js'),
     import('./app.js'),
+    import('./utils/seedDevelopmentData.js'),
   ]);
 
 const PORT = parseInt(process.env.BACKEND_PORT, 10) ||
   (process.env.PORT && process.env.PORT !== '8080' ? parseInt(process.env.PORT, 10) : 3000);
 let server;
 
-server = app.listen(PORT, () => {
+server = app.listen(PORT, async () => {
   logger.info(`[Sabr Studio] Server running at http://localhost:${PORT}`);
+  await seedDevelopmentData();
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     logger.error(`[Sabr Studio] Port ${PORT} already in use. Free the port or change the PORT env variable.`);
