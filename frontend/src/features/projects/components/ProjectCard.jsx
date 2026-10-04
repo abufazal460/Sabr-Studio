@@ -28,23 +28,23 @@ export const ProjectCard = ({ project }) => {
           )}
         </div>
 
-        <div className="flex flex-col justify-center gap-4 sm:gap-5 p-6 sm:p-10 lg:p-14 2xl:p-20">
-          <h2 className="font-abhaya text-2xl sm:text-3xl lg:text-4xl text-ink font-medium leading-snug">
+        <div className="flex flex-col justify-center gap-4 sm:gap-5 p-6 sm:p-10 lg:p-14 2xl:p-20 min-w-0">
+          <h2 className="font-abhaya text-2xl sm:text-3xl lg:text-4xl text-ink font-medium leading-snug break-words max-w-full">
             {project.title}
           </h2>
 
           {summary && (
-            <p className="font-inter text-sm sm:text-base text-muted leading-relaxed max-w-prose">
+            <p className="font-inter text-sm sm:text-base text-muted leading-relaxed max-w-prose break-words">
               {summary}
             </p>
           )}
 
-          <div className="pt-2">
+          <div className="pt-2 max-w-full">
             <Button
               to={`/projects/${project.slug}`}
               variant="Secondary-Outline"
               size="sm"
-              label="View details"
+              label="View Details"
             />
           </div>
         </div>

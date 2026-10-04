@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { LuArrowLeft } from 'react-icons/lu';
 import { getProjectBySlug } from '../api/projects.api';
+import { Button } from '../../../shared/components/Button';
 import NotFoundState from '../../../shared/components/NotFoundState';
 import ErrorState from '../../../shared/components/ErrorState';
 import Skeleton from '../../../shared/components/Skeleton';
@@ -205,16 +206,22 @@ export const ProjectDetail = () => {
               )}
             </div>
           )}
+          <div className="flex justify-center pt-10 sm:pt-14">
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 max-w-full">
+              <Button variant="Primary" label="View All Projects" to="/projects" />
+            </div>
+          </div>
         </div>
       </article>
 
-      {/* Inquiry CTA Section */}
+      {/* Commission Inquiry + final View All Projects CTA */}
       <section className="py-20 sm:py-28 lg:py-32 bg-surface" aria-label="Commission Inquiry">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <EnquiryForm
             title="Inquire About Similar Architecture"
             subtitle={`Discuss commissioning an architectural or interior work inspired by ${project.title}.`}
           />
+
         </div>
       </section>
     </div>
