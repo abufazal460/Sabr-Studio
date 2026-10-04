@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { homeHeroData } from '../data/homeHero.data';
 import { Button } from '../../../shared/components/Button';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
@@ -29,16 +29,22 @@ export const HeroSlider = () => {
   const ctaEnter = mountFadeProps(reducedMotion, 0.2);
 
   // Slow scroll-linked parallax: background drifts gently as the user scrolls
-  // (GPU transform via motion value — no React state per frame). Subtle by
-  // design: ±6% over the hero's full viewport traversal. Disabled entirely
-  // under reduced motion.
+  // (GPU transform via motion value — no React state per frame). The raw scroll
+  // progress is run through a spring so movement lags softly behind the wheel:
+  // this removes jitter/stutter and reads as slow + gradual rather than snappy,
+  // while staying clearly noticeable. Disabled entirely under reduced motion.
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ['start start', 'end start'],
   });
-  const bgY = useTransform(scrollYProgress, [0, 1], ['0%', '12%']);
-  const contentY = useTransform(scrollYProgress, [0, 1], ['0%', '-8%']);
-  const contentOpacity = useTransform(scrollYProgress, [0, 0.9], [1, 0.35]);
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 70,
+    damping: 18,
+    mass: 0.6,
+  });
+  const bgY = useTransform(smoothProgress, [0, 1], ['0%', '14%']);
+  const contentY = useTransform(smoothProgress, [0, 1], ['0%', '-9%']);
+  const contentOpacity = useTransform(smoothProgress, [0, 0.9], [1, 0.4]);
 
   return (
     <section

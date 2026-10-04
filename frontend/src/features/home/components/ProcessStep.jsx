@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { motion, useReducedMotion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { processData } from '../data/process.data';
 import SectionHeading from '../../../shared/components/SectionHeading';
 import { fadeUpProps } from '../../../shared/animations/reveal';
@@ -42,9 +42,15 @@ export const ProcessSection = () => {
     target: sectionRef,
     offset: ['start end', 'end start'],
   });
-  // Small range (±24px desktop, clamped smaller on mobile via responsive style
-  // below is unnecessary — framer resolves % of element size, so it scales).
-  const planY = useTransform(scrollYProgress, [0, 1], ['4%', '-4%']);
+  // Spring-smoothed so the plan drifts slowly and gradually with no jitter.
+  // framer resolves % of element size, so the range scales across breakpoints
+  // (no hardcoded pixel value that only looks right on desktop).
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 60,
+    damping: 16,
+    mass: 0.7,
+  });
+  const planY = useTransform(smoothProgress, [0, 1], ['6%', '-6%']);
 
   return (
     <section
