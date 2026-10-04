@@ -1,67 +1,10 @@
-import React, { useLayoutEffect, useRef } from 'react';
-import {
-  motion,
-  useAnimationControls,
-  useInView,
-  useReducedMotion,
-} from 'framer-motion';
+import React from 'react';
+import { motion } from 'framer-motion';
 import { aboutData } from '../data/about.data';
 import Seo from '../../../shared/components/Seo';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
-
-// ---------------------------------------------------------------------------
-// Clip-slide reveal — used by Hero and About Us sections.
-// Elements slide in from outside the viewport (left or right), clipped while
-// travelling, and land in their final position. Fires once on first entry.
-// ---------------------------------------------------------------------------
-const CLIP_HIDDEN = {
-  left:  { x: '-10%', clipPath: 'inset(0 100% 0 0)', opacity: 0 },
-  right: { x:  '10%', clipPath: 'inset(0 0 0 100%)', opacity: 0 },
-};
-const CLIP_OPEN = { x: '0%', clipPath: 'inset(0 0% 0 0%)', opacity: 1 };
-const CLIP_TRANSITION = { duration: 0.75, ease: [0.25, 0.1, 0.25, 1] };
-
-const useClipReveal = (dir) => {
-  const reduce   = useReducedMotion();
-  const ref      = useRef(null);
-  const controls = useAnimationControls();
-  const inView   = useInView(ref, { once: true, amount: 0.2 });
-
-  useLayoutEffect(() => {
-    if (reduce || !inView) return undefined;
-
-    controls.set(CLIP_HIDDEN[dir]);
-    controls.start({ ...CLIP_OPEN, transition: CLIP_TRANSITION });
-
-    // Safety-net: clear any inline style if the animation never settles
-    const failsafe = setTimeout(() => {
-      const el = ref.current;
-      if (el) {
-        el.style.clipPath  = '';
-        el.style.transform = '';
-        el.style.opacity   = '';
-      }
-    }, 1500);
-
-    return () => clearTimeout(failsafe);
-  }, [reduce, inView, dir, controls]);
-
-  return { ref, controls };
-};
-
-// ---------------------------------------------------------------------------
-// Fade-up reveal — matches the Services page pattern exactly.
-// Used for the Founder section: opacity 0 → 1, y 20 → 0, fires once.
-// ---------------------------------------------------------------------------
-const fadeUpProps = (reduce, delay = 0) =>
-  reduce
-    ? {}
-    : {
-        initial:     { opacity: 0, y: 20 },
-        whileInView: { opacity: 1, y: 0  },
-        viewport:    { once: true, amount: 0.2 },
-        transition:  { duration: 0.55, ease: 'easeOut', delay },
-      };
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
+import { useClipReveal, fadeUpProps } from '../../../shared/animations/reveal';
 
 // ---------------------------------------------------------------------------
 export const About = () => {

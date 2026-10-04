@@ -1,3 +1,5 @@
+import React from 'react';
+import { motion } from 'framer-motion';
 import HeroSlider from '../components/HeroSlider';
 import AboutSection from '../components/AboutSection';
 import ServiceTeaser from '../components/ServiceTeaser';
@@ -7,10 +9,14 @@ import TestimonialsSection from '../components/TestimonialCard';
 import FaqSection from '../components/FaqAccordionItem';
 import EnquiryForm from '../../enquiries/components/EnquiryForm';
 import Seo from '../../../shared/components/Seo';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
+import { fadeUpProps } from '../../../shared/animations/reveal';
 
 export const Home = () => {
+  const reduce = useReducedMotion();
+
   return (
-    <div className="w-full">
+    <div className="w-full overflow-x-clip bg-white">
       <Seo
         title="Architecture & Interior Practice"
         description="Sabr Studio crafts monolithic residential and commercial environments celebrating tactile wabi-sabi textures, filtered daylight, and bespoke furniture craft in New Delhi."
@@ -38,13 +44,13 @@ export const Home = () => {
       <FaqSection />
 
       {/* 10. Consultation Enquiry Section */}
-      <section className="py-20 sm:py-28 lg:py-32 bg-surface border-b border-border" aria-label="Consultation Enquiry">
-        <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
+      <section className="py-14 sm:py-20 lg:py-24 bg-surface border-b border-border" aria-label="Consultation Enquiry">
+        <motion.div {...fadeUpProps(reduce, 0, 20, 0.15)} className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <EnquiryForm
             title="Initiate a Commission"
             subtitle="Connect with our principal design studio to discuss your residential architecture, interior transformation, or bespoke furniture brief."
           />
-        </div>
+        </motion.div>
       </section>
     </div>
   );

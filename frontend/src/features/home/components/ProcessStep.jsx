@@ -1,26 +1,22 @@
-import React, { useRef, useEffect } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import React, { useRef } from 'react';
+import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import { processData } from '../data/process.data';
 import SectionHeading from '../../../shared/components/SectionHeading';
-
-gsap.registerPlugin(ScrollTrigger);
+import { fadeUpProps } from '../../../shared/animations/reveal';
 
 export const ProcessStepPill = ({ step, isLeft }) => {
   return (
     <div
-      data-process-side={isLeft ? 'left' : 'right'}
-      className={`bg-black text-white p-6 sm:p-7 flex items-start space-x-5 transition-transform duration-200 hover:scale-[1.01] ${
+      className={`bg-black text-white p-6 sm:p-7 flex items-start space-x-5 motion-safe:transition-transform motion-safe:duration-200 motion-safe:hover:scale-[1.01] motion-reduce:transition-none ${
         isLeft
           ? 'rounded-l-full rounded-r-none'
           : 'rounded-r-full rounded-l-none'
-      } max-lg:rounded-full`}
+      } max-lg:rounded-full min-w-0`}
     >
       <div className="w-10 h-10 rounded-full bg-white text-black font-inter text-sm font-semibold flex items-center justify-center shrink-0 shadow-xs">
         {step.num}
       </div>
-      <div className="space-y-1.5 flex-1 pr-2">
+      <div className="space-y-1.5 flex-1 pr-2 min-w-0">
         <h4 className="font-inter text-base font-semibold text-white">
           {step.title}
         </h4>
@@ -39,59 +35,25 @@ export const ProcessSection = () => {
   const leftSteps = steps.slice(0, 3);
   const rightSteps = steps.slice(3, 6);
 
-  // Scroll-scrubbed six boxes: left from left, right from right, sequential, reversible.
-  useEffect(() => {
-    if (reduce) return;
-    const ctx = gsap.context(() => {
-      const pills = gsap.utils.toArray('[data-process-side]');
-      const from = (el) =>
-        el.dataset.processSide === 'left'
-          ? { xPercent: -40, clipPath: 'inset(0 100% 0 0)' }
-          : { xPercent: 40, clipPath: 'inset(0 0 0 100%)' };
-      const rest = { xPercent: 0, clipPath: 'inset(0 0 0 0)' };
-
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: sectionRef.current,
-          start: 'top bottom',
-          end: 'bottom top',
-          scrub: true,
-        },
-      });
-
-      pills.forEach((el, i) => {
-        tl.fromTo(el, from(el), { ...rest, duration: 0.5, ease: 'none' }, i * 0.2);
-      });
-      tl.to({}, { duration: 1 });
-      const outStart = tl.duration();
-      pills.forEach((el, i) => {
-        tl.to(el, { ...from(el), duration: 0.5, ease: 'none' }, outStart + i * 0.15);
-      });
-    }, sectionRef);
-
-    return () => ctx.revert();
-  }, [reduce]);
-
-  const headingEnter = reduce
-    ? {
-        initial: false,
-        animate: { y: '0%', clipPath: 'inset(0 0 0% 0)' },
-        transition: { duration: 0 },
-      }
-    : {
-        initial: { y: '-120%', clipPath: 'inset(0 0 100% 0)' },
-        animate: { y: '0%', clipPath: 'inset(0 0 0% 0)' },
-        transition: { duration: 0.6, ease: 'easeOut' },
-      };
+  // Gentle scroll-linked drift for the center plan image only (GPU transform
+  // via motion value — no React state per frame). Pills use entry animation
+  // only, so they never replay or scrub while scrolling. Reduced-motion safe.
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start end', 'end start'],
+  });
+  // Small range (±24px desktop, clamped smaller on mobile via responsive style
+  // below is unnecessary — framer resolves % of element size, so it scales).
+  const planY = useTransform(scrollYProgress, [0, 1], ['4%', '-4%']);
 
   return (
     <section
       ref={sectionRef}
-      className="relative z-20 overflow-hidden py-20 sm:py-28 lg:py-32 bg-white"
+      className="relative z-20 overflow-hidden overflow-x-clip py-14 sm:py-20 lg:py-24 bg-white"
       aria-label="How We Work Process"
     >
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
-        <motion.div {...headingEnter} className="text-center max-w-2xl mx-auto mb-16 sm:mb-20">
+        <motion.div {...fadeUpProps(reduce, 0, 20, 0.3)} className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
           <SectionHeading
             eyebrow={eyebrow}
             title={title}
@@ -104,14 +66,19 @@ export const ProcessSection = () => {
         <div className="hidden lg:grid grid-cols-12 gap-8 items-center">
           {/* Left Column (Steps 1-3) */}
           <div className="col-span-4 space-y-6">
-            {leftSteps.map((step) => (
-              <ProcessStepPill key={step.num} step={step} isLeft={true} />
+            {leftSteps.map((step, idx) => (
+              <motion.div key={step.num} {...fadeUpProps(reduce, 0.08 * idx, 20, 0.15)}>
+                <ProcessStepPill step={step} isLeft={true} />
+              </motion.div>
             ))}
           </div>
 
           {/* Center Column (Contained architectural floor plan/axonometric drawing) */}
-          <div className="col-span-4 flex items-center justify-center p-4">
-            <div className="aspect-[4/5] w-full rounded-md overflow-hidden bg-white border border-border p-3 shadow-xs">
+          <motion.div
+            style={reduce ? undefined : { y: planY }}
+            className="col-span-4 flex items-center justify-center p-4 will-change-transform"
+          >
+            <div className="aspect-[4/5] w-full max-h-[70vh] rounded-md overflow-hidden bg-white border border-border p-3 shadow-xs">
               <img
                 src={centerImage}
                 alt="Sabr Studio architectural spatial plan & diagram"
@@ -119,30 +86,37 @@ export const ProcessSection = () => {
                 className="w-full h-full object-cover grayscale opacity-90 rounded-sm"
               />
             </div>
-          </div>
+          </motion.div>
 
           {/* Right Column (Steps 4-6) */}
           <div className="col-span-4 space-y-6">
-            {rightSteps.map((step) => (
-              <ProcessStepPill key={step.num} step={step} isLeft={false} />
+            {rightSteps.map((step, idx) => (
+              <motion.div key={step.num} {...fadeUpProps(reduce, 0.08 * idx, 20, 0.15)}>
+                <ProcessStepPill step={step} isLeft={false} />
+              </motion.div>
             ))}
           </div>
         </div>
 
         {/* Mobile / Tablet Stack: Plan first, then steps 1-6 in order */}
-        <div className="lg:hidden space-y-8">
-          <div className="max-w-md mx-auto aspect-video rounded-md overflow-hidden bg-white border border-border p-2">
+        <div className="lg:hidden space-y-6 sm:space-y-8">
+          <motion.div
+            {...fadeUpProps(reduce, 0, 20, 0.2)}
+            className="max-w-md mx-auto aspect-video w-full rounded-md overflow-hidden bg-white border border-border p-2"
+          >
             <img
               src={centerImage}
               alt="Sabr Studio architectural spatial plan & diagram"
               loading="lazy"
               className="w-full h-full object-cover grayscale opacity-90 rounded-sm"
             />
-          </div>
+          </motion.div>
 
-          <div className="space-y-4 max-w-xl mx-auto">
-            {steps.map((step) => (
-              <ProcessStepPill key={step.num} step={step} isLeft={true} />
+          <div className="space-y-4 max-w-xl mx-auto w-full">
+            {steps.map((step, idx) => (
+              <motion.div key={step.num} {...fadeUpProps(reduce, Math.min(0.08 * idx, 0.24), 20, 0.1)}>
+                <ProcessStepPill step={step} isLeft={true} />
+              </motion.div>
             ))}
           </div>
         </div>

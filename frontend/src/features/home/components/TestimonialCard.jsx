@@ -1,7 +1,10 @@
-import  { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { testimonialsData } from '../data/testimonials.data';
 import SectionHeading from '../../../shared/components/SectionHeading';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
+import { fadeUpProps } from '../../../shared/animations/reveal';
 
 export const TestimonialCard = ({ item }) => {
   const avatarUrl = buildCloudinaryUrl(item.avatar, { width: 100, height: 100 });
@@ -35,24 +38,31 @@ export const TestimonialCard = ({ item }) => {
 };
 
 export const TestimonialsSection = () => {
+  const reduce = useReducedMotion();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef(null);
 
   // Auto-advance every 5 seconds (UI-UX §37)
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || reduce) return undefined;
 
     timerRef.current = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % testimonialsData.length);
     }, 5000);
 
     return () => clearInterval(timerRef.current);
-  }, [isPaused]);
+  }, [isPaused, reduce]);
+
+  // Clamp index to valid start positions per visible count so the track never
+  // overshoots into blank space (desktop shows 3, tablet 2, mobile 1).
+  // Max start = length - visible; dots map 1:1 to these positions.
+  const maxStart = Math.max(0, testimonialsData.length - 1);
+  const safeIndex = Math.min(currentIndex, maxStart);
 
   return (
     <section
-      className="py-20 sm:py-28 lg:py-32 bg-white border-b border-border overflow-hidden"
+      className="py-14 sm:py-20 lg:py-24 bg-white border-b border-border overflow-hidden overflow-x-clip"
       aria-label="Client Testimonials"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
@@ -60,41 +70,41 @@ export const TestimonialsSection = () => {
       onTouchEnd={() => setIsPaused(false)}
     >
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
-        <div className="text-center max-w-2xl mx-auto mb-16">
+        <motion.div {...fadeUpProps(reduce, 0, 20, 0.3)} className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
           <SectionHeading
             eyebrow="Client Testimonials"
             title="What Our Customers Say About Us"
             align="center"
           />
-        </div>
+        </motion.div>
 
         {/* Carousel Viewport: Desktop 3, Tablet 2, Mobile 1 */}
-        <div className="relative overflow-hidden">
+        <motion.div {...fadeUpProps(reduce, 0.1, 20, 0.1)} className="relative overflow-hidden">
           <div
-            className="flex transition-transform duration-500 ease-out [--step:100%] sm:[--step:50%] lg:[--step:33.3333%]"
+            className="flex transition-transform duration-500 ease-out motion-reduce:transition-none will-change-transform [--step:100%] sm:[--step:50%] lg:[--step:33.3333%]"
             style={{
-              transform: `translateX(calc(${-currentIndex} * var(--step)))`,
+              transform: `translate3d(calc(${-safeIndex} * var(--step)), 0, 0)`,
             }}
           >
             {testimonialsData.map((item, idx) => (
               <div
                 key={item.id || idx}
-                className="w-full sm:w-1/2 lg:w-1/3 shrink-0 px-3"
+                className="w-full sm:w-1/2 lg:w-1/3 shrink-0 px-2 sm:px-3 min-w-0"
               >
                 <TestimonialCard item={item} />
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* Dot Navigation Indicators only (UI-UX §37: arrows removed) */}
         <div
-          className="flex items-center justify-center space-x-3 mt-10"
+          className="flex items-center justify-center space-x-3 mt-8 sm:mt-10"
           role="tablist"
           aria-label="Testimonial slides"
         >
           {testimonialsData.map((_, idx) => {
-            const isActive = idx === currentIndex;
+            const isActive = idx === safeIndex;
             return (
               <button
                 key={idx}
@@ -103,11 +113,11 @@ export const TestimonialsSection = () => {
                 aria-selected={isActive}
                 aria-label={`Slide ${idx + 1}`}
                 onClick={() => {
-                  setCurrentIndex(idx);
+                  setCurrentIndex(Math.min(idx, maxStart));
                   setIsPaused(true);
                   setTimeout(() => setIsPaused(false), 8000);
                 }}
-                className={`w-2.5 h-2.5 rounded-full ${
+                className={`w-2.5 h-2.5 rounded-full min-w-[10px] min-h-[10px] ${
                   isActive
                     ? 'bg-black'
                     : 'bg-border hover:bg-muted'
