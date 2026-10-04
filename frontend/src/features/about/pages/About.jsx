@@ -4,79 +4,82 @@ import {
   useAnimationControls,
   useInView,
   useReducedMotion,
-  useScroll,
-  useTransform,
 } from 'framer-motion';
 import { aboutData } from '../data/about.data';
 import Seo from '../../../shared/components/Seo';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 
-const HIDDEN = {
-  left: { x: '-10%', clipPath: 'inset(0 100% 0 0)' },
-  right: { x: '10%', clipPath: 'inset(0 0 0 100%)' },
+// ---------------------------------------------------------------------------
+// Clip-slide reveal — used by Hero and About Us sections.
+// Elements slide in from outside the viewport (left or right), clipped while
+// travelling, and land in their final position. Fires once on first entry.
+// ---------------------------------------------------------------------------
+const CLIP_HIDDEN = {
+  left:  { x: '-10%', clipPath: 'inset(0 100% 0 0)', opacity: 0 },
+  right: { x:  '10%', clipPath: 'inset(0 0 0 100%)', opacity: 0 },
 };
-const OPEN = { x: '0%', clipPath: 'inset(0 0 0 0)' };
+const CLIP_OPEN = { x: '0%', clipPath: 'inset(0 0% 0 0%)', opacity: 1 };
+const CLIP_TRANSITION = { duration: 0.75, ease: [0.25, 0.1, 0.25, 1] };
 
-// Content is visible by default; the entrance is an enhancement layered on top.
-// The hidden state is applied only when entry is observed, and a timer that
-// needs neither observers nor animation frames clears any inline style if the
-// animation never finishes — so content can never be stranded invisible.
-const useReveal = (dir) => {
-  const reduce = useReducedMotion();
-  const ref = useRef(null);
+const useClipReveal = (dir) => {
+  const reduce   = useReducedMotion();
+  const ref      = useRef(null);
   const controls = useAnimationControls();
-  const inView = useInView(ref, { once: true, amount: 0.2 });
+  const inView   = useInView(ref, { once: true, amount: 0.2 });
 
   useLayoutEffect(() => {
     if (reduce || !inView) return undefined;
-    controls.set(HIDDEN[dir]);
-    controls.start({
-      x: OPEN.x,
-      clipPath: OPEN.clipPath,
-      transition: { duration: 0.7, ease: 'easeOut' },
-    });
+
+    controls.set(CLIP_HIDDEN[dir]);
+    controls.start({ ...CLIP_OPEN, transition: CLIP_TRANSITION });
+
+    // Safety-net: clear any inline style if the animation never settles
     const failsafe = setTimeout(() => {
       const el = ref.current;
       if (el) {
-        el.style.clipPath = '';
+        el.style.clipPath  = '';
         el.style.transform = '';
-        el.style.opacity = '';
+        el.style.opacity   = '';
       }
-    }, 1200);
+    }, 1500);
+
     return () => clearTimeout(failsafe);
   }, [reduce, inView, dir, controls]);
 
   return { ref, controls };
 };
 
+// ---------------------------------------------------------------------------
+// Fade-up reveal — matches the Services page pattern exactly.
+// Used for the Founder section: opacity 0 → 1, y 20 → 0, fires once.
+// ---------------------------------------------------------------------------
+const fadeUpProps = (reduce, delay = 0) =>
+  reduce
+    ? {}
+    : {
+        initial:     { opacity: 0, y: 20 },
+        whileInView: { opacity: 1, y: 0  },
+        viewport:    { once: true, amount: 0.2 },
+        transition:  { duration: 0.55, ease: 'easeOut', delay },
+      };
+
+// ---------------------------------------------------------------------------
 export const About = () => {
   const reduce = useReducedMotion();
   const { hero, story, founderProfile } = aboutData;
-  const storyImageUrl = buildCloudinaryUrl(story.image, { width: 1000, height: 1333 });
-  const founderPhotoUrl = buildCloudinaryUrl(founderProfile.portrait, { width: 800, height: 1067 });
 
-  const introTitle = useReveal('left');
-  const introCopy = useReveal('right');
-  const founderPortrait = useReveal('left');
-  const studioBadge = useReveal('right');
+  const storyImageUrl  = buildCloudinaryUrl(story.image,          { width: 1000, height: 1333 });
+  const founderPhotoUrl = buildCloudinaryUrl(founderProfile.portrait, { width: 800,  height: 1067 });
 
-  // About Us: scroll-linked motion. Progress spans the section's full traversal
-  // of the viewport (0 = section top at viewport bottom, 1 = section bottom at
-  // viewport top). Values derive synchronously from scroll position — no
-  // observer or animation completion gates visibility, and scrolling in either
-  // direction scrubs the motion both ways.
-  const storySectionRef = useRef(null);
-  const { scrollYProgress: storyProgress } = useScroll({
-    target: storySectionRef,
-    offset: ['start end', 'end start'],
-  });
-  const storyImageX = useTransform(storyProgress, [0, 0.3, 0.7, 1], ['-14%', '0%', '0%', '-14%']);
-  const storyCopyX = useTransform(storyProgress, [0, 0.3, 0.7, 1], ['14%', '0%', '0%', '14%']);
-  const storyFade = useTransform(storyProgress, [0, 0.3, 0.7, 1], [0, 1, 1, 0]);
-  const storyImageStyle = reduce ? undefined : { x: storyImageX, opacity: storyFade };
-  const storyCopyStyle = reduce ? undefined : { x: storyCopyX, opacity: storyFade };
+  // Hero — clip-slide from left (heading) and right (paragraph column)
+  const heroTitle = useClipReveal('left');
+  const heroCopy  = useClipReveal('right');
 
-  const imageHover = reduce ? undefined : { scale: 1.03 };
+  // About Us — same clip-slide pattern: image from left, copy from right
+  const storyImage = useClipReveal('left');
+  const storyCopy  = useClipReveal('right');
+
+  const imageHover           = reduce ? undefined : { scale: 1.03 };
   const imageHoverTransition = { duration: 0.35, ease: 'easeOut' };
 
   return (
@@ -87,12 +90,12 @@ export const About = () => {
       />
 
       {/* 1. Intro: oversized two-line serif headline + vertical divider + narrow intro column */}
-      <section className="py-20 sm:py-28 lg:py-36 2xl:py-44 bg-white" aria-label="Studio Introduction">
+      <section className="py-20 sm:py-28 lg:py-36 2xl:py-44 bg-white overflow-hidden" aria-label="Studio Introduction">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 2xl:px-16">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
             <motion.h1
-              ref={introTitle.ref}
-              animate={introTitle.controls}
+              ref={heroTitle.ref}
+              animate={heroTitle.controls}
               className="lg:col-span-8 font-abhaya leading-[0.95] tracking-tight text-[clamp(2.75rem,9vw,10rem)]"
             >
               <span className="block font-medium text-[#33241b]">{hero.titleMain}</span>
@@ -102,8 +105,8 @@ export const About = () => {
             <div className="lg:col-span-4 flex items-stretch">
               <div aria-hidden="true" className="w-px bg-border mr-6 sm:mr-8 shrink-0" />
               <motion.div
-                ref={introCopy.ref}
-                animate={introCopy.controls}
+                ref={heroCopy.ref}
+                animate={heroCopy.controls}
                 className="space-y-5 max-w-sm py-1"
               >
                 {hero.introParagraphs.map((paragraph, idx) => (
@@ -122,13 +125,16 @@ export const About = () => {
 
       {/* 2. About Us: tall interior image left, heading + rule + justified copy right */}
       <section
-        ref={storySectionRef}
         className="py-20 sm:py-28 lg:py-32 2xl:py-40 bg-white overflow-hidden"
         aria-label="About the Studio"
       >
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 2xl:px-16">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
-            <motion.div style={storyImageStyle} className="lg:col-span-5">
+            <motion.div
+              ref={storyImage.ref}
+              animate={storyImage.controls}
+              className="lg:col-span-5"
+            >
               <div className="aspect-[3/4] w-full bg-surface overflow-hidden">
                 <motion.img
                   src={storyImageUrl}
@@ -146,7 +152,11 @@ export const About = () => {
                 {story.heading}
               </h2>
               <div aria-hidden="true" className="border-t border-border mt-4 mb-6 sm:mb-8" />
-              <motion.div style={storyCopyStyle} className="space-y-5 sm:space-y-6">
+              <motion.div
+                ref={storyCopy.ref}
+                animate={storyCopy.controls}
+                className="space-y-5 sm:space-y-6"
+              >
                 {story.paragraphs.map((paragraph, idx) => (
                   <p
                     key={idx}
@@ -174,15 +184,17 @@ export const About = () => {
       {/* 3. Founders: centered heading + divider, portrait | name/role/bio | studio panel */}
       <section className="py-20 sm:py-28 lg:py-32 2xl:py-40 bg-white" aria-label="Studio Founders">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 2xl:px-16">
-          <h2 className="font-inter font-bold text-2xl sm:text-3xl uppercase tracking-[0.08em] text-ink text-center">
+          <motion.h2
+            {...fadeUpProps(reduce)}
+            className="font-inter font-bold text-2xl sm:text-3xl uppercase tracking-[0.08em] text-ink text-center"
+          >
             Founders
-          </h2>
+          </motion.h2>
           <div aria-hidden="true" className="border-t border-border mt-8 sm:mt-10 mb-12 sm:mb-16" />
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
             <motion.div
-              ref={founderPortrait.ref}
-              animate={founderPortrait.controls}
+              {...fadeUpProps(reduce, 0.1)}
               className="lg:col-span-3"
             >
               <div className="aspect-[3/4] w-full bg-surface overflow-hidden">
@@ -197,7 +209,10 @@ export const About = () => {
               </div>
             </motion.div>
 
-            <div className="lg:col-span-6 space-y-5">
+            <motion.div
+              {...fadeUpProps(reduce, 0.2)}
+              className="lg:col-span-6 space-y-5"
+            >
               <span className="block font-inter text-[11px] uppercase tracking-[0.25em] text-brown font-semibold">
                 {founderProfile.eyebrow}
               </span>
@@ -217,11 +232,10 @@ export const About = () => {
                   </p>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
             <motion.aside
-              ref={studioBadge.ref}
-              animate={studioBadge.controls}
+              {...fadeUpProps(reduce, 0.3)}
               className="lg:col-span-3 bg-cream p-8 sm:p-10 space-y-4"
             >
               <span className="block font-abhaya text-5xl 2xl:text-6xl font-medium text-brown">
