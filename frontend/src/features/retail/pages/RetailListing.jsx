@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { getRetailProducts } from '../api/retail.api';
 import ProductCard from '../components/ProductCard';
 import SectionHeading from '../../../shared/components/SectionHeading';
@@ -10,6 +11,7 @@ import Seo from '../../../shared/components/Seo';
 const categories = ['All', 'Chairs', 'Tables', 'Lighting', 'Storage', 'Sofas', 'Objects'];
 
 export const RetailListing = () => {
+  const reduce = useReducedMotion();
   const [products, setProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [inStockOnly, setInStockOnly] = useState(false);
@@ -57,24 +59,57 @@ export const RetailListing = () => {
     setInStockOnly(false);
   };
 
+  // Mount-only entry animation — mirrors ProjectsListing exactly.
+  // Plays once when the Retail page mounts (`animate`, never `whileInView`),
+  // then stays stable: no scroll-linked motion, no replay, no parallax.
+  const pageEnter = reduce
+    ? {
+        initial: false,
+        animate: { opacity: 1, y: '0%' },
+        transition: { duration: 0 },
+      }
+    : {
+        initial: { opacity: 0, y: 24 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.55, ease: 'easeOut' },
+      };
+
+  const headingEnter = reduce
+    ? {
+        initial: false,
+        animate: { clipPath: 'inset(0 0 0% 0)', y: '0%' },
+        transition: { duration: 0 },
+      }
+    : {
+        initial: { clipPath: 'inset(0 0 100% 0)', y: '18%' },
+        animate: { clipPath: 'inset(0 0 0% 0)', y: '0%' },
+        transition: { duration: 0.6, ease: 'easeOut' },
+      };
+
   return (
-    <div className="w-full bg-white">
+    <div className="w-full overflow-x-clip bg-white">
       <Seo
         title="Retail Catalog · Bespoke Furniture & Objects"
         description="Limited-edition monolithic dining tables, sculptural seating, and artisan lighting designed by Sabr Studio and handcrafted in New Delhi."
       />
 
-      <section className="py-20 sm:py-28 border-b border-border" aria-label="Retail Catalog">
+      <section
+        className="scroll-mt-24 py-20 sm:py-28 border-b border-border overflow-hidden"
+        aria-label="Retail Catalog"
+      >
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
-          {/* Header */}
-          <div className="max-w-3xl mb-12">
+          {/* Header — clip-reveal entry, mount-only like Projects heading */}
+          <motion.div {...headingEnter} className="max-w-3xl mb-12">
             <SectionHeading
               eyebrow="Editions & Objects"
               title="Bespoke Furniture & Objects"
               description="Studio-designed monolithic tables, sculptural lounge seating, and hand-thrown ceramic luminaires fabricated to order in our New Delhi workshop."
               as="h1"
             />
-          </div>
+          </motion.div>
+
+          {/* Filters + grid — single mount-only fade, then permanently stable */}
+          <motion.div {...pageEnter}>
 
           {/* Filters Bar: Category Pills + In-Stock Toggle */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 pb-8 border-b border-border mb-12">
@@ -140,6 +175,7 @@ export const RetailListing = () => {
               ))}
             </div>
           )}
+          </motion.div>
         </div>
       </section>
     </div>

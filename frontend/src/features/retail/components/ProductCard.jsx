@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useCart } from '../../../shared/hooks/useCart';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
@@ -9,6 +10,7 @@ import { LuCheck, LuShoppingBag } from 'react-icons/lu';
 
 export const ProductCard = ({ product }) => {
   const { addToCart } = useCart();
+  const reduce = useReducedMotion();
   const [justAdded, setJustAdded] = useState(false);
 
   const imageUrl = buildCloudinaryUrl(product.image || product.images?.[0], {
@@ -29,16 +31,20 @@ export const ProductCard = ({ product }) => {
   };
 
   return (
-    <div className="group border border-border bg-white rounded-md flex flex-col justify-between overflow-hidden hover:border-ink hover:shadow-hover transition-all duration-200">
+    <div className="group border border-border bg-white rounded-md flex flex-col justify-between overflow-hidden hover:border-ink hover:shadow-hover transition-[border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none motion-reduce:hover:border-border motion-reduce:hover:shadow-none">
       <Link to={`/retail/${product.slug}`} className="block focus:outline-none">
         {/* Square Image container with subtle cream/surface bg */}
         <div className="aspect-square bg-surface overflow-hidden p-6 flex items-center justify-center border-b border-border/50">
-          <img
-            src={imageUrl}
-            alt={product.title}
-            loading="lazy"
-            className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
-          />
+          {imageUrl ? (
+            <motion.img
+              src={imageUrl}
+              alt={product.title}
+              loading="lazy"
+              whileHover={reduce ? undefined : { scale: 1.04 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className="w-full h-full object-cover object-center will-change-transform motion-reduce:transform-none"
+            />
+          ) : null}
         </div>
 
         {/* Product Details */}
@@ -54,7 +60,7 @@ export const ProductCard = ({ product }) => {
             )}
           </div>
 
-          <h3 className="font-abhaya text-2xl text-ink font-medium group-hover:text-black group-hover:underline transition-colors line-clamp-1">
+          <h3 className="font-abhaya text-2xl text-ink font-medium transition-colors duration-200 ease-out group-hover:text-black motion-reduce:transition-none line-clamp-1">
             {product.title}
           </h3>
 

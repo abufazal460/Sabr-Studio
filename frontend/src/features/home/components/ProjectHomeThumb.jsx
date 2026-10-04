@@ -127,7 +127,7 @@ export const ProjectHomeThumb = () => {
       <motion.div {...fadeUpProps(reduce, 0.1, 20, 0.1)} className="w-full">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border">
           {projects.map((proj) => (
-            <ProjectThumb key={proj.id} proj={proj} reduce={reduce} />
+            <ProjectThumb key={proj._id || proj.id || proj.slug} proj={proj} reduce={reduce} />
           ))}
         </div>
       </motion.div>
