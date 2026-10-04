@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { faqData } from '../data/faq.data';
 import { LuPlus, LuMinus } from 'react-icons/lu';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
+import { fadeUpProps } from '../../../shared/animations/reveal';
 
 export const FaqAccordionItem = ({ item, isOpen, onToggle }) => {
   return (
@@ -62,51 +64,36 @@ export const FaqSection = () => {
     setOpenId((prev) => (prev === id ? null : id));
   };
 
-  // Top heading: one-time entrance from above (fade + downward translate)
-  const topHeading = reduce
-    ? { initial: false, whileInView: { opacity: 1, y: '0px' }, viewport: { once: true }, transition: { duration: 0 } }
-    : {
-        initial: { opacity: 0, y: '-28px' },
-        whileInView: { opacity: 1, y: '0px' },
-        viewport: { once: true, amount: 0.6 },
-        transition: { duration: 0.6, ease: 'easeOut' },
-      };
-
-  // Side heading: continuous scroll in/out from the left (re-triggers every time)
-  const sideHeading = reduce
-    ? { initial: false, whileInView: { opacity: 1, x: '0px' }, viewport: { once: false }, transition: { duration: 0 } }
-    : {
-        initial: { opacity: 0, x: '-48px' },
-        whileInView: { opacity: 1, x: '0px' },
-        viewport: { once: false, amount: 0.4 },
-        transition: { duration: 0.5, ease: 'easeOut' },
-      };
+  // Entry animations: single shared fade-up language, each fires once.
+  // Accordion open/close behavior is untouched (CSS grid-rows transition).
+  const eyebrowEnter = fadeUpProps(reduce, 0, 20, 0.3);
+  const headingEnter = fadeUpProps(reduce, 0.08, 20, 0.3);
+  const listEnter = fadeUpProps(reduce, 0.16, 20, 0.1);
 
   return (
-    <section className="py-20 sm:py-28 lg:py-32 bg-white border-b border-border" aria-label="Frequently Asked Questions">
+    <section className="py-14 sm:py-20 lg:py-24 bg-white border-b border-border overflow-x-clip" aria-label="Frequently Asked Questions">
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
         {/* Eyebrow across both columns (UI-UX §38) */}
         <motion.span
-          {...topHeading}
+          {...eyebrowEnter}
           className="text-xs uppercase tracking-widest text-muted font-medium block mb-4"
         >
           Frequently Asked Questions
         </motion.span>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 justify-center items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-16 justify-center items-start">
           {/* Left Column Heading */}
-          <div className="lg:col-span-5 space-y-4">
-            <motion.h2
-              {...sideHeading}
+          <motion.div {...headingEnter} className="lg:col-span-5 space-y-4 min-w-0">
+            <h2
               className="font-abhaya text-3xl sm:text-5xl text-ink font-medium leading-[1.15]"
             >
               Do you need some help?
-            </motion.h2>
+            </h2>
            
-          </div>
+          </motion.div>
 
           {/* Right Column Accordion */}
-          <div className="lg:col-span-7 divide-y-0">
+          <motion.div {...listEnter} className="lg:col-span-7 divide-y-0 min-w-0">
             {faqData.map((item) => (
               <FaqAccordionItem
                 key={item.id}
@@ -115,7 +102,7 @@ export const FaqSection = () => {
                 onToggle={() => handleToggle(item.id)}
               />
             ))}
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>

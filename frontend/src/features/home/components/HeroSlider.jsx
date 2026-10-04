@@ -1,71 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { homeHeroData } from '../data/homeHero.data';
 import { Button } from '../../../shared/components/Button';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
+import { mountFadeProps } from '../../../shared/animations/reveal';
 
 export const HeroSlider = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const reducedMotion = useReducedMotion();
+  const sectionRef = useRef(null);
   const { slides, eyebrow, title, description, primaryCta, secondaryCta } = homeHeroData;
 
   useEffect(() => {
+    if (reducedMotion) {
+      setCurrentSlide(0);
+      return undefined;
+    }
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 5000);
+    }, 6000);
 
     return () => clearInterval(timer);
-  }, [slides.length]);
+  }, [slides.length, reducedMotion]);
 
-  // Copy / CTA entrance: fade + small upward translate, replayed on load and each slide change.
-  const copyEnter = reducedMotion
-    ? { initial: false, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
-    : {
-        initial: { opacity: 0, y: 18 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.45, ease: 'easeOut' },
-      };
-  const ctaEnter = reducedMotion
-    ? { initial: false, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
-    : {
-        initial: { opacity: 0, y: 18 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.45, ease: 'easeOut', delay: 0.12 },
-      };
+  // Mount-only Hero entry: plays once on page mount, never on scroll or slide
+  // change. Slide changes swap images only — copy stays stable (no replay).
+  const heroEnter = mountFadeProps(reducedMotion, 0.05);
+  const ctaEnter = mountFadeProps(reducedMotion, 0.2);
+
+  // Slow scroll-linked parallax: background drifts gently as the user scrolls
+  // (GPU transform via motion value — no React state per frame). Subtle by
+  // design: ±6% over the hero's full viewport traversal. Disabled entirely
+  // under reduced motion.
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start start', 'end start'],
+  });
+  const bgY = useTransform(scrollYProgress, [0, 1], ['0%', '12%']);
+  const contentY = useTransform(scrollYProgress, [0, 1], ['0%', '-8%']);
+  const contentOpacity = useTransform(scrollYProgress, [0, 0.9], [1, 0.35]);
 
   return (
     <section
-      className="relative w-full min-h-[100svh] flex items-center justify-center overflow-hidden bg-black"
+      ref={sectionRef}
+      className="relative w-full min-h-[100svh] flex items-center justify-center overflow-hidden overflow-x-clip bg-black"
       aria-label="Sabr Studio Introduction"
     >
       {/* Background Images: horizontal slide track (transform translate), both images stay mounted/preloaded */}
-      <div
-        className={`absolute inset-0 z-0 flex h-full w-full ${
-          reducedMotion ? '' : 'transition-transform duration-700 ease-in-out'
-        }`}
-        style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+      <motion.div
+        aria-hidden="true"
+        style={reducedMotion ? undefined : { y: bgY }}
+        className="absolute inset-0 z-0 will-change-transform"
       >
-        {slides.map((slide, index) => (
-          <div key={slide.id} className="relative h-full w-full shrink-0">
-            <img
-              src={slide.image}
-              alt={slide.alt}
-              loading="eager"
-              fetchpriority={index === 0 ? 'high' : 'auto'}
-              className="w-full h-full object-cover object-center"
-            />
-          </div>
-        ))}
-      </div>
+        <div
+          className={`flex h-full w-full will-change-transform ${
+            reducedMotion ? '' : 'transition-transform duration-700 ease-in-out'
+          }`}
+          style={{ transform: `translate3d(-${currentSlide * 100}%, 0, 0)` }}
+        >
+          {slides.map((slide, index) => (
+            <div key={slide.id} className="relative h-full w-full shrink-0">
+              <img
+                src={slide.image}
+                alt=""
+                loading="eager"
+                fetchpriority={index === 0 ? 'high' : 'auto'}
+                className="w-full h-full object-cover object-center"
+              />
+            </div>
+          ))}
+        </div>
+      </motion.div>
 
       {/* 40% Black Overlay (UI-UX §29) — static, above images, below content */}
       <div className="absolute inset-0 bg-black/40 z-10" aria-hidden="true" />
 
       {/* Hero Content Shell */}
-      <div className="relative z-20 max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 w-full text-center text-white py-12 sm:py-16">
+      <motion.div
+        style={reducedMotion ? undefined : { y: contentY, opacity: contentOpacity }}
+        className="relative z-20 max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 w-full max-w-full text-center text-white py-12 sm:py-16"
+      >
         <motion.div
-          key={`copy-${currentSlide}`}
-          {...copyEnter}
+          {...heroEnter}
           className="max-w-3xl mx-auto space-y-6 sm:space-y-8"
         >
           <span className="block text-xs sm:text-sm uppercase tracking-widest font-inter font-medium text-white/80">
@@ -100,7 +116,7 @@ export const HeroSlider = () => {
             />
           </motion.div>
         </motion.div>
-      </div>
+      </motion.div>
     </section>
   );
 };

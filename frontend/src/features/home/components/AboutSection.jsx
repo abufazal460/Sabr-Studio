@@ -1,99 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { aboutData } from '../../about/data/about.data';
-import { getProjects } from '../../projects/api/projects.api';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 import Badge from '../../../shared/components/Badge';
-import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
-
-const fallbackProjects = [
-  {
-    id: '1',
-    title: 'The Courtyard Pavilion',
-    category: 'Residential',
-    slug: 'courtyard-pavilion',
-    coverImage:
-      'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: '2',
-    title: 'Ash & Travertine Penthouse',
-    category: 'Interior Architecture',
-    slug: 'ash-travertine-penthouse',
-    coverImage:
-      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: '3',
-    title: 'Sanctuary Tea House',
-    category: 'Hospitality',
-    slug: 'sanctuary-tea-house',
-    coverImage:
-      'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: '4',
-    title: 'Lado Sarai Workshop',
-    category: 'Commercial & Studio',
-    slug: 'lado-sarai-workshop',
-    coverImage:
-      'https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=800&q=80',
-  },
-];
+import { useClipReveal } from '../../../shared/animations/reveal';
 
 export const AboutSection = () => {
-  const reduce = useReducedMotion();
   const { founder } = aboutData;
   const founderPhotoUrl = buildCloudinaryUrl(founder.photo, { width: 800, height: 1000 });
 
-  const [projects, setProjects] = useState(fallbackProjects);
-
-  useEffect(() => {
-    getProjects({ limit: 4 })
-      .then((res) => {
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setProjects(res.data.slice(0, 4));
-        }
-      })
-      .catch(() => {
-        // Silent fallback to curated architectural projects
-      });
-  }, []);
-
-  const textEnter = reduce
-    ? {
-        initial: false,
-        whileInView: { opacity: 1, x: '0%' },
-        viewport: { once: true, amount: 0.3 },
-        transition: { duration: 0 },
-      }
-    : {
-        initial: { opacity: 0, x: '15%' },
-        whileInView: { opacity: 1, x: '0%' },
-        viewport: { once: true, amount: 0.3 },
-        transition: { duration: 0.6, ease: 'easeOut' },
-      };
+  // Portrait: clip-slide from left. Text: clip-slide from right.
+  // Matches About page Hero section exactly (shared reveal system).
+  const portraitReveal = useClipReveal('left', 0.15);
+  const textReveal = useClipReveal('right', 0.15);
 
   return (
     <section
-      className="overflow-hidden py-20 sm:py-28 lg:py-32 bg-white"
+      className="overflow-hidden overflow-x-clip py-14 sm:py-20 lg:py-24 bg-white"
       aria-label="About the Studio"
     >
-      <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 space-y-16 lg:space-y-24">
+      <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
         {/* Founder image + text */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-          <div className="lg:col-span-5">
-            <div className="aspect-[4/5] bg-surface border border-border rounded-md overflow-hidden cursor-pointer">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-16 items-center">
+          <motion.div
+            ref={portraitReveal.ref}
+            animate={portraitReveal.controls}
+            className="lg:col-span-5"
+          >
+            <div className="aspect-[4/5] max-h-[70svh] lg:max-h-none w-full bg-surface border border-border rounded-md overflow-hidden cursor-pointer">
               <img
                 src={founderPhotoUrl}
                 alt={founder.name}
                 loading="lazy"
-                className="w-full h-full object-cover object-center transition-transform duration-300 ease-out motion-safe:hover:scale-105"
+                className="w-full h-full object-cover object-center transition-transform duration-300 ease-out motion-safe:hover:scale-105 motion-reduce:transition-none motion-reduce:hover:scale-100 will-change-transform"
               />
             </div>
-          </div>
+          </motion.div>
 
-          <motion.div {...textEnter} className="lg:col-span-7 space-y-6">
+          <motion.div
+            ref={textReveal.ref}
+            animate={textReveal.controls}
+            className="lg:col-span-7 space-y-5 sm:space-y-6 min-w-0"
+          >
             <div className="space-y-2">
               <Badge variant="brown" className="mb-2">
                 {founder.badge}
