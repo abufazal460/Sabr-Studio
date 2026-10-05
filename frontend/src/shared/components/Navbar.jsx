@@ -95,7 +95,7 @@ export const Navbar = () => {
         {/* Desktop Navigation */}
         <motion.nav
           {...enter(0.08)}
-          className="hidden md:flex items-center space-x-8"
+          className="hidden lg:flex items-center space-x-8"
           aria-label="Main Navigation"
           onMouseLeave={() => setHoveredIndex(null)}
         >
@@ -163,7 +163,7 @@ export const Navbar = () => {
           {/* Mobile Hamburger Toggle */}
           <button
             type="button"
-            className="md:hidden p-2 text-ink hover:text-black focus:outline-none"
+            className="lg:hidden p-2 text-ink hover:text-black focus:outline-none"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
             aria-label="Toggle navigation menu"
@@ -194,7 +194,7 @@ export const Navbar = () => {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'tween', duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-              className="fixed top-0 right-0 bottom-0 w-[80%] max-w-[360px] bg-footer-bg text-white z-50 p-6 flex flex-col justify-between md:hidden shadow-2xl"
+              className="fixed top-0 right-0 bottom-0 w-[80%] max-w-[360px] bg-footer-bg text-white z-50 p-6 flex flex-col justify-between lg:hidden shadow-2xl"
             >
               <div className="space-y-8">
                 {/* Header inside drawer */}
