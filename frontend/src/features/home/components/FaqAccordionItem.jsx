@@ -81,7 +81,7 @@ export const FaqSection = () => {
           Frequently Asked Questions
         </motion.span>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-16 justify-center items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-16 justify-center items-center">
           {/* Left Column Heading */}
           <motion.div {...headingEnter} className="lg:col-span-5 space-y-4 min-w-0">
             <h2
