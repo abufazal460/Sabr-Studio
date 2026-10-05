@@ -3,8 +3,8 @@ import mongoose from 'mongoose';
 /**
  * Enquiry Mongoose Schema
  * References: DATABASE.md §2.3, §4, §6; prompts/06-features.md §4.6, §5.5
- * Note on C4: email is required.
- * Note on C5: no projectType field exists in the canonical schema.
+ * Note on C4: email is optional (collected but not required by the inquiry form).
+ * Note on C5: projectType is captured from the inquiry form's required select.
  * Note on security: Enquiry collection is strictly admin-only, never public.
  */
 const enquirySchema = new mongoose.Schema(
@@ -16,19 +16,26 @@ const enquirySchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: false,
       trim: true,
       lowercase: true,
+      default: '',
     },
     phone: {
       type: String,
       required: [true, 'Phone number is required'],
       trim: true,
     },
+    projectType: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     message: {
       type: String,
-      required: [true, 'Message is required'],
+      required: false,
       trim: true,
+      default: '',
     },
     source: {
       type: String,

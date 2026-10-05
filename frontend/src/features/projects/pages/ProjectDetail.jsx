@@ -215,7 +215,7 @@ export const ProjectDetail = () => {
       </article>
 
       {/* Commission Inquiry + final View All Projects CTA */}
-      <section className="py-20 sm:py-28 lg:py-32 bg-surface" aria-label="Commission Inquiry">
+      <section className="py-20 sm:py-28 lg:py-32 bg-white" aria-label="Commission Inquiry">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <EnquiryForm
             title="Inquire About Similar Architecture"

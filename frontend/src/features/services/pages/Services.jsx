@@ -87,7 +87,7 @@ export const Services = () => {
       </section>
 
       {/* Shared Inquiry Form */}
-      <section className="py-20 sm:py-28 lg:py-32 bg-surface" aria-label="Service Consultation Inquiry">
+      <section className="py-20 sm:py-28 lg:py-32 bg-white" aria-label="Service Consultation Inquiry">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <motion.div {...reveal(0.15)}>
             <EnquiryForm

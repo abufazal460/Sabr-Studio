@@ -151,7 +151,7 @@ export const ProjectsListing = () => {
       </section>
 
       {/* Inquiry CTA Section */}
-      <section className="py-20 sm:py-28 lg:py-32 bg-surface" aria-label="Project Commission Inquiry">
+      <section className="py-20 sm:py-28 lg:py-32 bg-white" aria-label="Project Commission Inquiry">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <EnquiryForm
             title="Commission an Architectural Project"

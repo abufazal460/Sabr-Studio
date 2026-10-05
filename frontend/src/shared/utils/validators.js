@@ -1,7 +1,8 @@
 /**
  * Client-side validation helpers.
  * Phone is always handled as a string end-to-end.
- * Email is strictly required (per Master Context C4 / PRD).
+ * Enquiry: name/phone/projectType are required; email + message are optional
+ * (email is still format-checked when provided).
  */
 
 export const isValidEmail = (email) => {
@@ -10,28 +11,54 @@ export const isValidEmail = (email) => {
   return emailRegex.test(email.trim());
 };
 
+/**
+ * Real-person name: letters (incl. common accented), internal spaces / . ' -
+ * Rejects empty, whitespace-only, digits-only and symbol-only strings.
+ */
+export const isValidName = (name) => {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (trimmed.length < 2 || trimmed.length > 60) return false;
+  return /^[A-Za-zÀ-ɏ]+(?:[ .'-][A-Za-zÀ-ɏ]+)*$/.test(trimmed);
+};
+
+/**
+ * Normalizes then validates a phone number. Supports Indian 10-digit and
+ * international (+country) formats; rejects letters, symbols, too-short and
+ * repeated-digit values.
+ */
 export const isValidPhone = (phone) => {
   if (!phone || typeof phone !== 'string') return false;
-  // Valid phone pattern: allows optional leading +, spaces, hyphens, min 7 digits
-  const digitsOnly = phone.replace(/\D/g, '');
-  return digitsOnly.length >= 7 && digitsOnly.length <= 15;
+  const normalized = phone.trim().replace(/[\s\-().]/g, '');
+  if (!/^\+?\d+$/.test(normalized)) return false;
+  const digits = normalized.replace('+', '');
+  if (digits.length < 10 || digits.length > 15) return false;
+  if (/^(\d)\1+$/.test(digits)) return false;
+  return true;
 };
 
 export const validateEnquiryForm = (values) => {
   const errors = {};
 
-  if (!values.name || values.name.trim().length < 2) {
-    errors.name = 'Full name must be at least 2 characters.';
+  if (!isValidName(values.name)) {
+    errors.name = 'Please enter your full name.';
   }
 
-  if (!values.email || !isValidEmail(values.email)) {
+  if (!isValidPhone(values.phone)) {
+    errors.phone = 'Please enter a valid phone number.';
+  }
+
+  if (!values.projectType || !String(values.projectType).trim()) {
+    errors.projectType = 'Please select a project type.';
+  }
+
+  // Email is optional: only validated when the user actually provides one.
+  const email = (values.email || '').trim();
+  if (email && !isValidEmail(email)) {
     errors.email = 'Please enter a valid email address.';
   }
 
-  if (!values.phone || !isValidPhone(values.phone)) {
-    errors.phone = 'Please enter a valid contact phone number.';
-  }
-
+  // Message is optional — no error when empty.
   return errors;
 };
 

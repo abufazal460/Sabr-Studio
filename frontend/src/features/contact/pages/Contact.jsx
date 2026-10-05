@@ -124,14 +124,9 @@ export const Contact = () => {
       </section>
 
       {/* Reusable Enquiry Form */}
-      <section className="py-20 sm:py-28 lg:py-32 bg-surface" aria-label="Studio Consultation Inquiry">
-        <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
-          <motion.div {...reveal(0.15)}>
-            <EnquiryForm
-              title="Start a Consultation"
-              subtitle="Please share details regarding your site, spatial vision, or collectible furniture enquiry."
-            />
-          </motion.div>
+      <section className="py-20 sm:py-28 lg:py-32 bg-white" aria-label="Studio Consultation Inquiry">
+        <div className="max-w-2xl mx-auto px-5 sm:px-8 lg:px-12">
+          <EnquiryForm />
         </div>
       </section>
     </div>

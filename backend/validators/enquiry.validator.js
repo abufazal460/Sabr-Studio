@@ -22,24 +22,27 @@ export const createEnquiryValidator = [
     .withMessage('Name is required')
     .isLength({ max: 150 })
     .withMessage('Name cannot exceed 150 characters'),
-  body('email')
-    .trim()
-    .notEmpty()
-    .withMessage('Email is required')
-    .bail()
-    .isEmail()
-    .withMessage('A valid email address is required')
-    .normalizeEmail(),
   body('phone')
     .trim()
     .notEmpty()
     .withMessage('Phone number is required')
     .isLength({ min: 6, max: 25 })
     .withMessage('Phone number must be between 6 and 25 characters'),
-  body('message')
+  body('email')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isEmail()
+    .withMessage('A valid email address is required')
+    .normalizeEmail(),
+  body('projectType')
     .trim()
     .notEmpty()
-    .withMessage('Message is required')
+    .withMessage('Project type is required')
+    .isLength({ max: 120 })
+    .withMessage('Project type cannot exceed 120 characters'),
+  body('message')
+    .optional({ checkFalsy: true })
+    .trim()
     .isLength({ max: 3000 })
     .withMessage('Message cannot exceed 3000 characters'),
   handleValidationErrors,
