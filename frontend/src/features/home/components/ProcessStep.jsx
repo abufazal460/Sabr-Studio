@@ -11,9 +11,9 @@ export const ProcessStepPill = ({ step, isLeft }) => {
         isLeft
           ? 'rounded-l-full rounded-r-none'
           : 'rounded-r-full rounded-l-none'
-      } max-lg:rounded-full min-w-0`}
+      } max-lg:rounded-full min-w-0 flex justify-center items-center`}
     >
-      <div className="w-10 h-10 rounded-full bg-white text-black font-inter text-sm font-semibold flex items-center justify-center shrink-0 shadow-xs">
+      <div className="w-10 h-10  rounded-full bg-white text-black font-inter text-sm font-semibold flex items-center justify-center shrink-0 shadow-xs">
         {step.num}
       </div>
       <div className="space-y-1.5 flex-1 pr-2 min-w-0">
