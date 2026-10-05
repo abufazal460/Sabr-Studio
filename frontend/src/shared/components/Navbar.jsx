@@ -131,7 +131,7 @@ export const Navbar = () => {
         {/* Action Controls */}
         <div className="flex items-center space-x-4 sm:space-x-6">
           {/* Cart Trigger */}
-          <motion.div {...enter(0.24)}>
+          <motion.div {...enter(0.24)} className='p-2'>
             <button
               type="button"
               onClick={openDrawer}
