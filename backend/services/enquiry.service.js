@@ -5,16 +5,17 @@ export const enquiryService = {
   /**
    * Create public enquiry
    * References: DATABASE.md §2.3; prompts/06-features.md §4.6
-   * C4: email is required.
-   * C5: no projectType field exists.
+   * C4: email is optional (collected when provided).
+   * C5: projectType is captured from the inquiry form's required select.
    * DB write succeeds first; external email notification is non-blocking.
    */
   async createEnquiry(data) {
     const enquiryData = {
-      name: data.name.trim(),
-      email: data.email.trim(),
-      phone: String(data.phone).trim(),
-      message: data.message.trim(),
+      name: String(data.name || '').trim(),
+      email: String(data.email || '').trim(),
+      phone: String(data.phone || '').trim(),
+      projectType: String(data.projectType || '').trim(),
+      message: String(data.message || '').trim(),
       source: data.source || data.sourceRoute || '/contact',
       status: 'new',
     };

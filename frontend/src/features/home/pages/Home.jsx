@@ -44,7 +44,7 @@ export const Home = () => {
       <FaqSection />
 
       {/* 10. Consultation Enquiry Section */}
-      <section className="py-14 sm:py-20 lg:py-24 bg-surface border-b border-border" aria-label="Consultation Enquiry">
+      <section className="py-14 sm:py-20 lg:py-24 bg-white border-b border-border" aria-label="Consultation Enquiry">
         <motion.div {...fadeUpProps(reduce, 0, 20, 0.15)} className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <EnquiryForm
             title="Initiate a Commission"
