@@ -1,7 +1,7 @@
 export const aboutData = {
   hero: {
-    titleMain: 'Designing',
-    accentWord: 'with soul',
+    titleMain: 'Designing with',
+    accentWord: 'Sabr Studio',
     introParagraphs: [
       'Founded in 2016 by Ar. Anchal Garg, Design Sense Architects is a young, idea-driven architecture and interior design office based in New Delhi.',
       'We create contextual, artistic, and bespoke architecture and interiors — spaces that feel practical, comfortable, and inviting. From the first conversation to the last site visit, the studio stays close to proportion, material, light, and the people who will use the finished work.',
