@@ -14,7 +14,7 @@ import { servicesData } from '../../services/data/services.data';
 
 // Reuse the studio's existing service categories as Project Type options.
 const projectTypeOptions = servicesData.services.map((s) => ({
-  value: s.id,
+  value: s.title,
   label: s.title,
 }));
 
@@ -75,12 +75,14 @@ export const EnquiryForm = ({ title = 'Send Us a Message', subtitle, className =
       };
 
       const res = await createEnquiry(payload);
-      if (res.success !== false) {
+      // STRICT: success UI only when backend confirms DB save + email delivery.
+      // Any success:false body (email/config/validation/database failure) → error UI.
+      if (res && res.success === true && res.code !== 'EMAIL_FAILURE' && res.code !== 'EMAIL_CONFIG_MISSING') {
         setSubmitSuccess(true);
         setFormData(EMPTY_FORM);
         setErrors({});
       } else {
-        setServerError(res.message || 'Submission failed. Please try again.');
+        setServerError(res?.message || 'Submission failed. Please try again.');
       }
     } catch (err) {
       setServerError(

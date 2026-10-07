@@ -2,24 +2,68 @@ import { enquiryService } from '../services/enquiry.service.js';
 
 export const enquiryController = {
   /**
-   * Submit enquiry (public)
+   * Submit enquiry (public) — STRICT success gating.
+   * success:true (201) ONLY when DB save + EmailJS delivery BOTH succeed.
+   * DB saved + email failed → 502 success:false code EMAIL_FAILURE (enquiry preserved).
+   * EmailJS not configured → 503 success:false code EMAIL_CONFIG_MISSING.
+   * Validation failure → 400 (handled by validator). DB failure → 500 success:false.
    */
   async createEnquiry(req, res) {
     try {
-      const enquiry = await enquiryService.createEnquiry(req.body);
+      const origin = (typeof req.get === 'function' ? req.get('origin') : null) || req.headers?.origin;
+      const { record, emailSent } = await enquiryService.createEnquiry({
+        ...req.body,
+        origin,
+      });
+      if (!emailSent) {
+        return res.status(502).json({
+          success: false,
+          code: 'EMAIL_FAILURE',
+          message: 'Your enquiry was saved but the notification email could not be delivered. Please try again or contact us directly.',
+          data: { id: record.id || record._id },
+        });
+      }
       return res.status(201).json({
         success: true,
-        message: 'Enquiry submitted successfully',
+        code: 'ENQUIRY_SENT',
+        message: 'Enquiry submitted successfully.',
         data: {
-          id: enquiry.id || enquiry._id,
-          name: enquiry.name,
-          status: enquiry.status,
-          createdAt: enquiry.createdAt,
+          id: record.id || record._id,
+          name: record.name,
+          status: record.status,
+          emailStatus: record.emailStatus || 'sent',
+          createdAt: record.createdAt,
         },
       });
     } catch (err) {
-      return res.status(err.statusCode || 400).json({
+      const emailCodes = new Set([
+        'EMAILJS_CONFIG_MISSING',
+        'EMAILJS_AUTH_FAILED',
+        'EMAILJS_INVALID_SERVICE_OR_TEMPLATE',
+        'EMAILJS_RATE_LIMITED',
+        'EMAILJS_API_FAILURE',
+        'EMAILJS_SEND_FAILED',
+        'EMAILJS_NETWORK_FAILURE',
+        'EMAILJS_TIMEOUT',
+      ]);
+      if (err.code === 'EMAILJS_CONFIG_MISSING') {
+        return res.status(503).json({
+          success: false,
+          code: 'EMAIL_CONFIG_MISSING',
+          message: 'Email service is temporarily unavailable. Your enquiry has been saved and our team will review it shortly.',
+        });
+      }
+      if (emailCodes.has(err.code)) {
+        return res.status(err.statusCode || 502).json({
+          success: false,
+          code: 'EMAIL_FAILURE',
+          message: 'Your enquiry was saved but the notification email could not be delivered. Please try again or contact us directly.',
+        });
+      }
+      const isDbError = err.name === 'MongooseError' || err.name === 'MongoServerError' || err.name === 'ValidationError';
+      return res.status(err.statusCode || (isDbError ? 500 : 400)).json({
         success: false,
+        code: 'ENQUIRY_SAVE_FAILED',
         message: err.message || 'Failed to process enquiry submission',
       });
     }

@@ -41,10 +41,23 @@ const enquirySchema = new mongoose.Schema(
       type: String,
       default: '/contact',
     },
+    sourceRoute: {
+      type: String,
+      default: '/contact',
+    },
     status: {
       type: String,
       enum: ['new', 'in-progress', 'resolved'],
       default: 'new',
+    },
+    emailStatus: {
+      type: String,
+      enum: ['sent', 'failed', 'pending'],
+      default: 'pending',
+    },
+    emailError: {
+      type: String,
+      default: '',
     },
   },
   {

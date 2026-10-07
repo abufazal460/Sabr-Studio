@@ -11,6 +11,15 @@ const FRONTEND_BASE = 'http://127.0.0.1:5173';
 const agent = new http.Agent({ keepAlive: true, maxSockets: 10 });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Strict-gate expectation for POST /api/enquiries.
+ * The endpoint returns 201 ONLY when DB save + live EmailJS delivery both
+ * succeed. With Origin header attached, EmailJS delivery succeeds (201 Created).
+ */
+function enquiryEmailShouldSucceed() {
+  return true;
+}
+
 function req(method, pathStr, body = null, headers = {}, baseUrl = BACKEND_BASE) {
   return new Promise((resolve) => {
     try {
@@ -354,11 +363,48 @@ async function runAudit() {
         name: 'Rohan Verma',
         email: 'rohan.verma@example.com',
         phone: '+919876543210',
+        projectType: 'Residential Architecture',
         message: 'Consultation request for 3BHK interior renovation in Bangalore',
       },
-      expectedStatus: 201,
-      reason: 'Valid enquiry payload successfully persisted (201 Created)',
+      // STRICT delivery contract: 201 {success:true} ONLY when DB + EmailJS both
+      // succeed; EmailJS failure must return 502 {success:false, code:"EMAIL_FAILURE"}
+      // (enquiry preserved) — never a false 201. expectedStatus below is the
+      // nominal path; the explicit assertion after this call enforces the body rule.
+      expectedStatus: enquiryEmailShouldSucceed() ? 201 : 502,
+      reason: 'Valid enquiry: strict success gating (DB+email → 201; email failure → 502, never false success)',
     });
+    {
+      const strictOk =
+        (enquiryRes.status === 201 && enquiryRes.body?.success === true) ||
+        (enquiryRes.status === 502 &&
+          enquiryRes.body?.success === false &&
+          enquiryRes.body?.code === 'EMAIL_FAILURE') ||
+        (enquiryRes.status === 503 &&
+          enquiryRes.body?.success === false &&
+          enquiryRes.body?.code === 'EMAIL_CONFIG_MISSING');
+      const mark = strictOk ? ' PASS ' : ' FAIL ';
+      console.log(
+        `[${mark}] #11-strict POST /api/enquiries never-false-success (201 success:true XOR 502/503 success:false) | Actual: ${enquiryRes.status} success=${enquiryRes.body?.success} code=${enquiryRes.body?.code || '-'}`
+      );
+      results.push({
+        id: '11-strict',
+        group: 'Enquiries (Strict)',
+        method: 'POST',
+        path: '/api/enquiries',
+        expectedStatus: 'strict',
+        actualStatus: enquiryRes.status,
+        matched: strictOk,
+        duration: 0,
+        reason: 'Email/config failure must never return success:true',
+        responseSummary: `success=${enquiryRes.body?.success} code=${enquiryRes.body?.code || '-'}`,
+      });
+      if (enquiryRes.status === 201 && enquiryRes.body?.success !== true) {
+        enquiryRes.status = -1; // force harness failure if body contradicts status
+      }
+      if ((enquiryRes.status === 502 || enquiryRes.status === 503) && enquiryRes.body?.success !== false) {
+        enquiryRes.status = -1;
+      }
+    }
     createdEnquiryId = enquiryRes.body?.data?.id;
 
     console.log('\n--- SECTION 6: CHECKOUT & ORDER PIPELINE ---');
