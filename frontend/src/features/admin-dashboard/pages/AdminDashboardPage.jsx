@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   LuFolderGit2,
   LuPackage,
@@ -26,6 +27,10 @@ import EmptyState from '../../../shared/components/EmptyState';
 import Seo from '../../../shared/components/Seo';
 
 export const AdminDashboard = () => {
+  const navigate = useNavigate();
+  // Single source of truth: URL. /admin = All Operations (overview);
+  // sub-routes preselect their tab, tabs navigate back to the same routes
+  // the sidebar/hamburger already use — all three stay synchronized.
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
 
@@ -258,7 +263,10 @@ export const AdminDashboard = () => {
           <button
             key={tab.id}
             type="button"
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              navigate(tab.id === 'overview' ? '/admin' : `/admin/${tab.id}`);
+            }}
             className={`px-5 py-3 text-xs uppercase tracking-wider font-medium whitespace-nowrap transition-colors border-b-2 ${
               activeTab === tab.id
                 ? 'border-black text-black font-semibold bg-white/50'

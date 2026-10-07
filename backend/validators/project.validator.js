@@ -27,14 +27,16 @@ export const createProjectValidator = [
     .notEmpty()
     .withMessage('Project description is required'),
   body('shortDescription').optional().trim().isString(),
+  body('category').optional().trim().isString(),
+  body('location').optional({ nullable: true }).trim().isString(),
+  body('area').optional({ nullable: true }).trim().isString(),
+  body('coverImage').optional({ nullable: true }).trim().isString(),
+  body('images').optional().isArray(),
+  body('gallery').optional().isArray(),
   body('contentBlocks').optional().isArray(),
   body('contentBlocks.*.type')
     .isIn(['heading', 'paragraph', 'image'])
     .withMessage('Content block type must be heading, paragraph, or image'),
-  body('category')
-    .optional()
-    .trim()
-    .isString(),
   body('year')
     .optional({ nullable: true })
     .isInt({ min: 1900, max: 2100 })
@@ -63,6 +65,12 @@ export const updateProjectValidator = [
     .notEmpty()
     .withMessage('Description cannot be empty'),
   body('shortDescription').optional().trim().isString(),
+  body('category').optional().trim().isString(),
+  body('location').optional({ nullable: true }).trim().isString(),
+  body('area').optional({ nullable: true }).trim().isString(),
+  body('coverImage').optional({ nullable: true }).trim().isString(),
+  body('images').optional().isArray(),
+  body('gallery').optional().isArray(),
   body('contentBlocks').optional().isArray(),
   body('contentBlocks.*.type')
     .isIn(['heading', 'paragraph', 'image'])
