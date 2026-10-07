@@ -8,39 +8,39 @@ export const processData = {
   steps: [
     {
       num: '01',
-      title: 'Spatial Diagnosis',
+      title: 'Consultation',
       description:
-        'Understanding solar orientation, diurnal shadows, acoustic thresholds, and the daily rituals of the client.',
+        'Understanding your needs, lifestyle, and vision for the space.',
     },
     {
       num: '02',
-      title: 'Material Strategy',
+      title: 'Site Measurement',
       description:
-        'Curating authentic palettes of unfilled travertine, lime plaster washes, raw ash timber, and handwoven textiles.',
+        'Taking accurate measurements and carefully analyzing the site.',
     },
     {
       num: '03',
-      title: 'Architectural Detailing',
+      title: 'Concept & Mood Board',
       description:
-        'Developing millimeter-precise construction packages, joinery schedules, and shadow-gap architectural profiles.',
+        'Exploring design ideas, inspirations, and the overall direction together.',
     },
     {
       num: '04',
-      title: 'Bespoke Prototyping',
+      title: '2D Planning',
       description:
-        'Collaborating with our master woodworkers and stonemasons to build full-scale mockups of key furniture and details.',
+        'Creating thoughtful space plans and practical layouts for everyday living.',
     },
     {
       num: '05',
-      title: 'Turnkey Execution',
+      title: '3D Visualization',
       description:
-        'Managing the complete build sequence on site with unyielding rigor to ensure design intent translates without compromise.',
+        'Bringing the design to life with realistic 3D visuals of the space.',
     },
     {
       num: '06',
-      title: 'Material & Colour Consultation',
+      title: 'Material Selection',
       description:
-        'Harmonizing light reflection, natural pigment washes, and surface textures to instill long-lasting architectural stillness.',
+        'Choosing the right materials, textures, colors, and finishes for the design.',
     },
   ],
 };
