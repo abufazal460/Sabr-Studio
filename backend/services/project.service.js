@@ -64,7 +64,11 @@ export const projectService = {
   async getAdminProjects() {
     const isMongoConnected = Project.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Project.find().sort({ createdAt: -1 }).lean();
+      const items = await Project.find().sort({ createdAt: -1 }).lean();
+      return items.map((doc) => ({
+        ...doc,
+        id: doc._id.toString(),
+      }));
     }
     return [...inMemoryProjects];
   },
@@ -73,14 +77,17 @@ export const projectService = {
    * Get project by ID for admin
    */
   async getAdminProjectById(id) {
+    const cleanId = String(id || '').trim();
     const isMongoConnected = Project.db?.readyState === 1;
     if (isMongoConnected) {
       const item = await Project.findOne({
-        $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { slug: id }],
+        $or: [{ _id: cleanId.match(/^[0-9a-fA-F]{24}$/) ? cleanId : null }, { slug: cleanId }],
       }).lean();
-      if (item) return item;
+      if (item) {
+        return { ...item, id: item._id.toString() };
+      }
     }
-    return inMemoryProjects.find((p) => p.id === id || p._id === id || p.slug === id) || null;
+    return inMemoryProjects.find((p) => p.id === cleanId || p._id === cleanId || p.slug === cleanId) || null;
   },
 
   /**
@@ -91,14 +98,14 @@ export const projectService = {
     const generatedSlug = slugify(data.title || `project-${Date.now()}`);
 
     const projectData = {
-      title: data.title,
+      title: String(data.title || '').trim(),
       slug: generatedSlug,
-      category: data.category || 'Residential',
-      location: data.location || null,
+      category: String(data.category || 'Residential').trim(),
+      location: data.location ? String(data.location).trim() : null,
       year: data.year ? Number(data.year) : null,
-      area: data.area || null,
-      description: data.description || '',
-      shortDescription: data.shortDescription || '',
+      area: data.area ? String(data.area).trim() : null,
+      description: String(data.description || '').trim(),
+      shortDescription: String(data.shortDescription || '').trim(),
       contentBlocks: Array.isArray(data.contentBlocks)
         ? data.contentBlocks.map((block) => ({
             type: block.type,
@@ -106,10 +113,15 @@ export const projectService = {
             url: block.url || '',
           }))
         : [],
-      images: Array.isArray(data.images) ? data.images : [],
+      images: Array.isArray(data.images)
+        ? data.images.map((img) => ({
+            url: typeof img === 'string' ? img.trim() : String(img?.url || '').trim(),
+            publicId: typeof img === 'string' ? '' : String(img?.publicId || '').trim(),
+          }))
+        : [],
       coverImage:
         data.coverImage ||
-        (Array.isArray(data.images) && data.images[0]?.url) ||
+        (Array.isArray(data.images) && (data.images[0]?.url || data.images[0])) ||
         '',
       gallery: Array.isArray(data.gallery)
         ? data.gallery
@@ -124,7 +136,8 @@ export const projectService = {
     const isMongoConnected = Project.db?.readyState === 1;
     if (isMongoConnected) {
       const doc = await Project.create(projectData);
-      return doc.toObject();
+      const obj = doc.toObject();
+      return { ...obj, id: obj._id.toString() };
     }
 
     const newProject = {
@@ -142,9 +155,28 @@ export const projectService = {
    * Update project (admin only)
    */
   async updateProject(id, updateData) {
+    const cleanId = String(id || '').trim();
     // Slug is immutable post-publish per DATABASE.md §2.1
     const { slug, _id, id: rawId, createdAt, ...allowedUpdates } = updateData;
 
+    if (allowedUpdates.title !== undefined) {
+      allowedUpdates.title = String(allowedUpdates.title).trim();
+    }
+    if (allowedUpdates.category !== undefined) {
+      allowedUpdates.category = String(allowedUpdates.category).trim();
+    }
+    if (allowedUpdates.location !== undefined) {
+      allowedUpdates.location = allowedUpdates.location ? String(allowedUpdates.location).trim() : null;
+    }
+    if (allowedUpdates.area !== undefined) {
+      allowedUpdates.area = allowedUpdates.area ? String(allowedUpdates.area).trim() : null;
+    }
+    if (allowedUpdates.shortDescription !== undefined) {
+      allowedUpdates.shortDescription = String(allowedUpdates.shortDescription).trim();
+    }
+    if (allowedUpdates.description !== undefined) {
+      allowedUpdates.description = String(allowedUpdates.description).trim();
+    }
     if (allowedUpdates.year !== undefined && allowedUpdates.year !== null) {
       allowedUpdates.year = Number(allowedUpdates.year);
     }
@@ -154,19 +186,38 @@ export const projectService = {
     if (allowedUpdates.published !== undefined) {
       allowedUpdates.published = Boolean(allowedUpdates.published);
     }
+    if (Array.isArray(allowedUpdates.images)) {
+      allowedUpdates.images = allowedUpdates.images.map((img) => ({
+        url: typeof img === 'string' ? img.trim() : String(img?.url || '').trim(),
+        publicId: typeof img === 'string' ? '' : String(img?.publicId || '').trim(),
+      }));
+      if (!allowedUpdates.gallery) {
+        allowedUpdates.gallery = allowedUpdates.images.map((img) => img.url);
+      }
+    }
+    if (Array.isArray(allowedUpdates.contentBlocks)) {
+      allowedUpdates.contentBlocks = allowedUpdates.contentBlocks.map((block) => ({
+        type: block.type,
+        text: block.text || '',
+        url: block.url || '',
+      }));
+    }
 
     const isMongoConnected = Project.db?.readyState === 1;
     if (isMongoConnected) {
       const updated = await Project.findOneAndUpdate(
-        { $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { slug: id }] },
+        { $or: [{ _id: cleanId.match(/^[0-9a-fA-F]{24}$/) ? cleanId : null }, { slug: cleanId }] },
         { $set: allowedUpdates },
         { new: true, runValidators: true }
       ).lean();
-      return updated;
+      if (updated) {
+        return { ...updated, id: updated._id.toString() };
+      }
+      return null;
     }
 
     const index = inMemoryProjects.findIndex(
-      (p) => p.id === id || p._id === id || p.slug === id
+      (p) => p.id === cleanId || p._id === cleanId || p.slug === cleanId
     );
     if (index === -1) return null;
 
@@ -182,17 +233,18 @@ export const projectService = {
    * Delete project (admin only)
    */
   async deleteProject(id) {
+    const cleanId = String(id || '').trim();
     const isMongoConnected = Project.db?.readyState === 1;
     if (isMongoConnected) {
       const doc = await Project.findOneAndDelete({
-        $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { slug: id }],
+        $or: [{ _id: cleanId.match(/^[0-9a-fA-F]{24}$/) ? cleanId : null }, { slug: cleanId }],
       }).lean();
       return !!doc;
     }
 
     const initialLength = inMemoryProjects.length;
     const filtered = inMemoryProjects.filter(
-      (p) => p.id !== id && p._id !== id && p.slug !== id
+      (p) => p.id !== cleanId && p._id !== cleanId && p.slug !== cleanId
     );
     if (filtered.length < initialLength) {
       inMemoryProjects.length = 0;

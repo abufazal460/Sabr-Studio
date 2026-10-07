@@ -6,9 +6,11 @@ export const adminApi = {
 
   // Projects
   getProjects: (params) => axiosClient.get('/admin/projects', { params }),
+  getProjectById: (id) => axiosClient.get(`/admin/projects/${id}`),
   createProject: (data) => axiosClient.post('/admin/projects', data),
   updateProject: (id, data) => axiosClient.put(`/admin/projects/${id}`, data),
   deleteProject: (id) => axiosClient.delete(`/admin/projects/${id}`),
+  uploadImage: (data) => axiosClient.post('/admin/uploads', data),
 
   // Retail Items
   getRetailItems: (params) => axiosClient.get('/admin/retail', { params }),

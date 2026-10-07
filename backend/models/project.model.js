@@ -32,6 +32,11 @@ const projectSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    area: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     description: {
       type: String,
       required: [true, 'Project description is required'],

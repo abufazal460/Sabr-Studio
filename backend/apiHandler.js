@@ -325,7 +325,7 @@ export default function handleApiRequest(req, res) {
             return projectController.getAdminProjectById(req, res);
           }
 
-          if (path.startsWith('/api/admin/projects/') && method === 'PUT') {
+          if (path.startsWith('/api/admin/projects/') && (method === 'PUT' || method === 'PATCH')) {
             const id = path.replace('/api/admin/projects/', '');
             req.params = { id };
             return parseBody(() => {
@@ -426,7 +426,41 @@ export default function handleApiRequest(req, res) {
 
           // 6.6 Admin Cloudinary Upload Endpoint (06-features.md §5.7)
           if (path === '/api/admin/uploads' && method === 'POST') {
-            return parseBody(() => {
+            return parseBody(async () => {
+              const uploadTarget = req.body?.dataUri || req.body?.image || req.body?.file;
+              if (
+                uploadTarget &&
+                process.env.CLOUDINARY_CLOUD_NAME &&
+                process.env.CLOUDINARY_API_KEY &&
+                process.env.CLOUDINARY_API_SECRET
+              ) {
+                try {
+                  const { v2: cloudinary } = await import('cloudinary');
+                  cloudinary.config({
+                    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+                    api_key: process.env.CLOUDINARY_API_KEY,
+                    api_secret: process.env.CLOUDINARY_API_SECRET,
+                  });
+                  const uploadRes = await cloudinary.uploader.upload(uploadTarget, {
+                    folder: 'sabr/projects',
+                    resource_type: 'auto',
+                  });
+                  return res.status(201).json({
+                    success: true,
+                    data: {
+                      images: [
+                        {
+                          url: uploadRes.secure_url,
+                          publicId: uploadRes.public_id,
+                        },
+                      ],
+                    },
+                  });
+                } catch (cloudErr) {
+                  console.error('[Upload] Cloudinary upload error:', cloudErr.message);
+                }
+              }
+
               const sampleUpload = {
                 url: req.body?.url || 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
                 publicId: `sabr_upload_${Date.now()}`,

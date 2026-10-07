@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   LuFolderGit2,
   LuPackage,
@@ -28,7 +29,11 @@ import EmptyState from '../../../shared/components/EmptyState';
 import Seo from '../../../shared/components/Seo';
 
 export const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const navigate = useNavigate();
+  // Single source of truth: URL. /admin = All Operations (overview);
+  // sub-routes preselect their tab, tabs navigate back to the same routes
+  // the sidebar/hamburger already use — all three stay synchronized.
+  const [activeTab, setActiveTab] = useState('projects');
   const [loading, setLoading] = useState(true);
 
   // Data states
@@ -40,12 +45,16 @@ export const AdminDashboard = () => {
   // Modal states
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState(null);
+  const [savingProject, setSavingProject] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [deletingProjectId, setDeletingProjectId] = useState(null);
   const [retailModalOpen, setRetailModalOpen] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
 
   // Form states
   const emptyProjectForm = {
     title: '',
+    category: 'Residential',
     location: '',
     year: '',
     area: '',
@@ -80,17 +89,25 @@ export const AdminDashboard = () => {
         adminApi.getOrders(),
       ]);
 
-      if (projRes.status === 'fulfilled' && projRes.value?.data) {
-        setProjects(Array.isArray(projRes.value.data) ? projRes.value.data : []);
+      if (projRes.status === 'fulfilled') {
+        const val = projRes.value;
+        const items = Array.isArray(val?.data) ? val.data : (Array.isArray(val) ? val : []);
+        setProjects(items);
       }
-      if (retRes.status === 'fulfilled' && retRes.value?.data) {
-        setRetailItems(Array.isArray(retRes.value.data) ? retRes.value.data : []);
+      if (retRes.status === 'fulfilled') {
+        const val = retRes.value;
+        const items = Array.isArray(val?.data) ? val.data : (Array.isArray(val) ? val : []);
+        setRetailItems(items);
       }
-      if (enqRes.status === 'fulfilled' && enqRes.value?.data) {
-        setEnquiries(Array.isArray(enqRes.value.data) ? enqRes.value.data : []);
+      if (enqRes.status === 'fulfilled') {
+        const val = enqRes.value;
+        const items = Array.isArray(val?.data) ? val.data : (Array.isArray(val) ? val : []);
+        setEnquiries(items);
       }
-      if (ordRes.status === 'fulfilled' && ordRes.value?.data) {
-        setOrders(Array.isArray(ordRes.value.data) ? ordRes.value.data : []);
+      if (ordRes.status === 'fulfilled') {
+        const val = ordRes.value;
+        const items = Array.isArray(val?.data) ? val.data : (Array.isArray(val) ? val : []);
+        setOrders(items);
       }
     } catch (e) {
       console.error('Error loading admin data', e);
@@ -105,19 +122,30 @@ export const AdminDashboard = () => {
 
   const handleSaveProject = async (e) => {
     e.preventDefault();
-    const usableImages = projectForm.images.filter((img) => img.url && img.url.trim());
+    if (savingProject) return;
+
+    if (!projectForm.title || !projectForm.title.trim()) {
+      window.alert('Project title is required.');
+      return;
+    }
+
+    const cleanTitle = projectForm.title.trim();
+    const cleanDesc = (projectForm.description || projectForm.shortDescription || cleanTitle).trim();
+    const usableImages = (projectForm.images || []).filter((img) => img && img.url && img.url.trim());
+
     const payload = {
-      title: projectForm.title,
-      location: projectForm.location || null,
+      title: cleanTitle,
+      category: projectForm.category || 'Residential',
+      location: projectForm.location?.trim() || null,
       year: projectForm.year ? Number(projectForm.year) : null,
-      area: projectForm.area || null,
-      shortDescription: projectForm.shortDescription || '',
-      description: projectForm.description || '',
+      area: projectForm.area?.trim() || null,
+      shortDescription: projectForm.shortDescription?.trim() || '',
+      description: cleanDesc,
       coverImage:
-        projectForm.coverImage || (usableImages[0] && usableImages[0].url) || '',
-      images: usableImages.map((img) => ({ url: img.url, publicId: img.publicId || '' })),
-      gallery: usableImages.map((img) => img.url),
-      contentBlocks: projectForm.contentBlocks.map((block) => ({
+        projectForm.coverImage?.trim() || (usableImages[0] && usableImages[0].url) || '',
+      images: usableImages.map((img) => ({ url: img.url.trim(), publicId: img.publicId || '' })),
+      gallery: usableImages.map((img) => img.url.trim()),
+      contentBlocks: (projectForm.contentBlocks || []).map((block) => ({
         type: block.type,
         text: block.text || '',
         url: block.url || '',
@@ -125,40 +153,45 @@ export const AdminDashboard = () => {
       published: Boolean(projectForm.published),
     };
 
+    setSavingProject(true);
     try {
       if (editingProjectId) {
         const res = await adminApi.updateProject(editingProjectId, payload);
-        const saved = res?.data;
+        const saved = res?.data || res;
         setProjects((prev) =>
           prev.map((p) =>
-            (p.id || p._id) === editingProjectId ? { ...p, ...(saved || payload) } : p
+            String(p._id || p.id) === String(editingProjectId)
+              ? { ...p, ...(saved || payload), id: String(p._id || p.id) }
+              : p
           )
         );
       } else {
         const res = await adminApi.createProject(payload);
-        const saved = res?.data;
-        setProjects((prev) => [
-          saved || { ...payload, id: `proj-${Date.now()}`, _id: `proj-${Date.now()}` },
-          ...prev,
-        ]);
+        const saved = res?.data || res;
+        const normalized = saved
+          ? { ...saved, id: String(saved._id || saved.id) }
+          : { ...payload, id: `proj-${Date.now()}` };
+        setProjects((prev) => [normalized, ...prev]);
       }
+      setProjectModalOpen(false);
+      setEditingProjectId(null);
+      setProjectForm(emptyProjectForm);
     } catch (err) {
-      window.alert(err?.response?.data?.message || err.message || 'Failed to save project.');
-      return;
+      const msg = err?.response?.data?.message || err?.message || 'Failed to save project.';
+      window.alert(msg);
+    } finally {
+      setSavingProject(false);
     }
-
-    setProjectModalOpen(false);
-    setEditingProjectId(null);
-    setProjectForm(emptyProjectForm);
   };
 
   const openProjectModal = (project) => {
     if (project) {
-      setEditingProjectId(project.id || project._id);
+      const projId = project._id || project.id;
+      setEditingProjectId(String(projId));
       const seededImages =
         Array.isArray(project.images) && project.images.length
           ? project.images.map((img) => ({
-              url: typeof img === 'string' ? img : img.url,
+              url: typeof img === 'string' ? img : img.url || '',
               publicId: typeof img === 'string' ? '' : img.publicId || '',
             }))
           : project.coverImage
@@ -166,6 +199,7 @@ export const AdminDashboard = () => {
           : [];
       setProjectForm({
         title: project.title || '',
+        category: project.category || 'Residential',
         location: project.location || '',
         year: project.year ?? '',
         area: project.area || '',
@@ -185,13 +219,59 @@ export const AdminDashboard = () => {
     setProjectModalOpen(true);
   };
 
-  const handleTogglePublish = (project) => {
-    const id = project.id || project._id;
+  const handleTogglePublish = async (project) => {
+    const id = project._id || project.id;
+    if (!id) return;
     const next = !project.published;
     setProjects((prev) =>
-      prev.map((p) => ((p.id || p._id) === id ? { ...p, published: next } : p))
+      prev.map((p) => (String(p._id || p.id) === String(id) ? { ...p, published: next } : p))
     );
-    adminApi.updateProject(id, { published: next }).catch(() => {});
+    try {
+      await adminApi.updateProject(id, { published: next });
+    } catch (err) {
+      setProjects((prev) =>
+        prev.map((p) => (String(p._id || p.id) === String(id) ? { ...p, published: !next } : p))
+      );
+      window.alert('Failed to update published status.');
+    }
+  };
+
+  const handleUploadImageFile = async (e, targetIdx) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUri = reader.result;
+      try {
+        setUploadingImage(true);
+        const res = await adminApi.uploadImage({ dataUri, filename: file.name });
+        const uploaded = res?.data?.images?.[0] || res?.images?.[0];
+        if (uploaded?.url) {
+          if (targetIdx !== null && targetIdx !== undefined) {
+            setProjectForm((f) => ({
+              ...f,
+              images: f.images.map((img, i) =>
+                i === targetIdx ? { url: uploaded.url, publicId: uploaded.publicId || '' } : img
+              ),
+              coverImage: f.coverImage || uploaded.url,
+            }));
+          } else {
+            setProjectForm((f) => ({
+              ...f,
+              images: [...f.images, { url: uploaded.url, publicId: uploaded.publicId || '' }],
+              coverImage: f.coverImage || uploaded.url,
+            }));
+          }
+        }
+      } catch (err) {
+        window.alert(err?.response?.data?.message || err?.message || 'Failed to upload image.');
+      } finally {
+        setUploadingImage(false);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const updateProjectImage = (idx, url) =>
@@ -201,10 +281,17 @@ export const AdminDashboard = () => {
     }));
 
   const removeProjectImage = (idx) =>
-    setProjectForm((f) => ({
-      ...f,
-      images: f.images.filter((_, i) => i !== idx),
-    }));
+    setProjectForm((f) => {
+      const removedImg = f.images[idx];
+      const nextImages = f.images.filter((_, i) => i !== idx);
+      const nextCover =
+        f.coverImage === removedImg?.url ? (nextImages[0]?.url || '') : f.coverImage;
+      return {
+        ...f,
+        images: nextImages,
+        coverImage: nextCover,
+      };
+    });
 
   const addProjectImage = () =>
     setProjectForm((f) => ({ ...f, images: [...f.images, { url: '', publicId: '' }] }));
@@ -263,10 +350,19 @@ export const AdminDashboard = () => {
     });
   };
 
-  const handleDeleteProject = (id) => {
+  const handleDeleteProject = async (id) => {
+    const targetId = String(id ?? '');
+    if (!targetId || deletingProjectId) return;
     if (!window.confirm('Delete this project from catalog?')) return;
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    adminApi.deleteProject(id).catch(() => {});
+    setDeletingProjectId(targetId);
+    try {
+      await adminApi.deleteProject(targetId);
+      setProjects((prev) => prev.filter((p) => String(p._id || p.id) !== targetId));
+    } catch (err) {
+      window.alert(err?.message || 'Failed to delete project. Please try again.');
+    } finally {
+      setDeletingProjectId(null);
+    }
   };
 
   const handleDeleteRetail = (id) => {
@@ -374,7 +470,10 @@ export const AdminDashboard = () => {
           <button
             key={tab.id}
             type="button"
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              navigate(tab.id === 'overview' ? '/admin' : `/admin/${tab.id}`);
+            }}
             className={`px-5 py-3 text-xs uppercase tracking-wider font-medium whitespace-nowrap transition-colors border-b-2 ${
               activeTab === tab.id
                 ? 'border-black text-black font-semibold bg-white/50'
