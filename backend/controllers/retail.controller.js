@@ -92,7 +92,8 @@ export const retailController = {
 
   async updateRetailItem(req, res) {
     try {
-      const id = req.params?.id || req.url.split('/')[4] || req.url.split('/').pop();
+      const rawId = req.params?.id || req.url.split('/')[4] || req.url.split('/').pop();
+      const id = String(rawId || '').split('?')[0].trim();
       const updated = await retailService.updateRetailItem(id, req.body);
       if (!updated) {
         return res.status(404).json({
@@ -114,7 +115,8 @@ export const retailController = {
 
   async deleteRetailItem(req, res) {
     try {
-      const id = req.params?.id || req.url.split('/').pop();
+      const rawId = req.params?.id || req.url.split('/').pop();
+      const id = String(rawId || '').split('?')[0].trim();
       const deleted = await retailService.deleteRetailItem(id);
       if (!deleted) {
         return res.status(404).json({

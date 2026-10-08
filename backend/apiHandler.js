@@ -360,7 +360,7 @@ export default function handleApiRequest(req, res) {
             return retailController.getAdminRetailById(req, res);
           }
 
-          if (path.startsWith('/api/admin/retail/') && method === 'PUT') {
+          if (path.startsWith('/api/admin/retail/') && (method === 'PUT' || method === 'PATCH')) {
             const id = path.replace('/api/admin/retail/', '');
             req.params = { id };
             return parseBody(() => {

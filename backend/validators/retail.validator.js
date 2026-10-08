@@ -38,10 +38,26 @@ export const createRetailValidator = [
     .optional()
     .isBoolean()
     .withMessage('Availability must be a boolean'),
+  body('inStock')
+    .optional()
+    .isBoolean()
+    .withMessage('InStock must be a boolean'),
   body('published')
     .optional()
     .isBoolean()
     .withMessage('Published must be a boolean'),
+  body('dimensions')
+    .optional()
+    .isString(),
+  body('materials')
+    .optional()
+    .isString(),
+  body('image')
+    .optional()
+    .isString(),
+  body('images')
+    .optional()
+    .isArray(),
   handleValidationErrors,
 ];
 
@@ -59,11 +75,30 @@ export const updateRetailValidator = [
     .optional()
     .trim()
     .notEmpty(),
+  body('category')
+    .optional()
+    .trim()
+    .isString(),
   body('availability')
+    .optional()
+    .isBoolean(),
+  body('inStock')
     .optional()
     .isBoolean(),
   body('published')
     .optional()
     .isBoolean(),
+  body('dimensions')
+    .optional()
+    .isString(),
+  body('materials')
+    .optional()
+    .isString(),
+  body('image')
+    .optional()
+    .isString(),
+  body('images')
+    .optional()
+    .isArray(),
   handleValidationErrors,
 ];

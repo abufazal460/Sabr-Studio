@@ -45,6 +45,11 @@ export const AdminDashboard = () => {
   const [retailModalOpen, setRetailModalOpen] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
 
+  // Enquiry search / status filter / delete (Admin → Enquiries only)
+  const [enquirySearch, setEnquirySearch] = useState('');
+  const [enquiryStatusFilter, setEnquiryStatusFilter] = useState('all');
+  const [deletingEnquiryId, setDeletingEnquiryId] = useState(null);
+
   // Form states
   const [projectForm, setProjectForm] = useState({
     title: '',
@@ -170,11 +175,100 @@ export const AdminDashboard = () => {
     );
   };
 
+  const getRecordId = (record) =>
+    record?.id || record?._id?.toString?.() || record?._id || record?.orderNumber;
+
   const handleUpdateEnquiryStatus = (id, newStatus) => {
+    const recordId = String(id || '').trim();
+    if (!recordId || recordId === 'undefined') return;
     setEnquiries((prev) =>
-      prev.map((enq) => (enq.id === id ? { ...enq, status: newStatus } : enq))
+      prev.map((enq) =>
+        getRecordId(enq) === recordId ? { ...enq, status: newStatus } : enq
+      )
     );
-    adminApi.updateEnquiryStatus(id, newStatus).catch(() => {});
+    adminApi.updateEnquiryStatus(recordId, newStatus).catch(() => {
+      loadAllData();
+    });
+  };
+
+  // Friendly labels reuse the existing backend status enum (new / in-progress / resolved).
+  // The select must send these exact values or the backend validator/service rejects the update.
+  const ENQUIRY_STATUS_META = [
+    { value: 'new', label: 'New' },
+    { value: 'in-progress', label: 'Contacted' },
+    { value: 'resolved', label: 'Resolved' },
+  ];
+
+  const getEnquiryStatusLabel = (status) =>
+    ENQUIRY_STATUS_META.find((s) => s.value === status)?.label || status || '';
+
+  // Filter options derive from live data + the known backend enum (no invented business values).
+  const enquiryStatusOptions = [
+    { value: 'all', label: 'All Statuses' },
+    ...Array.from(
+      new Set([
+        ...ENQUIRY_STATUS_META.map((s) => s.value),
+        ...enquiries.map((e) => e.status).filter(Boolean),
+      ])
+    ).map((value) => ({
+      value,
+      label: getEnquiryStatusLabel(value),
+    })),
+  ];
+
+  const normalizeDigits = (v) => String(v || '').replace(/\D/g, '');
+
+  // Lets admins search with everyday words (pending / complete / in progress)
+  // while matching the actual stored enum values.
+  const STATUS_SEARCH_ALIASES = {
+    pending: 'new',
+    new: 'new',
+    contacted: 'in-progress',
+    'in progress': 'in-progress',
+    'in-progress': 'in-progress',
+    inprogress: 'in-progress',
+    inreview: 'in-progress',
+    review: 'in-progress',
+    complete: 'resolved',
+    completed: 'resolved',
+    resolved: 'resolved',
+    done: 'resolved',
+  };
+
+  const filteredEnquiries = enquiries.filter((enq) => {
+    if (enquiryStatusFilter !== 'all' && (enq.status || 'new') !== enquiryStatusFilter) return false;
+    const q = enquirySearch.trim().toLowerCase();
+    if (!q) return true;
+    const statusValue = String(enq.status || 'new').toLowerCase();
+    const statusLabel = getEnquiryStatusLabel(enq.status).toLowerCase();
+    const haystack = [enq.name, enq.phone, enq.email, statusValue, statusLabel].map((v) =>
+      String(v || '').toLowerCase()
+    );
+    if (haystack.some((field) => field.includes(q))) return true;
+    const aliased = STATUS_SEARCH_ALIASES[q] || STATUS_SEARCH_ALIASES[q.replace(/\s+/g, '')];
+    if (aliased && (statusValue === aliased || statusLabel === aliased)) return true;
+    const qDigits = normalizeDigits(q);
+    if (qDigits && normalizeDigits(enq.phone).includes(qDigits)) return true;
+    return false;
+  });
+
+  // Delete ONLY the selected enquiry by its unique ID (existing window.confirm pattern).
+  const handleDeleteEnquiry = async (id) => {
+    const recordId = String(id || '').trim();
+    if (!recordId || recordId === 'undefined' || deletingEnquiryId) return;
+    if (!window.confirm('Delete this enquiry permanently? This cannot be undone.')) return;
+    setDeletingEnquiryId(recordId);
+    const previous = enquiries;
+    setEnquiries((prev) => prev.filter((enq) => getRecordId(enq) !== recordId));
+    setViewEnquiryModal((prev) => (prev && getRecordId(prev) === recordId ? null : prev));
+    try {
+      await adminApi.deleteEnquiry(recordId);
+    } catch {
+      setEnquiries(previous);
+      loadAllData();
+    } finally {
+      setDeletingEnquiryId(null);
+    }
   };
 
   return (
@@ -415,15 +509,47 @@ export const AdminDashboard = () => {
       {/* Tab: Enquiries */}
       {(activeTab === 'overview' || activeTab === 'enquiries') && (
         <div className="bg-white border border-border rounded-md p-6 sm:p-8 space-y-6">
-          <div>
-            <h2 className="font-abhaya text-2xl text-ink font-medium">
-              Consultation Enquiries
-            </h2>
-            <p className="text-xs text-muted">Submitted via public website forms</p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="font-abhaya text-2xl text-ink font-medium">
+                Consultation Enquiries
+              </h2>
+              <p className="text-xs text-muted">Submitted via public website forms</p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end w-full lg:w-auto">
+              <TextInput
+                id="enquiry-search"
+                aria-label="Search enquiries by name, phone, email or status"
+                placeholder="Search name, phone, email, status…"
+                value={enquirySearch}
+                onChange={(e) => setEnquirySearch(e.target.value)}
+                className="w-full sm:w-64"
+                inputClassName="!py-2.5"
+              />
+              <Select
+                id="enquiry-status-filter"
+                aria-label="Filter enquiries by status"
+                value={enquiryStatusFilter}
+                onChange={(e) => setEnquiryStatusFilter(e.target.value)}
+                options={enquiryStatusOptions}
+                placeholder={null}
+                className="w-full sm:w-48"
+                selectClassName="!py-2.5"
+              />
+            </div>
           </div>
+
+          <p className="text-[11px] text-muted">
+            Showing {filteredEnquiries.length} of {enquiries.length} enquiries
+          </p>
 
           {enquiries.length === 0 ? (
             <p className="text-xs text-muted py-6">No consultation enquiries on record yet.</p>
+          ) : filteredEnquiries.length === 0 ? (
+            <p className="text-xs text-muted py-6">
+              No enquiries match the current search or status filter.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -434,12 +560,12 @@ export const AdminDashboard = () => {
                     <th className="py-3 px-4">Phone</th>
                     <th className="py-3 px-4">Message Preview</th>
                     <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">View</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {enquiries.map((enq) => (
-                    <tr key={enq.id} className="hover:bg-surface/50">
+                  {filteredEnquiries.map((enq) => (
+                    <tr key={getRecordId(enq)} className="hover:bg-surface/50">
                       <td className="py-3 px-4 font-medium text-ink">{enq.name}</td>
                       <td className="py-3 px-4 text-muted">{enq.email}</td>
                       <td className="py-3 px-4 font-mono text-muted">{enq.phone}</td>
@@ -449,16 +575,15 @@ export const AdminDashboard = () => {
                       <td className="py-3 px-4">
                         <select
                           value={enq.status || 'new'}
-                          onChange={(e) => handleUpdateEnquiryStatus(enq.id, e.target.value)}
+                          onChange={(e) => handleUpdateEnquiryStatus(getRecordId(enq), e.target.value)}
                           className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink"
                         >
                           <option value="new">New</option>
-                          <option value="in_review">In Review</option>
-                          <option value="contacted">Contacted</option>
-                          <option value="archived">Archived</option>
+                          <option value="in-progress">Contacted</option>
+                          <option value="resolved">Resolved</option>
                         </select>
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => setViewEnquiryModal(enq)}
@@ -466,6 +591,15 @@ export const AdminDashboard = () => {
                           title="View enquiry details"
                         >
                           <LuEye className="w-4 h-4 inline" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteEnquiry(getRecordId(enq))}
+                          disabled={deletingEnquiryId === getRecordId(enq)}
+                          className="p-1 ml-1 text-muted hover:text-error transition-colors disabled:opacity-40"
+                          title="Delete this enquiry permanently"
+                        >
+                          <LuTrash2 className="w-4 h-4 inline" />
                         </button>
                       </td>
                     </tr>

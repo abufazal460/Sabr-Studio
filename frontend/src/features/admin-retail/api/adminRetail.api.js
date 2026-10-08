@@ -15,6 +15,7 @@ export const adminApi = {
   createRetailItem: (data) => axiosClient.post('/admin/retail', data),
   updateRetailItem: (id, data) => axiosClient.put(`/admin/retail/${id}`, data),
   deleteRetailItem: (id) => axiosClient.delete(`/admin/retail/${id}`),
+  uploadImage: (data) => axiosClient.post('/admin/uploads', data),
 
   // Enquiries
   getEnquiries: (params) => axiosClient.get('/admin/enquiries', { params }),

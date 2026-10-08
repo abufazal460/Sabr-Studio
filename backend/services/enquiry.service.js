@@ -120,7 +120,11 @@ export const enquiryService = {
   async getAdminEnquiries() {
     const isMongoConnected = Enquiry.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Enquiry.find().sort({ createdAt: -1 }).lean();
+      const items = await Enquiry.find().sort({ createdAt: -1 }).lean();
+      return items.map((doc) => ({
+        ...doc,
+        id: doc.id || doc._id?.toString(),
+      }));
     }
     // Fallback to persistent storage, then in-memory
     const fallbackData = fallbackEnquiries.findAll();
