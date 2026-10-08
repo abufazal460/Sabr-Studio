@@ -76,6 +76,36 @@ retailSchema.index({ published: 1, availability: 1, createdAt: -1 });
 
 export const Retail = mongoose.models.Retail || mongoose.model('Retail', retailSchema);
 
+const retailCategorySchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+    slug: {
+      type: String,
+      lowercase: true,
+      trim: true,
+    },
+  },
+  { timestamps: true }
+);
+
+export const RetailCategory =
+  mongoose.models.RetailCategory || mongoose.model('RetailCategory', retailCategorySchema);
+
+export const inMemoryCategories = [
+  'Chair',
+  'Table',
+  'Lighting',
+  'Storage',
+  'Decor',
+  'Sofa',
+  'Objects',
+];
+
 // In-memory store for fallback / preview mode
 export const inMemoryRetail = [
   {

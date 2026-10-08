@@ -242,7 +242,11 @@ export const orderService = {
   async getAdminOrders() {
     const isMongoConnected = Order.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Order.find().sort({ createdAt: -1 }).lean();
+      const items = await Order.find().sort({ createdAt: -1 }).lean();
+      return items.map((doc) => ({
+        ...doc,
+        id: doc.id || doc._id?.toString(),
+      }));
     }
     // Fallback to persistent storage, then in-memory
     const fallbackData = fallbackOrders.findAll();

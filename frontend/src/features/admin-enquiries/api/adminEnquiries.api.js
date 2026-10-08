@@ -19,6 +19,7 @@ export const adminApi = {
   // Enquiries
   getEnquiries: (params) => axiosClient.get('/admin/enquiries', { params }),
   updateEnquiryStatus: (id, status) => axiosClient.patch(`/admin/enquiries/${id}/status`, { status }),
+  deleteEnquiry: (id) => axiosClient.delete(`/admin/enquiries/${id}`),
 
   // Orders
   getOrders: (params) => axiosClient.get('/admin/orders', { params }),

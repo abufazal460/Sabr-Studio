@@ -12,10 +12,11 @@ import {
   LuCheck,
   LuX,
   LuEye,
+  LuEyeOff,
+  LuUpload,
 } from 'react-icons/lu';
 import adminApi from '../api/adminRetail.api';
 import { getProjects } from '../../projects/api/projects.api';
-import { getRetailProducts } from '../../retail/api/retail.api';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { Button } from '../../../shared/components/Button';
 import Badge from '../../../shared/components/Badge';
@@ -40,9 +41,19 @@ export const AdminDashboard = () => {
   const [enquiries, setEnquiries] = useState([]);
   const [orders, setOrders] = useState([]);
 
-  // Modal states
+  // Filter states for retail
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [stockFilter, setStockFilter] = useState('All');
+
+  // Modal & operation states
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [retailModalOpen, setRetailModalOpen] = useState(false);
+  const [editingRetailId, setEditingRetailId] = useState(null);
+  const [savingRetail, setSavingRetail] = useState(false);
+  const [deletingRetailId, setDeletingRetailId] = useState(null);
+  const [togglingStockId, setTogglingStockId] = useState(null);
+  const [togglingPublishId, setTogglingPublishId] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
 
   // Form states
@@ -56,15 +67,50 @@ export const AdminDashboard = () => {
     description: '',
   });
 
-  const [retailForm, setRetailForm] = useState({
+  const emptyRetailForm = {
     title: '',
-    category: 'Chairs',
-    price: 45000,
-    image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&w=700&q=80',
+    category: 'Chair',
+    customCategory: '',
+    price: '',
+    image: '',
     description: '',
-    dimensions: '600mm W × 580mm D × 740mm H',
-    materials: 'Solid Ash timber, natural beeswax, Belgian linen',
+    dimensions: '',
+    materials: '',
     inStock: true,
+    published: true,
+  };
+
+  const [retailForm, setRetailForm] = useState(emptyRetailForm);
+
+  const getRecordId = (record) =>
+    record?.id || record?._id?.toString?.() || record?._id || record?.orderNumber;
+
+  const getItemId = (item) => String(item?._id || item?.id || '').trim();
+
+  const standardCats = ['Chair', 'Table', 'Lighting', 'Storage', 'Sofa', 'Decor', 'Objects'];
+  const availableCategories = [
+    'All',
+    ...Array.from(new Set(retailItems.map((r) => r.category?.trim()).filter(Boolean))),
+  ];
+  const mergedCats = Array.from(
+    new Set([...standardCats, ...retailItems.map((r) => r.category?.trim()).filter(Boolean)])
+  );
+  const selectOptions = [
+    ...mergedCats.map((c) => ({ value: c, label: c })),
+    { value: '__custom__', label: '+ Add New Category...' },
+  ];
+
+  const filteredRetailItems = retailItems.filter((item) => {
+    if (
+      categoryFilter !== 'All' &&
+      (item.category || '').trim().toLowerCase() !== categoryFilter.trim().toLowerCase()
+    ) {
+      return false;
+    }
+    const isInStock = item.inStock !== false && item.availability !== false;
+    if (stockFilter === 'inStock' && !isInStock) return false;
+    if (stockFilter === 'outOfStock' && isInStock) return false;
+    return true;
   });
 
   const loadAllData = async () => {
@@ -72,7 +118,7 @@ export const AdminDashboard = () => {
     try {
       const [projRes, retRes, enqRes, ordRes] = await Promise.allSettled([
         getProjects(),
-        getRetailProducts(),
+        adminApi.getRetailItems(),
         adminApi.getEnquiries(),
         adminApi.getOrders(),
       ]);
@@ -80,8 +126,10 @@ export const AdminDashboard = () => {
       if (projRes.status === 'fulfilled' && projRes.value?.data) {
         setProjects(Array.isArray(projRes.value.data) ? projRes.value.data : []);
       }
-      if (retRes.status === 'fulfilled' && retRes.value?.data) {
-        setRetailItems(Array.isArray(retRes.value.data) ? retRes.value.data : []);
+      if (retRes.status === 'fulfilled') {
+        const val = retRes.value;
+        const items = Array.isArray(val?.data) ? val.data : (Array.isArray(val) ? val : []);
+        setRetailItems(items);
       }
       if (enqRes.status === 'fulfilled' && enqRes.value?.data) {
         setEnquiries(Array.isArray(enqRes.value.data) ? enqRes.value.data : []);
@@ -125,31 +173,99 @@ export const AdminDashboard = () => {
     });
   };
 
-  const handleCreateRetail = async (e) => {
-    e.preventDefault();
-    const newItem = {
-      ...retailForm,
-      id: `retail-${Date.now()}`,
-      price: Number(retailForm.price),
-      slug: retailForm.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-    };
-    try {
-      await adminApi.createRetailItem(newItem);
-    } catch {
-      // Local optimistic fallback
-    }
-    setRetailItems((prev) => [newItem, ...prev]);
-    setRetailModalOpen(false);
+  const openCreateRetailModal = () => {
+    setEditingRetailId(null);
+    setRetailForm(emptyRetailForm);
+    setRetailModalOpen(true);
+  };
+
+  const openEditRetailModal = (item) => {
+    const id = getItemId(item);
+    if (!id) return;
+    setEditingRetailId(id);
+    const cat = item.category || 'Chair';
+    const isStandardCat = ['Chair', 'Table', 'Lighting', 'Storage', 'Sofa', 'Decor', 'Objects', 'Chairs', 'Tables', 'Sofas'].includes(cat);
     setRetailForm({
-      title: '',
-      category: 'Chairs',
-      price: 45000,
-      image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&w=700&q=80',
-      description: '',
-      dimensions: '600mm W × 580mm D × 740mm H',
-      materials: 'Solid Ash timber, natural beeswax, Belgian linen',
-      inStock: true,
+      title: item.title || '',
+      category: isStandardCat ? cat : '__custom__',
+      customCategory: isStandardCat ? '' : cat,
+      price: item.price !== undefined && item.price !== null ? item.price : '',
+      image: item.image || (Array.isArray(item.images) && item.images[0]?.url) || '',
+      description: item.description || '',
+      dimensions: item.dimensions || '',
+      materials: item.materials || '',
+      inStock: item.inStock !== false && item.availability !== false,
+      published: Boolean(item.published),
     });
+    setRetailModalOpen(true);
+  };
+
+  const handleSaveRetail = async (e) => {
+    e.preventDefault();
+    if (savingRetail) return;
+
+    if (!retailForm.title || !retailForm.title.trim()) {
+      window.alert('Piece title is required.');
+      return;
+    }
+    if (retailForm.price === '' || isNaN(Number(retailForm.price)) || Number(retailForm.price) < 0) {
+      window.alert('A valid non-negative price is required.');
+      return;
+    }
+    if (!retailForm.description || !retailForm.description.trim()) {
+      window.alert('Product description is required.');
+      return;
+    }
+
+    const finalCategory = (
+      retailForm.category === '__custom__'
+        ? retailForm.customCategory
+        : retailForm.category
+    )?.trim() || 'Chair';
+
+    const payload = {
+      title: retailForm.title.trim(),
+      category: finalCategory,
+      price: Number(retailForm.price),
+      description: retailForm.description.trim(),
+      image: retailForm.image?.trim() || '',
+      images: retailForm.image?.trim() ? [{ url: retailForm.image.trim(), publicId: '' }] : [],
+      dimensions: retailForm.dimensions?.trim() || '',
+      materials: retailForm.materials?.trim() || '',
+      inStock: Boolean(retailForm.inStock),
+      availability: Boolean(retailForm.inStock),
+      published: Boolean(retailForm.published),
+    };
+
+    setSavingRetail(true);
+    try {
+      if (editingRetailId) {
+        const res = await adminApi.updateRetailItem(editingRetailId, payload);
+        const saved = res?.data || res;
+        setRetailItems((prev) =>
+          prev.map((item) =>
+            getItemId(item) === editingRetailId
+              ? { ...item, ...(saved || payload), id: editingRetailId, _id: editingRetailId }
+              : item
+          )
+        );
+      } else {
+        const res = await adminApi.createRetailItem(payload);
+        const saved = res?.data || res;
+        const normalized = saved
+          ? { ...saved, id: getItemId(saved), _id: getItemId(saved) }
+          : { ...payload, id: `retail-${Date.now()}`, _id: `retail-${Date.now()}` };
+        setRetailItems((prev) => [normalized, ...prev]);
+      }
+      setRetailModalOpen(false);
+      setEditingRetailId(null);
+      setRetailForm(emptyRetailForm);
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to save retail edition.';
+      window.alert(msg);
+    } finally {
+      setSavingRetail(false);
+    }
   };
 
   const handleDeleteProject = (id) => {
@@ -158,23 +274,124 @@ export const AdminDashboard = () => {
     adminApi.deleteProject(id).catch(() => {});
   };
 
-  const handleDeleteRetail = (id) => {
-    if (!window.confirm('Delete this retail item?')) return;
-    setRetailItems((prev) => prev.filter((r) => r.id !== id));
-    adminApi.deleteRetailItem(id).catch(() => {});
+  const handleDeleteRetail = async (id) => {
+    const targetId = String(id || '').trim();
+    if (!targetId || targetId === 'undefined' || deletingRetailId) return;
+    if (!window.confirm('Delete this retail item from catalog? This will remove only this product.')) return;
+
+    setDeletingRetailId(targetId);
+    try {
+      await adminApi.deleteRetailItem(targetId);
+      setRetailItems((prev) => prev.filter((r) => getItemId(r) !== targetId));
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to delete retail item. Please try again.';
+      window.alert(msg);
+    } finally {
+      setDeletingRetailId(null);
+    }
   };
 
-  const handleToggleRetailStock = (id) => {
+  const handleToggleRetailStock = async (item) => {
+    const targetId = getItemId(item);
+    if (!targetId || targetId === 'undefined' || togglingStockId) return;
+
+    const currentStock = item.inStock !== false && item.availability !== false;
+    const newStock = !currentStock;
+
+    // Optimistically update ONLY target item in state
     setRetailItems((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, inStock: !r.inStock } : r))
+      prev.map((r) =>
+        getItemId(r) === targetId ? { ...r, inStock: newStock, availability: newStock } : r
+      )
     );
+
+    setTogglingStockId(targetId);
+    try {
+      await adminApi.updateRetailItem(targetId, {
+        inStock: newStock,
+        availability: newStock,
+      });
+    } catch (err) {
+      // Rollback on failure
+      setRetailItems((prev) =>
+        prev.map((r) =>
+          getItemId(r) === targetId ? { ...r, inStock: currentStock, availability: currentStock } : r
+        )
+      );
+      const msg = err?.response?.data?.message || err?.message || 'Failed to update stock status.';
+      window.alert(msg);
+    } finally {
+      setTogglingStockId(null);
+    }
+  };
+
+  const handleToggleRetailPublish = async (item) => {
+    const targetId = getItemId(item);
+    if (!targetId || targetId === 'undefined' || togglingPublishId) return;
+
+    const currentPublished = Boolean(item.published);
+    const newPublished = !currentPublished;
+
+    // Optimistically update ONLY target item in state
+    setRetailItems((prev) =>
+      prev.map((r) =>
+        getItemId(r) === targetId ? { ...r, published: newPublished } : r
+      )
+    );
+
+    setTogglingPublishId(targetId);
+    try {
+      await adminApi.updateRetailItem(targetId, {
+        published: newPublished,
+      });
+    } catch (err) {
+      // Rollback on failure
+      setRetailItems((prev) =>
+        prev.map((r) =>
+          getItemId(r) === targetId ? { ...r, published: currentPublished } : r
+        )
+      );
+      const msg = err?.response?.data?.message || err?.message || 'Failed to update publication status.';
+      window.alert(msg);
+    } finally {
+      setTogglingPublishId(null);
+    }
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUri = reader.result;
+      try {
+        setUploadingImage(true);
+        const res = await adminApi.uploadImage({ dataUri, filename: file.name });
+        const uploaded = res?.data?.images?.[0] || res?.images?.[0];
+        if (uploaded?.url) {
+          setRetailForm((prev) => ({ ...prev, image: uploaded.url }));
+        }
+      } catch (err) {
+        window.alert(err?.message || 'Failed to upload image.');
+      } finally {
+        setUploadingImage(false);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const handleUpdateEnquiryStatus = (id, newStatus) => {
+    const recordId = String(id || '').trim();
+    if (!recordId || recordId === 'undefined') return;
     setEnquiries((prev) =>
-      prev.map((enq) => (enq.id === id ? { ...enq, status: newStatus } : enq))
+      prev.map((enq) =>
+        getRecordId(enq) === recordId ? { ...enq, status: newStatus } : enq
+      )
     );
-    adminApi.updateEnquiryStatus(id, newStatus).catch(() => {});
+    adminApi.updateEnquiryStatus(recordId, newStatus).catch(() => {
+      loadAllData();
+    });
   };
 
   return (
@@ -341,76 +558,180 @@ export const AdminDashboard = () => {
       {/* Tab: Retail Catalog */}
       {(activeTab === 'overview' || activeTab === 'retail') && (
         <div className="bg-white border border-border rounded-md p-6 sm:p-8 space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="font-abhaya text-2xl text-ink font-medium">
-                Retail Catalog & Editions
-              </h2>
-              <p className="text-xs text-muted">Stock availability, pricing, and specifications</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="font-abhaya text-2xl text-ink font-medium">
+                  Retail Catalog & Editions
+                </h2>
+                <p className="text-xs text-muted">Stock availability, pricing, and specifications</p>
+              </div>
+              <Button
+                variant="Primary"
+                size="sm"
+                icon={LuPlus}
+                iconPosition="left"
+                label="Add Item"
+                onClick={openCreateRetailModal}
+              />
             </div>
-            <Button
-              variant="Primary"
-              size="sm"
-              icon={LuPlus}
-              iconPosition="left"
-              label="Add Item"
-              onClick={() => setRetailModalOpen(true)}
-            />
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-surface text-muted uppercase tracking-wider border-y border-border">
-                <tr>
-                  <th className="py-3 px-4">Edition</th>
-                  <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">Price (INR)</th>
-                  <th className="py-3 px-4">Availability</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {retailItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-surface/50">
-                    <td className="py-3 px-4 font-medium text-ink font-inter">
-                      {item.title}
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge variant="default">{item.category}</Badge>
-                    </td>
-                    <td className="py-3 px-4 font-inter text-ink">
-                      {formatPrice(item.price)}
-                    </td>
-                    <td className="py-3 px-4">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleRetailStock(item.id)}
-                        className="cursor-pointer"
-                      >
-                        {item.inStock !== false ? (
-                          <Badge variant="success">In Stock</Badge>
-                        ) : (
-                          <Badge variant="error">Sold Out</Badge>
-                        )}
-                      </button>
-                    </td>
-                    <td className="py-3 px-4 text-right space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteRetail(item.id)}
-                        className="p-1 text-muted hover:text-error transition-colors"
-                        title="Delete edition"
-                      >
-                        <LuTrash2 className="w-4 h-4 inline" />
-                      </button>
-                    </td>
-                  </tr>
+            {/* Filter Controls Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1 border-t border-border/60">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] uppercase tracking-wider text-muted font-medium mr-1">
+                  Category:
+                </span>
+                {availableCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategoryFilter(cat)}
+                    className={`px-2.5 py-1 text-xs tracking-wider transition-colors border ${
+                      categoryFilter.toLowerCase() === cat.toLowerCase()
+                        ? 'bg-black text-white border-black font-medium'
+                        : 'bg-white text-muted border-border hover:border-black hover:text-ink'
+                    }`}
+                  >
+                    {cat}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <span className="text-[11px] uppercase tracking-wider text-muted font-medium">
+                  Stock:
+                </span>
+                <select
+                  value={stockFilter}
+                  onChange={(e) => setStockFilter(e.target.value)}
+                  className="text-xs border border-border bg-white px-2.5 py-1 text-ink focus:border-black outline-none"
+                >
+                  <option value="All">All Stock</option>
+                  <option value="inStock">In Stock Only</option>
+                  <option value="outOfStock">Sold Out Only</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-surface text-muted uppercase tracking-wider border-y border-border">
+                  <tr>
+                    <th className="py-3 px-4">Edition</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Price (INR)</th>
+                    <th className="py-3 px-4">Stock Status</th>
+                    <th className="py-3 px-4">Visibility</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredRetailItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-xs text-muted">
+                        No retail items found matching the selected filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRetailItems.map((item, idx) => {
+                      const itemId = getItemId(item);
+                      const isInStock = item.inStock !== false && item.availability !== false;
+                      const isPublished = Boolean(item.published);
+                      const isTogglingStock = togglingStockId === itemId;
+                      const isTogglingPublish = togglingPublishId === itemId;
+                      const isDeleting = deletingRetailId === itemId;
+
+                      return (
+                        <tr key={itemId || `item-${idx}`} className="hover:bg-surface/50">
+                          <td className="py-3 px-4 font-medium text-ink font-inter">
+                            <div className="flex items-center space-x-3">
+                              {item.image ? (
+                                <img
+                                  src={item.image}
+                                  alt={item.title}
+                                  className="w-9 h-9 object-cover rounded-xs border border-border shrink-0"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                  }}
+                                />
+                              ) : null}
+                              <span className="truncate max-w-xs">{item.title}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant="default">{item.category || 'Retail'}</Badge>
+                          </td>
+                          <td className="py-3 px-4 font-inter text-ink">
+                            {formatPrice(item.price)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <button
+                              type="button"
+                              disabled={isTogglingStock}
+                              onClick={() => handleToggleRetailStock(item)}
+                              className="cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-50"
+                              title="Click to toggle In Stock / Sold Out"
+                            >
+                              {isInStock ? (
+                                <Badge variant="success">
+                                  {isTogglingStock ? 'Updating...' : 'In Stock'}
+                                </Badge>
+                              ) : (
+                                <Badge variant="error">
+                                  {isTogglingStock ? 'Updating...' : 'Sold Out'}
+                                </Badge>
+                              )}
+                            </button>
+                          </td>
+                          <td className="py-3 px-4">
+                            <button
+                              type="button"
+                              disabled={isTogglingPublish}
+                              onClick={() => handleToggleRetailPublish(item)}
+                              className="cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-50 inline-flex items-center space-x-1"
+                              title="Click to toggle Published / Draft"
+                            >
+                              {isPublished ? (
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 text-[11px] font-medium bg-black text-white rounded-xs">
+                                  <LuEye className="w-3 h-3" />
+                                  <span>{isTogglingPublish ? '...' : 'Published'}</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 text-[11px] font-medium border border-border text-muted bg-white rounded-xs">
+                                  <LuEyeOff className="w-3 h-3" />
+                                  <span>{isTogglingPublish ? '...' : 'Draft'}</span>
+                                </span>
+                              )}
+                            </button>
+                          </td>
+                          <td className="py-3 px-4 text-right space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditRetailModal(item)}
+                              className="p-1 text-muted hover:text-black transition-colors"
+                              title="Edit edition"
+                            >
+                              <LuPencil className="w-4 h-4 inline" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => handleDeleteRetail(itemId)}
+                              className="p-1 text-muted hover:text-error transition-colors disabled:opacity-50"
+                              title="Delete edition"
+                            >
+                              <LuTrash2 className="w-4 h-4 inline" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Tab: Enquiries */}
       {(activeTab === 'overview' || activeTab === 'enquiries') && (
@@ -439,7 +760,7 @@ export const AdminDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {enquiries.map((enq) => (
-                    <tr key={enq.id} className="hover:bg-surface/50">
+                    <tr key={getRecordId(enq)} className="hover:bg-surface/50">
                       <td className="py-3 px-4 font-medium text-ink">{enq.name}</td>
                       <td className="py-3 px-4 text-muted">{enq.email}</td>
                       <td className="py-3 px-4 font-mono text-muted">{enq.phone}</td>
@@ -449,13 +770,12 @@ export const AdminDashboard = () => {
                       <td className="py-3 px-4">
                         <select
                           value={enq.status || 'new'}
-                          onChange={(e) => handleUpdateEnquiryStatus(enq.id, e.target.value)}
+                          onChange={(e) => handleUpdateEnquiryStatus(getRecordId(enq), e.target.value)}
                           className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink"
                         >
                           <option value="new">New</option>
-                          <option value="in_review">In Review</option>
                           <option value="contacted">Contacted</option>
-                          <option value="archived">Archived</option>
+                          <option value="pending">Pending</option>
                         </select>
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -623,93 +943,170 @@ export const AdminDashboard = () => {
         </div>
       )}
 
-      {/* Modal: Add Retail Item */}
+      {/* Modal: Add / Edit Retail Item */}
       {retailModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center">
-              <h3 className="font-abhaya text-2xl font-medium text-ink">
-                Add Bespoke Retail Edition
-              </h3>
-              <button
-                type="button"
-                onClick={() => setRetailModalOpen(false)}
-                className="p-1 text-muted hover:text-ink"
-              >
-                <LuX className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateRetail} className="space-y-4">
-              <TextInput
-                id="ret-title"
-                label="Piece Title"
-                required
-                value={retailForm.title}
-                onChange={(e) => setRetailForm({ ...retailForm, title: e.target.value })}
-                placeholder="e.g. Travertine Plinth Coffee Table"
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <Select
-                  id="ret-category"
-                  label="Category"
-                  value={retailForm.category}
-                  onChange={(e) => setRetailForm({ ...retailForm, category: e.target.value })}
-                  options={[
-                    { value: 'Chairs', label: 'Chairs' },
-                    { value: 'Tables', label: 'Tables' },
-                    { value: 'Lighting', label: 'Lighting' },
-                    { value: 'Storage', label: 'Storage' },
-                    { value: 'Sofas', label: 'Sofas' },
-                    { value: 'Objects', label: 'Objects' },
-                  ]}
-                />
-                <TextInput
-                  id="ret-price"
-                  type="number"
-                  label="Price (INR)"
-                  required
-                  value={retailForm.price}
-                  onChange={(e) => setRetailForm({ ...retailForm, price: e.target.value })}
-                />
-              </div>
-
-              <TextInput
-                id="ret-image"
-                label="Product Image URL"
-                value={retailForm.image}
-                onChange={(e) => setRetailForm({ ...retailForm, image: e.target.value })}
-              />
-
-              <TextInput
-                id="ret-materials"
-                label="Materials"
-                value={retailForm.materials}
-                onChange={(e) => setRetailForm({ ...retailForm, materials: e.target.value })}
-              />
-
-              <TextArea
-                id="ret-desc"
-                label="Description"
-                rows={3}
-                value={retailForm.description}
-                onChange={(e) => setRetailForm({ ...retailForm, description: e.target.value })}
-              />
-
-              <div className="pt-2 flex justify-end space-x-3">
-                <Button
+            <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center">
+                <h3 className="font-abhaya text-2xl font-medium text-ink">
+                  {editingRetailId ? 'Edit Bespoke Retail Edition' : 'Add Bespoke Retail Edition'}
+                </h3>
+                <button
                   type="button"
-                  variant="Secondary-Outline"
-                  label="Cancel"
-                  onClick={() => setRetailModalOpen(false)}
-                />
-                <Button type="submit" variant="Primary" label="Save Edition" />
+                  onClick={() => {
+                    setRetailModalOpen(false);
+                    setEditingRetailId(null);
+                    setRetailForm(emptyRetailForm);
+                  }}
+                  className="p-1 text-muted hover:text-ink"
+                >
+                  <LuX className="w-5 h-5" />
+                </button>
               </div>
-            </form>
+
+              <form onSubmit={handleSaveRetail} className="space-y-4">
+                <TextInput
+                  id="ret-title"
+                  label="Piece Title"
+                  required
+                  value={retailForm.title}
+                  onChange={(e) => setRetailForm({ ...retailForm, title: e.target.value })}
+                  placeholder="e.g. Travertine Plinth Coffee Table"
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Select
+                    id="ret-category"
+                    label="Category"
+                    value={retailForm.category}
+                    onChange={(e) => setRetailForm({ ...retailForm, category: e.target.value })}
+                    options={selectOptions}
+                  />
+                  <TextInput
+                    id="ret-price"
+                    type="number"
+                    label="Price (INR)"
+                    required
+                    value={retailForm.price}
+                    onChange={(e) => setRetailForm({ ...retailForm, price: e.target.value })}
+                  />
+                </div>
+
+                {retailForm.category === '__custom__' && (
+                  <TextInput
+                    id="ret-custom-cat"
+                    label="New Category Name"
+                    required
+                    value={retailForm.customCategory}
+                    onChange={(e) =>
+                      setRetailForm({ ...retailForm, customCategory: e.target.value })
+                    }
+                    placeholder="e.g. Architectural Hardware"
+                  />
+                )}
+
+                <div className="space-y-1.5">
+                  <TextInput
+                    id="ret-image"
+                    label="Product Image URL"
+                    value={retailForm.image}
+                    onChange={(e) => setRetailForm({ ...retailForm, image: e.target.value })}
+                    placeholder="https://images.unsplash.com/..."
+                  />
+                  <div className="flex items-center space-x-2">
+                    <label className="inline-flex items-center space-x-1.5 px-3 py-1.5 border border-border bg-surface text-ink text-xs font-medium cursor-pointer hover:border-black transition-colors">
+                      <LuUpload className="w-3.5 h-3.5" />
+                      <span>{uploadingImage ? 'Uploading...' : 'Upload Image'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingImage}
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <span className="text-[11px] text-muted">Or enter URL above</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <TextInput
+                    id="ret-dimensions"
+                    label="Dimensions"
+                    value={retailForm.dimensions}
+                    onChange={(e) => setRetailForm({ ...retailForm, dimensions: e.target.value })}
+                    placeholder="600mm W × 580mm D × 740mm H"
+                  />
+                  <TextInput
+                    id="ret-materials"
+                    label="Materials"
+                    value={retailForm.materials}
+                    onChange={(e) => setRetailForm({ ...retailForm, materials: e.target.value })}
+                    placeholder="Solid Ash timber, Belgian linen"
+                  />
+                </div>
+
+                <TextArea
+                  id="ret-desc"
+                  label="Description"
+                  required
+                  rows={3}
+                  value={retailForm.description}
+                  onChange={(e) => setRetailForm({ ...retailForm, description: e.target.value })}
+                  placeholder="Describe craftsmanship, materiality, and finish..."
+                />
+
+                <div className="flex flex-wrap items-center gap-6 pt-1 border-t border-border/60">
+                  <label className="flex items-center space-x-2 text-xs text-ink cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={retailForm.inStock}
+                      onChange={(e) => setRetailForm({ ...retailForm, inStock: e.target.checked })}
+                      className="rounded-none border-border text-black focus:ring-black h-4 w-4"
+                    />
+                    <span className="font-medium">In Stock</span>
+                  </label>
+                  <label className="flex items-center space-x-2 text-xs text-ink cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={retailForm.published}
+                      onChange={(e) =>
+                        setRetailForm({ ...retailForm, published: e.target.checked })
+                      }
+                      className="rounded-none border-border text-black focus:ring-black h-4 w-4"
+                    />
+                    <span className="font-medium">Publish to Catalog</span>
+                  </label>
+                </div>
+
+                <div className="pt-2 flex justify-end space-x-3">
+                  <Button
+                    type="button"
+                    variant="Secondary-Outline"
+                    label="Cancel"
+                    onClick={() => {
+                      setRetailModalOpen(false);
+                      setEditingRetailId(null);
+                      setRetailForm(emptyRetailForm);
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="Primary"
+                    disabled={savingRetail || uploadingImage}
+                    label={
+                      savingRetail
+                        ? 'Saving...'
+                        : editingRetailId
+                        ? 'Update Edition'
+                        : 'Save Edition'
+                    }
+                  />
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Modal: View Enquiry Details */}
       {viewEnquiryModal && (

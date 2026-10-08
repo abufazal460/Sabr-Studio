@@ -120,7 +120,11 @@ export const enquiryService = {
   async getAdminEnquiries() {
     const isMongoConnected = Enquiry.db?.readyState === 1;
     if (isMongoConnected) {
-      return await Enquiry.find().sort({ createdAt: -1 }).lean();
+      const items = await Enquiry.find().sort({ createdAt: -1 }).lean();
+      return items.map((doc) => ({
+        ...doc,
+        id: doc.id || doc._id?.toString(),
+      }));
     }
     // Fallback to persistent storage, then in-memory
     const fallbackData = fallbackEnquiries.findAll();
@@ -150,11 +154,11 @@ export const enquiryService = {
 
   /**
    * Update enquiry status (admin only)
-   * Only allows modifying status ('new', 'in-progress', 'resolved').
+   * Only allows modifying status ('new', 'contacted', 'pending').
    * Never mutates user's original message, email, or phone.
    */
   async updateEnquiryStatus(id, newStatus) {
-    const validStatuses = ['new', 'in-progress', 'resolved'];
+    const validStatuses = ['new', 'contacted', 'pending'];
     if (!validStatuses.includes(newStatus)) {
       throw new Error(`Invalid enquiry status: ${newStatus}`);
     }

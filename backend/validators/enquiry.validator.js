@@ -52,7 +52,7 @@ export const updateEnquiryStatusValidator = [
   body('status')
     .notEmpty()
     .withMessage('Status is required')
-    .isIn(['new', 'in-progress', 'resolved'])
-    .withMessage('Status must be one of: new, in-progress, resolved'),
+    .isIn(['new', 'contacted', 'pending'])
+    .withMessage('Status must be one of: new, contacted, pending'),
   handleValidationErrors,
 ];

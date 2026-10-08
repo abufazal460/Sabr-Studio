@@ -85,7 +85,7 @@ export const AdminDashboard = () => {
     try {
       const [projRes, retRes, enqRes, ordRes] = await Promise.allSettled([
         adminApi.getProjects(),
-        getRetailProducts(),
+        adminApi.getRetailItems(),
         adminApi.getEnquiries(),
         adminApi.getOrders(),
       ]);
@@ -398,23 +398,61 @@ export const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteRetail = (id) => {
-    if (!window.confirm('Delete this retail item?')) return;
-    setRetailItems((prev) => prev.filter((r) => r.id !== id));
-    adminApi.deleteRetailItem(id).catch(() => {});
+  const getItemId = (item) => String(item?._id || item?.id || '').trim();
+
+  const handleDeleteRetail = async (id) => {
+    const targetId = String(id || '').trim();
+    if (!targetId || targetId === 'undefined') return;
+    if (!window.confirm('Delete this retail item? This will delete only this product.')) return;
+    try {
+      await adminApi.deleteRetailItem(targetId);
+      setRetailItems((prev) => prev.filter((r) => getItemId(r) !== targetId));
+    } catch (err) {
+      window.alert(err?.response?.data?.message || err?.message || 'Failed to delete retail item.');
+    }
   };
 
-  const handleToggleRetailStock = (id) => {
+  const handleToggleRetailStock = async (item) => {
+    const targetId = getItemId(item);
+    if (!targetId || targetId === 'undefined') return;
+    const currentStock = item.inStock !== false && item.availability !== false;
+    const newStock = !currentStock;
+
     setRetailItems((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, inStock: !r.inStock } : r))
+      prev.map((r) =>
+        getItemId(r) === targetId ? { ...r, inStock: newStock, availability: newStock } : r
+      )
     );
+
+    try {
+      await adminApi.updateRetailItem(targetId, {
+        inStock: newStock,
+        availability: newStock,
+      });
+    } catch (err) {
+      setRetailItems((prev) =>
+        prev.map((r) =>
+          getItemId(r) === targetId ? { ...r, inStock: currentStock, availability: currentStock } : r
+        )
+      );
+      window.alert(err?.response?.data?.message || err?.message || 'Failed to update stock status.');
+    }
   };
+
+  const getRecordId = (record) =>
+    record?.id || record?._id?.toString?.() || record?._id || record?.orderNumber;
 
   const handleUpdateEnquiryStatus = (id, newStatus) => {
+    const recordId = String(id || '').trim();
+    if (!recordId || recordId === 'undefined') return;
     setEnquiries((prev) =>
-      prev.map((enq) => (enq.id === id ? { ...enq, status: newStatus } : enq))
+      prev.map((enq) =>
+        getRecordId(enq) === recordId ? { ...enq, status: newStatus } : enq
+      )
     );
-    adminApi.updateEnquiryStatus(id, newStatus).catch(() => {});
+    adminApi.updateEnquiryStatus(recordId, newStatus).catch(() => {
+      loadAllData();
+    });
   };
 
   return (
@@ -637,42 +675,45 @@ export const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {retailItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-surface/50">
-                    <td className="py-3 px-4 font-medium text-ink font-inter">
-                      {item.title}
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge variant="default">{item.category}</Badge>
-                    </td>
-                    <td className="py-3 px-4 font-inter text-ink">
-                      {formatPrice(item.price)}
-                    </td>
-                    <td className="py-3 px-4">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleRetailStock(item.id)}
-                        className="cursor-pointer"
-                      >
-                        {item.inStock !== false ? (
-                          <Badge variant="success">In Stock</Badge>
-                        ) : (
-                          <Badge variant="error">Sold Out</Badge>
-                        )}
-                      </button>
-                    </td>
-                    <td className="py-3 px-4 text-right space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteRetail(item.id)}
-                        className="p-1 text-muted hover:text-error transition-colors"
-                        title="Delete edition"
-                      >
-                        <LuTrash2 className="w-4 h-4 inline" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {retailItems.map((item) => {
+                  const itemId = getItemId(item);
+                  return (
+                    <tr key={itemId} className="hover:bg-surface/50">
+                      <td className="py-3 px-4 font-medium text-ink font-inter">
+                        {item.title}
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge variant="default">{item.category}</Badge>
+                      </td>
+                      <td className="py-3 px-4 font-inter text-ink">
+                        {formatPrice(item.price)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleRetailStock(item)}
+                          className="cursor-pointer"
+                        >
+                          {item.inStock !== false && item.availability !== false ? (
+                            <Badge variant="success">In Stock</Badge>
+                          ) : (
+                            <Badge variant="error">Sold Out</Badge>
+                          )}
+                        </button>
+                      </td>
+                      <td className="py-3 px-4 text-right space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRetail(itemId)}
+                          className="p-1 text-muted hover:text-error transition-colors"
+                          title="Delete edition"
+                        >
+                          <LuTrash2 className="w-4 h-4 inline" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -706,7 +747,7 @@ export const AdminDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {enquiries.map((enq) => (
-                    <tr key={enq.id} className="hover:bg-surface/50">
+                    <tr key={getRecordId(enq)} className="hover:bg-surface/50">
                       <td className="py-3 px-4 font-medium text-ink">{enq.name}</td>
                       <td className="py-3 px-4 text-muted">{enq.email}</td>
                       <td className="py-3 px-4 font-mono text-muted">{enq.phone}</td>
@@ -716,13 +757,12 @@ export const AdminDashboard = () => {
                       <td className="py-3 px-4">
                         <select
                           value={enq.status || 'new'}
-                          onChange={(e) => handleUpdateEnquiryStatus(enq.id, e.target.value)}
+                          onChange={(e) => handleUpdateEnquiryStatus(getRecordId(enq), e.target.value)}
                           className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink"
                         >
                           <option value="new">New</option>
-                          <option value="in_review">In Review</option>
                           <option value="contacted">Contacted</option>
-                          <option value="archived">Archived</option>
+                          <option value="pending">Pending</option>
                         </select>
                       </td>
                       <td className="py-3 px-4 text-right">

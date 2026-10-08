@@ -354,13 +354,40 @@ export default function handleApiRequest(req, res) {
             });
           }
 
-          if (path.startsWith('/api/admin/retail/') && method === 'GET') {
+          // 6.3.1 Admin Retail Categories CRUD
+          if (path === '/api/admin/retail/categories' && method === 'GET') {
+            return retailController.getCategories(req, res);
+          }
+
+          if (path === '/api/admin/retail/categories' && method === 'POST') {
+            return parseBody(() => {
+              retailController.createCategory(req, res);
+            });
+          }
+
+          if (path.startsWith('/api/admin/retail/categories/') && method === 'DELETE') {
+            const category = path.replace('/api/admin/retail/categories/', '');
+            req.params = { category };
+            return parseBody(() => {
+              retailController.deleteCategory(req, res);
+            });
+          }
+
+          if (
+            path.startsWith('/api/admin/retail/') &&
+            !path.startsWith('/api/admin/retail/categories') &&
+            method === 'GET'
+          ) {
             const id = path.replace('/api/admin/retail/', '');
             req.params = { id };
             return retailController.getAdminRetailById(req, res);
           }
 
-          if (path.startsWith('/api/admin/retail/') && method === 'PUT') {
+          if (
+            path.startsWith('/api/admin/retail/') &&
+            !path.startsWith('/api/admin/retail/categories') &&
+            (method === 'PUT' || method === 'PATCH')
+          ) {
             const id = path.replace('/api/admin/retail/', '');
             req.params = { id };
             return parseBody(() => {
@@ -370,7 +397,11 @@ export default function handleApiRequest(req, res) {
             });
           }
 
-          if (path.startsWith('/api/admin/retail/') && method === 'DELETE') {
+          if (
+            path.startsWith('/api/admin/retail/') &&
+            !path.startsWith('/api/admin/retail/categories') &&
+            method === 'DELETE'
+          ) {
             const id = path.replace('/api/admin/retail/', '');
             req.params = { id };
             return retailController.deleteRetailItem(req, res);

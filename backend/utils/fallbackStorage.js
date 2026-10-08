@@ -87,10 +87,11 @@ class FallbackStorage {
   }
 
   add(record) {
+    const generatedId = record._id || record.id || `fb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newRecord = {
       ...record,
-      _id: record._id || `fb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      id: record.id || `fb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      _id: record._id || generatedId,
+      id: record.id || generatedId,
       createdAt: record.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

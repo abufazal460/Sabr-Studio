@@ -170,11 +170,20 @@ export const AdminDashboard = () => {
     );
   };
 
+  const getRecordId = (record) =>
+    record?.id || record?._id?.toString?.() || record?._id || record?.orderNumber;
+
   const handleUpdateEnquiryStatus = (id, newStatus) => {
+    const recordId = String(id || '').trim();
+    if (!recordId || recordId === 'undefined') return;
     setEnquiries((prev) =>
-      prev.map((enq) => (enq.id === id ? { ...enq, status: newStatus } : enq))
+      prev.map((enq) =>
+        getRecordId(enq) === recordId ? { ...enq, status: newStatus } : enq
+      )
     );
-    adminApi.updateEnquiryStatus(id, newStatus).catch(() => {});
+    adminApi.updateEnquiryStatus(recordId, newStatus).catch(() => {
+      loadAllData();
+    });
   };
 
   return (
@@ -439,7 +448,7 @@ export const AdminDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {enquiries.map((enq) => (
-                    <tr key={enq.id} className="hover:bg-surface/50">
+                    <tr key={getRecordId(enq)} className="hover:bg-surface/50">
                       <td className="py-3 px-4 font-medium text-ink">{enq.name}</td>
                       <td className="py-3 px-4 text-muted">{enq.email}</td>
                       <td className="py-3 px-4 font-mono text-muted">{enq.phone}</td>
@@ -449,13 +458,12 @@ export const AdminDashboard = () => {
                       <td className="py-3 px-4">
                         <select
                           value={enq.status || 'new'}
-                          onChange={(e) => handleUpdateEnquiryStatus(enq.id, e.target.value)}
+                          onChange={(e) => handleUpdateEnquiryStatus(getRecordId(enq), e.target.value)}
                           className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink"
                         >
                           <option value="new">New</option>
-                          <option value="in_review">In Review</option>
                           <option value="contacted">Contacted</option>
-                          <option value="archived">Archived</option>
+                          <option value="pending">Pending</option>
                         </select>
                       </td>
                       <td className="py-3 px-4 text-right">
