@@ -47,6 +47,7 @@ export const AdminDashboard = () => {
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [savingProject, setSavingProject] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingBlockIdx, setUploadingBlockIdx] = useState(null);
   const [deletingProjectId, setDeletingProjectId] = useState(null);
   const [retailModalOpen, setRetailModalOpen] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
@@ -322,6 +323,38 @@ export const AdminDashboard = () => {
       ...f,
       contentBlocks: [...f.contentBlocks, { type: 'paragraph', text: '', url: '' }],
     }));
+
+  const addImageContentBlock = () =>
+    setProjectForm((f) => ({
+      ...f,
+      contentBlocks: [...f.contentBlocks, { type: 'image', text: '', url: '' }],
+    }));
+
+  const clearContentBlockImage = (idx) => updateContentBlock(idx, { url: '' });
+
+  const handleUploadContentBlockImage = async (e, targetIdx) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUri = reader.result;
+      try {
+        setUploadingBlockIdx(targetIdx);
+        const res = await adminApi.uploadImage({ dataUri, filename: file.name });
+        const uploaded = res?.data?.images?.[0] || res?.images?.[0];
+        if (uploaded?.url) {
+          updateContentBlock(targetIdx, { url: uploaded.url });
+        }
+      } catch (err) {
+        window.alert(err?.message || 'Failed to upload image.');
+      } finally {
+        setUploadingBlockIdx(null);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   const handleCreateRetail = async (e) => {
     e.preventDefault();
@@ -943,11 +976,48 @@ export const AdminDashboard = () => {
                       ]}
                     />
                     {block.type === 'image' ? (
-                      <TextInput
-                        value={block.url}
-                        onChange={(e) => updateContentBlock(idx, { url: e.target.value })}
-                        placeholder="https://... image URL"
-                      />
+                      <div className="space-y-2">
+                        <TextInput
+                          value={block.url || ''}
+                          onChange={(e) => updateContentBlock(idx, { url: e.target.value })}
+                          placeholder="https://... image URL"
+                        />
+                        {block.url ? (
+                          <div className="border border-border rounded-sm overflow-hidden bg-white">
+                            <img
+                              src={block.url}
+                              alt={`Content block ${idx + 1} preview`}
+                              className="w-full h-40 object-cover object-center"
+                              loading="lazy"
+                            />
+                          </div>
+                        ) : null}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="inline-flex items-center gap-2 px-3 py-2 border border-border bg-white text-ink text-xs uppercase tracking-wider font-medium hover:border-black transition-colors cursor-pointer">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={uploadingBlockIdx === idx}
+                              onChange={(e) => handleUploadContentBlockImage(e, idx)}
+                            />
+                            {uploadingBlockIdx === idx
+                              ? 'Uploading...'
+                              : block.url
+                                ? 'Change image'
+                                : 'Upload image'}
+                          </label>
+                          {block.url ? (
+                            <button
+                              type="button"
+                              onClick={() => clearContentBlockImage(idx)}
+                              className="px-3 py-2 text-xs uppercase tracking-wider font-medium text-muted hover:text-error transition-colors"
+                            >
+                              Remove image
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
                     ) : (
                       <TextArea
                         rows={block.type === 'heading' ? 1 : 3}
@@ -960,15 +1030,26 @@ export const AdminDashboard = () => {
                     )}
                   </div>
                 ))}
-                <Button
-                  type="button"
-                  variant="Secondary-Outline"
-                  size="sm"
-                  icon={LuPlus}
-                  iconPosition="left"
-                  label="Add content block"
-                  onClick={addContentBlock}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="Secondary-Outline"
+                    size="sm"
+                    icon={LuPlus}
+                    iconPosition="left"
+                    label="Add content block"
+                    onClick={addContentBlock}
+                  />
+                  <Button
+                    type="button"
+                    variant="Secondary-Outline"
+                    size="sm"
+                    icon={LuPlus}
+                    iconPosition="left"
+                    label="Add image block"
+                    onClick={addImageContentBlock}
+                  />
+                </div>
               </div>
 
               <div className="pt-2 flex justify-end space-x-3">
