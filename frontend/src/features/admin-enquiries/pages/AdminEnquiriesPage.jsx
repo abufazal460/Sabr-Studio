@@ -191,48 +191,37 @@ export const AdminDashboard = () => {
     });
   };
 
-  // Friendly labels reuse the existing backend status enum (new / in-progress / resolved).
+  // Friendly labels reuse the existing backend status enum (new / contacted / pending).
   // The select must send these exact values or the backend validator/service rejects the update.
   const ENQUIRY_STATUS_META = [
     { value: 'new', label: 'New' },
-    { value: 'in-progress', label: 'Contacted' },
-    { value: 'resolved', label: 'Resolved' },
+    { value: 'contacted', label: 'Contacted' },
+    { value: 'pending', label: 'Pending' },
   ];
 
   const getEnquiryStatusLabel = (status) =>
     ENQUIRY_STATUS_META.find((s) => s.value === status)?.label || status || '';
 
-  // Filter options derive from live data + the known backend enum (no invented business values).
+  // Filter offers exactly the three valid statuses (New / Contacted / Pending).
   const enquiryStatusOptions = [
     { value: 'all', label: 'All Statuses' },
-    ...Array.from(
-      new Set([
-        ...ENQUIRY_STATUS_META.map((s) => s.value),
-        ...enquiries.map((e) => e.status).filter(Boolean),
-      ])
-    ).map((value) => ({
-      value,
-      label: getEnquiryStatusLabel(value),
-    })),
+    ...ENQUIRY_STATUS_META.map((s) => ({ value: s.value, label: s.label })),
   ];
 
   const normalizeDigits = (v) => String(v || '').replace(/\D/g, '');
 
-  // Lets admins search with everyday words (pending / complete / in progress)
-  // while matching the actual stored enum values.
+  // Lets admins search with everyday words while matching the stored enum values.
   const STATUS_SEARCH_ALIASES = {
-    pending: 'new',
     new: 'new',
-    contacted: 'in-progress',
-    'in progress': 'in-progress',
-    'in-progress': 'in-progress',
-    inprogress: 'in-progress',
-    inreview: 'in-progress',
-    review: 'in-progress',
-    complete: 'resolved',
-    completed: 'resolved',
-    resolved: 'resolved',
-    done: 'resolved',
+    contacted: 'contacted',
+    'in progress': 'contacted',
+    'in-progress': 'contacted',
+    inprogress: 'contacted',
+    inreview: 'contacted',
+    review: 'contacted',
+    pending: 'pending',
+    hold: 'pending',
+    waiting: 'pending',
   };
 
   const filteredEnquiries = enquiries.filter((enq) => {
@@ -579,8 +568,8 @@ export const AdminDashboard = () => {
                           className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink"
                         >
                           <option value="new">New</option>
-                          <option value="in-progress">Contacted</option>
-                          <option value="resolved">Resolved</option>
+                          <option value="contacted">Contacted</option>
+                          <option value="pending">Pending</option>
                         </select>
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">

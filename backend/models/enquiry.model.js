@@ -47,7 +47,7 @@ const enquirySchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['new', 'in-progress', 'resolved'],
+      enum: ['new', 'contacted', 'pending'],
       default: 'new',
     },
     emailStatus: {
@@ -93,7 +93,7 @@ export const inMemoryEnquiries = [
     message:
       'Inquiring about acquiring 6 Komorebi Lounge Chairs and a custom fluted walnut credenza for a boutique hospitality pavilion in Jaipur.',
     source: '/retail',
-    status: 'in-progress',
+    status: 'contacted',
     createdAt: new Date('2024-02-18T14:15:00.000Z'),
     updatedAt: new Date('2024-02-19T09:00:00.000Z'),
   },

@@ -666,7 +666,7 @@ async function runAudit() {
         group: 'Admin Enquiries',
         method: 'PATCH',
         path: `/api/admin/enquiries/${createdEnquiryId}/status`,
-        body: { status: 'in-progress' },
+        body: { status: 'contacted' },
         expectedStatus: 200,
         reason: 'Updates enquiry pipeline status',
         requiresAuth: true,

@@ -498,8 +498,8 @@ export const AdminDashboard = () => {
                           className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink"
                         >
                           <option value="new">New</option>
-                          <option value="in-progress">In Review</option>
-                          <option value="resolved">Resolved</option>
+                          <option value="contacted">Contacted</option>
+                          <option value="pending">Pending</option>
                         </select>
                       </td>
                       <td className="py-3 px-4 text-right">

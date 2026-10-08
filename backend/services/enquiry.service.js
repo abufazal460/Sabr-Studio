@@ -154,11 +154,11 @@ export const enquiryService = {
 
   /**
    * Update enquiry status (admin only)
-   * Only allows modifying status ('new', 'in-progress', 'resolved').
+   * Only allows modifying status ('new', 'contacted', 'pending').
    * Never mutates user's original message, email, or phone.
    */
   async updateEnquiryStatus(id, newStatus) {
-    const validStatuses = ['new', 'in-progress', 'resolved'];
+    const validStatuses = ['new', 'contacted', 'pending'];
     if (!validStatuses.includes(newStatus)) {
       throw new Error(`Invalid enquiry status: ${newStatus}`);
     }
