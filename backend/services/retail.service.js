@@ -1,59 +1,55 @@
-import { Retail, inMemoryRetail } from '../models/retail.model.js';
+import { Retail, RetailCategory, inMemoryRetail, inMemoryCategories } from '../models/retail.model.js';
 import { slugify } from './project.service.js';
 
 export const retailService = {
   /**
-   * Get public retail items (published AND available only)
+   * Get public retail items (published only - in stock and out of stock are both shown)
    * References: DATABASE.md §2.2; prompts/06-features.md §4.3
    */
-async getPublicRetail(filter = {}) {
-  const isMongoConnected = Retail.db?.readyState === 1;
+  async getPublicRetail(filter = {}) {
+    const isMongoConnected = Retail.db?.readyState === 1;
 
-  if (isMongoConnected) {
-    const query = {
-      published: true,
-      availability: true,
-      inStock: true,
-    };
+    if (isMongoConnected) {
+      const query = {
+        published: true,
+      };
+
+      if (filter?.category && filter.category !== 'All') {
+        query.category = new RegExp(
+          `^${filter.category.trim()}$`,
+          'i'
+        );
+      }
+
+      const dbItems = await Retail.find(query)
+        .sort({ createdAt: -1 })
+        .lean();
+      if (dbItems && dbItems.length) {
+        return dbItems.map((doc) => ({
+          ...doc,
+          id: doc._id.toString(),
+        }));
+      }
+    }
+
+    let items = inMemoryRetail.filter(
+      (item) => item.published === true
+    );
 
     if (filter?.category && filter.category !== 'All') {
-      query.category = new RegExp(
-        `^${filter.category.trim()}$`,
-        'i'
+      const category = filter.category.trim().toLowerCase();
+
+      items = items.filter(
+        (item) =>
+          item.category?.trim().toLowerCase() === category
       );
     }
 
-    const dbItems = await Retail.find(query)
-      .sort({ createdAt: -1 })
-      .lean();
-    if (dbItems && dbItems.length) {
-      return dbItems;
-    }
-
-  }
-
-  let items = inMemoryRetail.filter(
-    (item) =>
-      item.published === true &&
-      item.availability === true &&
-      item.inStock === true
-  );
-
-  if (filter?.category && filter.category !== 'All') {
-    const category = filter.category.trim().toLowerCase();
-
-    items = items.filter(
-      (item) =>
-        item.category?.trim().toLowerCase() === category
-    );
-  }
-
-  return items;
-},
-
+    return items;
+  },
 
   /**
-   * Get public retail item by slug (published AND available only)
+   * Get public retail item by slug (published only)
    */
   async getPublicRetailBySlug(slug) {
     const isMongoConnected = Retail.db?.readyState === 1;
@@ -61,17 +57,14 @@ async getPublicRetail(filter = {}) {
       const item = await Retail.findOne({
         $or: [{ slug }, { _id: slug.match(/^[0-9a-fA-F]{24}$/) ? slug : null }],
         published: true,
-        availability: true,
       }).lean();
-      if (item) return item;
+      if (item) return { ...item, id: item._id.toString() };
     }
 
     const item = inMemoryRetail.find(
       (r) =>
         (r.slug === slug || r.id === slug || r._id === slug) &&
-        r.published &&
-        r.availability !== false &&
-        r.inStock !== false
+        r.published === true
     );
     return item || null;
   },
@@ -209,13 +202,9 @@ async getPublicRetail(filter = {}) {
     }
     if (allowedUpdates.availability !== undefined) {
       allowedUpdates.availability = Boolean(allowedUpdates.availability);
-      if (allowedUpdates.inStock === undefined) {
-        allowedUpdates.inStock = allowedUpdates.availability;
-      }
     }
     if (allowedUpdates.inStock !== undefined) {
       allowedUpdates.inStock = Boolean(allowedUpdates.inStock);
-      allowedUpdates.availability = allowedUpdates.inStock;
     }
     if (allowedUpdates.published !== undefined) {
       allowedUpdates.published = Boolean(allowedUpdates.published);
@@ -288,5 +277,144 @@ async getPublicRetail(filter = {}) {
       return true;
     }
     return false;
+  },
+
+  /**
+   * Get all categories (stored categories + active product categories)
+   */
+  async getCategories() {
+    const isMongoConnected = Retail.db?.readyState === 1;
+    let dbCats = [];
+    let productCats = [];
+
+    if (isMongoConnected) {
+      const [customCats, distinctCats] = await Promise.all([
+        RetailCategory.find().lean(),
+        Retail.distinct('category'),
+      ]);
+      dbCats = (customCats || []).map((c) => c.name);
+      productCats = distinctCats || [];
+    } else {
+      productCats = inMemoryRetail.map((r) => r.category).filter(Boolean);
+      dbCats = [...inMemoryCategories];
+    }
+
+    const standardCats = ['Chair', 'Table', 'Lighting', 'Storage', 'Decor', 'Sofa', 'Objects'];
+    const merged = Array.from(
+      new Set(
+        [...standardCats, ...dbCats, ...productCats]
+          .map((c) => String(c || '').trim())
+          .filter(Boolean)
+      )
+    );
+    return merged;
+  },
+
+  /**
+   * Create a new category
+   */
+  async createCategory(name) {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) {
+      const error = new Error('Category name is required');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const isMongoConnected = Retail.db?.readyState === 1;
+    if (isMongoConnected) {
+      const existing = await RetailCategory.findOne({
+        name: new RegExp(`^${cleanName}$`, 'i'),
+      }).lean();
+      if (existing) return existing;
+
+      const created = await RetailCategory.create({
+        name: cleanName,
+        slug: slugify(cleanName),
+      });
+      return created.toObject();
+    }
+
+    const exists = inMemoryCategories.some(
+      (c) => c.toLowerCase() === cleanName.toLowerCase()
+    );
+    if (!exists) {
+      inMemoryCategories.push(cleanName);
+    }
+    return { name: cleanName, slug: slugify(cleanName) };
+  },
+
+  /**
+   * Delete category (and optionally cascade delete all products belonging to it)
+   */
+  async deleteCategory(name, { cascade = false } = {}) {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) {
+      const error = new Error('Category name is required');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const isMongoConnected = Retail.db?.readyState === 1;
+    const catRegex = new RegExp(`^${cleanName}$`, 'i');
+
+    if (isMongoConnected) {
+      // Out of Stock products must also count!
+      const productCount = await Retail.countDocuments({ category: catRegex });
+
+      if (productCount > 0 && !cascade) {
+        const error = new Error(
+          'This category contains products. Remove or move the products first, or use Delete Products & Category.'
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+
+      if (cascade) {
+        await Retail.deleteMany({ category: catRegex });
+      }
+
+      await RetailCategory.deleteMany({ name: catRegex });
+
+      return {
+        success: true,
+        category: cleanName,
+        deletedProducts: cascade ? productCount : 0,
+      };
+    }
+
+    // In-memory fallback
+    const productCount = inMemoryRetail.filter(
+      (r) => (r.category || '').trim().toLowerCase() === cleanName.toLowerCase()
+    ).length;
+
+    if (productCount > 0 && !cascade) {
+      const error = new Error(
+        'This category contains products. Remove or move the products first, or use Delete Products & Category.'
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (cascade) {
+      const remaining = inMemoryRetail.filter(
+        (r) => (r.category || '').trim().toLowerCase() !== cleanName.toLowerCase()
+      );
+      inMemoryRetail.length = 0;
+      inMemoryRetail.push(...remaining);
+    }
+
+    const catIdx = inMemoryCategories.findIndex(
+      (c) => c.toLowerCase() === cleanName.toLowerCase()
+    );
+    if (catIdx !== -1) {
+      inMemoryCategories.splice(catIdx, 1);
+    }
+
+    return {
+      success: true,
+      category: cleanName,
+      deletedProducts: cascade ? productCount : 0,
+    };
   },
 };

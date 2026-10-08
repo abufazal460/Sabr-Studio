@@ -23,7 +23,7 @@ export const retailController = {
       if (!item) {
         return res.status(404).json({
           success: false,
-          message: `Product "${slug}" not found, out of stock, or unpublished`,
+          message: `Product "${slug}" not found or unpublished`,
         });
       }
       return res.status(200).json({
@@ -133,6 +133,62 @@ export const retailController = {
       return res.status(500).json({
         success: false,
         message: err.message || 'Failed to delete retail item',
+      });
+    }
+  },
+
+  async getCategories(req, res) {
+    try {
+      const categories = await retailService.getCategories();
+      return res.status(200).json({
+        success: true,
+        data: categories,
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to retrieve retail categories',
+      });
+    }
+  },
+
+  async createCategory(req, res) {
+    try {
+      const { name } = req.body || {};
+      const category = await retailService.createCategory(name);
+      return res.status(201).json({
+        success: true,
+        data: category,
+      });
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({
+        success: false,
+        message: err.message || 'Failed to create category',
+      });
+    }
+  },
+
+  async deleteCategory(req, res) {
+    try {
+      const rawCategory = req.params?.category || req.url.split('/categories/')[1]?.split('?')[0];
+      const category = decodeURIComponent(String(rawCategory || '').trim());
+      const cascade =
+        req.query?.cascade === 'true' ||
+        req.query?.deleteAll === 'true' ||
+        req.body?.cascade === true;
+
+      const result = await retailService.deleteCategory(category, { cascade });
+      return res.status(200).json({
+        success: true,
+        message: cascade
+          ? `Category "${category}" and all its products were permanently deleted.`
+          : `Category "${category}" was permanently deleted.`,
+        data: result,
+      });
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({
+        success: false,
+        message: err.message || 'Failed to delete category',
       });
     }
   },

@@ -17,6 +17,14 @@ export const adminApi = {
   deleteRetailItem: (id) => axiosClient.delete(`/admin/retail/${id}`),
   uploadImage: (data) => axiosClient.post('/admin/uploads', data),
 
+  // Retail Categories
+  getCategories: () => axiosClient.get('/admin/retail/categories'),
+  createCategory: (name) => axiosClient.post('/admin/retail/categories', { name }),
+  deleteCategory: (name, cascade = false) =>
+    axiosClient.delete(
+      `/admin/retail/categories/${encodeURIComponent(name)}${cascade ? '?cascade=true' : ''}`
+    ),
+
   // Enquiries
   getEnquiries: (params) => axiosClient.get('/admin/enquiries', { params }),
   updateEnquiryStatus: (id, status) => axiosClient.patch(`/admin/enquiries/${id}/status`, { status }),
