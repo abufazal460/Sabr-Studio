@@ -137,6 +137,11 @@ export const Navbar = () => {
               Orders
             </button>
           )}
+          {customerAuthed && (
+            <button type="button" onClick={() => navigate('/account')} className="hidden md:inline text-xs font-medium text-muted hover:text-ink underline underline-offset-4" aria-label="My Profile">
+              Profile
+            </button>
+          )}
           {/* Cart Trigger */}
           <motion.div {...enter(0.24)} className='p-2'>
             <button
@@ -240,6 +245,12 @@ export const Navbar = () => {
 
               {/* Bottom Actions inside drawer */}
               <div className="pt-6 border-t border-white/15 space-y-4">
+                {customerAuthed && (
+                  <div className="flex gap-4 justify-center text-sm font-medium text-white/80">
+                    <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/orders'); }} className="underline hover:text-white">My Orders</button>
+                    <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/account'); }} className="underline hover:text-white">Profile</button>
+                  </div>
+                )}
                 <Button
                   variant="White"
                   size="default"

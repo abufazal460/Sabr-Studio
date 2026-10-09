@@ -52,30 +52,31 @@ class CustomerController {
     return res.status(200).json({ success: true, message: 'Logged out' });
   }
   async updateProfile(req, res) {
+    res.setHeader('Cache-Control', 'no-store');
     try {
-      const { name, phone } = req.body || {};
-      const { Customer } = await import('../models/customer.model.js');
-      const mongoose = (await import('mongoose')).default;
-      let updated = null;
-      if (mongoose.connection?.readyState === 1) {
-        updated = await Customer.findByIdAndUpdate(
-          req.customer.id,
-          { ...(name !== undefined ? { name: String(name).trim() } : {}), ...(phone !== undefined ? { phone: String(phone).trim() } : {}) },
-          { new: true, runValidators: true }
-        ).lean();
-      }
-      const payload = updated || { ...req.customerDb, name: name ?? req.customerDb?.name, phone: phone ?? req.customerDb?.phone };
-      if (!updated && req.customerDb && typeof req.customerDb === 'object' && !req.customerDb.save) {
-        if (name !== undefined) req.customerDb.name = String(name).trim();
-        if (phone !== undefined) req.customerDb.phone = String(phone).trim();
-      } else if (!updated && req.customerDb?.save) {
-        if (name !== undefined) req.customerDb.name = String(name).trim();
-        if (phone !== undefined) req.customerDb.phone = String(phone).trim();
-        try { await req.customerDb.save(); } catch {}
-      }
-      return res.status(200).json({ success: true, data: { customer: { ...req.customer, name: payload.name ?? req.customer.name, phone: payload.phone ?? req.customer.phone } } });
+      const { name, phone, email, currentPassword } = req.body || {};
+      const result = await customerService.updateProfile(req.customer.id, { name, phone, email, currentPassword });
+      return res.status(200).json({ success: true, message: 'Profile updated', data: { customer: result.customer } });
     } catch (err) {
-      return res.status(400).json({ success: false, message: err.message || 'Profile update failed' });
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Profile update failed' });
+    }
+  }
+  async forgotPassword(req, res) {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      await customerService.requestPasswordReset(req.body?.email);
+    } catch { /* never leak */ }
+    // Enumeration-safe: identical response whether or not the account exists.
+    return res.status(200).json({ success: true, message: 'If an account exists for that email, a reset code has been sent.' });
+  }
+  async resetPassword(req, res) {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const { email, token, password } = req.body || {};
+      await customerService.resetPassword(email, token, password);
+      return res.status(200).json({ success: true, message: 'Password reset successful. Please log in with your new password.' });
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Password reset failed' });
     }
   }
 }

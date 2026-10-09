@@ -51,8 +51,17 @@ export const CustomerProvider = ({ children }) => {
     finally { setCustomer(null); }
   };
 
+  const updateProfile = async (payload) => {
+    try {
+      const res = await axiosClient.put('/customer/profile', payload);
+      const data = res?.data?.customer || null;
+      if (res?.success && data) { setCustomer(data); return { success: true, customer: data }; }
+      return { success: false, message: res?.message || 'Profile update failed' };
+    } catch (err) { return { success: false, message: err?.message || 'Profile update failed' }; }
+  };
+
   return (
-    <CustomerContext.Provider value={{ customer, setCustomer, loading, isAuthenticated: Boolean(customer), login, register, googleLogin, logout, checkAuth }}>
+    <CustomerContext.Provider value={{ customer, setCustomer, loading, isAuthenticated: Boolean(customer), login, register, googleLogin, logout, updateProfile, checkAuth }}>
       {children}
     </CustomerContext.Provider>
   );

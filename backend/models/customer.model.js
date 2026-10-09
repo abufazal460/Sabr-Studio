@@ -42,6 +42,15 @@ const customerSchema = new mongoose.Schema(
     role: { type: String, enum: ['customer'], default: 'customer' },
     status: { type: String, enum: ['active', 'disabled'], default: 'active' },
     lastLoginAt: { type: Date, default: null },
+    // Password-reset state. Only a SHA-256 hash of the token is ever stored;
+    // the raw token exists solely in the customer's email. Single-use + short TTL.
+    passwordReset: {
+      tokenHash: { type: String, default: null },
+      expiresAt: { type: Date, default: null },
+      attempts: { type: Number, default: 0 },
+      lastSentAt: { type: Date, default: null },
+      usedAt: { type: Date, default: null },
+    },
   },
   { timestamps: true }
 );

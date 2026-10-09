@@ -48,6 +48,7 @@ export const AdminDashboard = () => {
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [retailModalOpen, setRetailModalOpen] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
+  const [viewOrderModal, setViewOrderModal] = useState(null);
 
   // Form states
   const [projectForm, setProjectForm] = useState({
@@ -557,6 +558,7 @@ export const AdminDashboard = () => {
                     <th className="py-3 px-4">Payment</th>
                     <th className="py-3 px-4">Fulfillment</th>
                     <th className="py-3 px-4">Tracking ID</th>
+                    <th className="py-3 px-4 text-right">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -619,6 +621,16 @@ export const AdminDashboard = () => {
                               {savingOrderId === oid ? <LuRefreshCw className="w-4 h-4 animate-spin" /> : <LuCheck className="w-4 h-4" />}
                             </button>
                           </div>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setViewOrderModal(ord)}
+                            className="p-1 text-muted hover:text-ink transition-colors"
+                            title="View payment & order details"
+                          >
+                            <LuEye className="w-4 h-4 inline" />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -866,6 +878,72 @@ export const AdminDashboard = () => {
                 variant="Secondary-Outline"
                 label="Close"
                 onClick={() => setViewEnquiryModal(null)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: View Order Payment & Fulfillment Details */}
+      {viewOrderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <h3 className="font-abhaya text-2xl font-medium text-ink">
+                Order Details
+              </h3>
+              <button
+                type="button"
+                onClick={() => setViewOrderModal(null)}
+                className="p-1 text-muted hover:text-ink"
+              >
+                <LuX className="w-5 h-5" />
+              </button>
+            </div>
+
+            {(() => {
+              const o = viewOrderModal;
+              const pay = o.payment || {};
+              const show = (v) =>
+                v === null || v === undefined || v === '' ? 'Not available' : v;
+              const amountVal = o.amount ?? o.totalAmount ?? 0;
+              const rows = [
+                ['Order Number', show(o.orderNumber), true],
+                ['Customer Name', show(o.customer?.name)],
+                ['Customer Email', show(o.customer?.email)],
+                ['Customer Phone', show(o.customer?.phone), true],
+                ['Amount', `${formatPrice(amountVal)}`, true],
+                ['Currency', show(o.currency || 'INR'), true],
+                ['Payment Status', show(o.paymentStatus)],
+                ['Payment Provider', show(pay.provider)],
+                ['Payment Method', show(pay.method)],
+                ['Razorpay Order ID', show(pay.razorpayOrderId), true],
+                ['Razorpay Payment ID', show(pay.razorpayPaymentId), true],
+                ['Payment Verified', pay.verified ? 'Yes' : pay.verified === false ? 'No' : 'Not available'],
+                ['Fulfillment Status', show(o.orderStatus)],
+                ['Tracking ID', show(o.trackingId), true],
+                ['Created At', o.createdAt ? new Date(o.createdAt).toLocaleString() : 'Not available'],
+                ['Updated At', o.updatedAt ? new Date(o.updatedAt).toLocaleString() : 'Not available'],
+              ];
+              return (
+                <div className="divide-y divide-border border border-border rounded-sm">
+                  {rows.map(([label, value, mono]) => (
+                    <div key={label} className="flex justify-between items-start gap-4 px-3 py-2 text-xs">
+                      <span className="text-muted whitespace-nowrap">{label}</span>
+                      <span className={`text-ink text-right break-all ${mono ? 'font-mono' : ''}`}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            <div className="pt-2 flex justify-end">
+              <Button
+                variant="Secondary-Outline"
+                label="Close"
+                onClick={() => setViewOrderModal(null)}
               />
             </div>
           </div>
