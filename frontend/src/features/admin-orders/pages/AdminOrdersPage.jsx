@@ -26,6 +26,8 @@ import Skeleton from '../../../shared/components/Skeleton';
 import EmptyState from '../../../shared/components/EmptyState';
 import Seo from '../../../shared/components/Seo';
 
+const ORDER_STATUS_OPTIONS = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'completed', 'cancelled'];
+
 export const AdminDashboard = () => {
   const navigate = useNavigate();
   // Single source of truth: URL. /admin = All Operations (overview);
@@ -39,6 +41,8 @@ export const AdminDashboard = () => {
   const [retailItems, setRetailItems] = useState([]);
   const [enquiries, setEnquiries] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [trackingDrafts, setTrackingDrafts] = useState({});
+  const [savingOrderId, setSavingOrderId] = useState(null);
 
   // Modal states
   const [projectModalOpen, setProjectModalOpen] = useState(false);
@@ -87,7 +91,16 @@ export const AdminDashboard = () => {
         setEnquiries(Array.isArray(enqRes.value.data) ? enqRes.value.data : []);
       }
       if (ordRes.status === 'fulfilled' && ordRes.value?.data) {
-        setOrders(Array.isArray(ordRes.value.data) ? ordRes.value.data : []);
+        const list = Array.isArray(ordRes.value.data) ? ordRes.value.data : [];
+        setOrders(list);
+        setTrackingDrafts((prev) => {
+          const next = { ...prev };
+          for (const o of list) {
+            const oid = String(o?.id || o?._id || o?.orderNumber || '');
+            if (oid && next[oid] === undefined) next[oid] = o?.trackingId || '';
+          }
+          return next;
+        });
       }
     } catch (e) {
       console.error('Error loading admin data', e);
@@ -184,6 +197,41 @@ export const AdminDashboard = () => {
     adminApi.updateEnquiryStatus(recordId, newStatus).catch(() => {
       loadAllData();
     });
+  };
+
+  const handleUpdateOrderStatus = async (id, orderStatus) => {
+    const recordId = String(id || '').trim();
+    if (!recordId || recordId === 'undefined') return;
+    const prevOrders = orders;
+    setOrders((prev) => prev.map((o) => (getRecordId(o) === recordId ? { ...o, orderStatus } : o)));
+    setSavingOrderId(recordId);
+    try {
+      await adminApi.updateOrderStatus(recordId, orderStatus);
+    } catch (e) {
+      setOrders(prevOrders);
+      window.alert(e?.message || 'Could not update order status.');
+    } finally {
+      setSavingOrderId(null);
+    }
+  };
+
+  const handleSaveTracking = async (id) => {
+    const recordId = String(id || '').trim();
+    if (!recordId || recordId === 'undefined') return;
+    const trackingId = String(trackingDrafts[recordId] ?? '').trim();
+    const prevOrders = orders;
+    setSavingOrderId(recordId);
+    try {
+      const res = await adminApi.updateTrackingId(recordId, trackingId);
+      const saved = res?.data?.trackingId ?? trackingId ?? null;
+      setOrders((prev) => prev.map((o) => (getRecordId(o) === recordId ? { ...o, trackingId: saved } : o)));
+      setTrackingDrafts((d) => ({ ...d, [recordId]: saved || '' }));
+    } catch (e) {
+      setOrders(prevOrders);
+      window.alert(e?.message || 'Could not save tracking ID.');
+    } finally {
+      setSavingOrderId(null);
+    }
   };
 
   return (
@@ -506,29 +554,75 @@ export const AdminDashboard = () => {
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Items</th>
                     <th className="py-3 px-4">Total</th>
-                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Payment</th>
+                    <th className="py-3 px-4">Fulfillment</th>
+                    <th className="py-3 px-4">Tracking ID</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {orders.map((ord) => (
-                    <tr key={ord.id} className="hover:bg-surface/50">
-                      <td className="py-3 px-4 font-mono font-medium text-ink">
-                        {ord.orderNumber || ord.id}
-                      </td>
-                      <td className="py-3 px-4 text-muted">
-                        {ord.createdAt ? new Date(ord.createdAt).toLocaleDateString() : 'Recent'}
-                      </td>
-                      <td className="py-3 px-4 text-muted">
-                        {Array.isArray(ord.items) ? ord.items.length : 1} pcs
-                      </td>
-                      <td className="py-3 px-4 font-inter text-ink font-medium">
-                        {formatPrice(ord.totalAmount || ord.amount || 0)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant="success">{ord.status || 'Confirmed'}</Badge>
-                      </td>
-                    </tr>
-                  ))}
+                  {orders.map((ord) => {
+                    const oid = getRecordId(ord);
+                    const payStatus = ord.paymentStatus || 'pending';
+                    const draft = trackingDrafts[oid] ?? ord.trackingId ?? '';
+                    const dirty = String(draft || '') !== String(ord.trackingId || '');
+                    return (
+                      <tr key={oid} className="hover:bg-surface/50 align-top">
+                        <td className="py-3 px-4 font-mono font-medium text-ink">
+                          {ord.orderNumber || oid}
+                          {(ord.customer?.name || ord.customer?.email) && (
+                            <p className="text-[10px] text-muted font-sans normal-case mt-0.5">{ord.customer?.name || ord.customer?.email}</p>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-muted whitespace-nowrap">
+                          {ord.createdAt ? new Date(ord.createdAt).toLocaleDateString() : 'Recent'}
+                        </td>
+                        <td className="py-3 px-4 text-muted">
+                          {Array.isArray(ord.items) ? ord.items.length : 1} pcs
+                        </td>
+                        <td className="py-3 px-4 font-inter text-ink font-medium whitespace-nowrap">
+                          {formatPrice(ord.totalAmount || ord.amount || 0)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant={payStatus === 'paid' ? 'success' : payStatus === 'failed' ? 'error' : 'default'}>
+                            {payStatus}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4">
+                          <select
+                            value={ord.orderStatus || 'pending'}
+                            disabled={savingOrderId === oid}
+                            onChange={(e) => handleUpdateOrderStatus(oid, e.target.value)}
+                            className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink capitalize disabled:opacity-50"
+                          >
+                            {ORDER_STATUS_OPTIONS.map((s) => (
+                              <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={draft}
+                              disabled={savingOrderId === oid}
+                              onChange={(e) => setTrackingDrafts((d) => ({ ...d, [oid]: e.target.value }))}
+                              placeholder="e.g. AWB1234567"
+                              className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink font-mono w-40 disabled:opacity-50"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveTracking(oid)}
+                              disabled={savingOrderId === oid || !dirty}
+                              className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-40 disabled:hover:text-muted"
+                              title="Save tracking ID"
+                            >
+                              {savingOrderId === oid ? <LuRefreshCw className="w-4 h-4 animate-spin" /> : <LuCheck className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

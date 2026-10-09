@@ -3,6 +3,8 @@ import nodePath from 'path';
 import { fileURLToPath } from 'url';
 
 import { authController } from './controllers/auth.controller.js';
+import { customerController } from './controllers/customer.controller.js';
+import { addressController } from './controllers/address.controller.js';
 import { projectController } from './controllers/project.controller.js';
 import { retailController } from './controllers/retail.controller.js';
 import { enquiryController } from './controllers/enquiry.controller.js';
@@ -14,6 +16,7 @@ import { enquiryService } from './services/enquiry.service.js';
 import { orderService } from './services/order.service.js';
 
 import { protect } from './middlewares/protect.middleware.js';
+import { protectCustomer } from './middlewares/protectCustomer.middleware.js';
 import { authLimiter, adminLimiter, generalLimiter, enquiryLimiter } from './middlewares/rateLimit.middleware.js';
 
 import { loginValidator } from './validators/auth.validator.js';
@@ -130,8 +133,14 @@ export default function handleApiRequest(req, res) {
     }
   }
 
-  // Helper body reader
-  const parseBody = (cb) => {
+  // Helper body reader (opts.raw keeps rawBody for webhook HMAC)
+  const parseBody = (cb, opts = {}) => {
+    if (req.body && typeof req.body === 'object' && req.rawBody !== undefined) {
+      return cb(req.body);
+    }
+    if (req.body && typeof req.body === 'object' && !opts.raw) {
+      return cb(req.body);
+    }
     if (req.body && typeof req.body === 'object') {
       return cb(req.body);
     }
@@ -145,10 +154,12 @@ export default function handleApiRequest(req, res) {
     });
     req.on('end', () => {
       try {
+        req.rawBody = body;
         const parsed = body ? JSON.parse(body) : {};
         req.body = parsed;
         cb(parsed);
       } catch {
+        req.rawBody = body;
         req.body = {};
         cb({});
       }
@@ -261,19 +272,85 @@ export default function handleApiRequest(req, res) {
       });
     }
 
-    // 5. Public Checkout & Payment Endpoints (06-features.md §4.8)
-    if ((path === '/api/checkout' || path === '/api/orders/checkout') && method === 'POST') {
+    // 5. Customer auth (shoppers) + addresses + authenticated checkout
+    if (path === '/api/customer/register' && method === 'POST') {
+      return parseBody(() => customerController.register(req, res));
+    }
+    if (path === '/api/customer/login' && method === 'POST') {
+      return parseBody(() => { return runMiddlewareChain([authLimiter], () => customerController.login(req, res)); });
+    }
+    if (path === '/api/customer/google' && method === 'POST') {
+      return parseBody(() => customerController.google(req, res));
+    }
+    if (path === '/api/customer/me' && method === 'GET') {
+      return protectCustomer(req, res, () => customerController.me(req, res));
+    }
+    if (path === '/api/customer/logout' && method === 'POST') {
+      return customerController.logout(req, res);
+    }
+    if (path === '/api/customer/profile' && (method === 'PUT' || method === 'PATCH')) {
+      return parseBody(() => protectCustomer(req, res, () => customerController.updateProfile(req, res)));
+    }
+    if (path === '/api/customer/addresses' && method === 'GET') {
+      return protectCustomer(req, res, () => addressController.list(req, res));
+    }
+    if (path === '/api/customer/addresses' && method === 'POST') {
+      return parseBody(() => protectCustomer(req, res, () => addressController.create(req, res)));
+    }
+    if (path.startsWith('/api/customer/addresses/') && path.endsWith('/default') && method === 'PATCH') {
+      const id = path.replace('/api/customer/addresses/', '').replace('/default', '');
+      req.params = { id };
+      return parseBody(() => protectCustomer(req, res, () => addressController.setDefault(req, res)));
+    }
+    if (path.startsWith('/api/customer/addresses/') && (method === 'PUT' || method === 'PATCH')) {
+      const id = path.replace('/api/customer/addresses/', '');
+      req.params = { id };
+      return parseBody(() => protectCustomer(req, res, () => addressController.update(req, res)));
+    }
+    if (path.startsWith('/api/customer/addresses/') && method === 'DELETE') {
+      const id = path.replace('/api/customer/addresses/', '');
+      req.params = { id };
+      return protectCustomer(req, res, () => addressController.remove(req, res));
+    }
+    if (path === '/api/orders/checkout' && method === 'POST') {
+      return parseBody(() => {
+        return protectCustomer(req, res, () => {
+          return runMiddlewareChain([...checkoutValidator], () => orderController.checkout(req, res));
+        });
+      });
+    }
+    if (path === '/api/orders/verify' && method === 'POST') {
+      return parseBody(() => {
+        return protectCustomer(req, res, () => {
+          return runMiddlewareChain([...verifyPaymentValidator], () => orderController.verifyPayment(req, res));
+        });
+      });
+    }
+    if (path === '/api/orders/my' && method === 'GET') {
+      return protectCustomer(req, res, () => orderController.getMyOrders(req, res));
+    }
+    if (path.startsWith('/api/orders/my/') && method === 'GET') {
+      const id = path.replace('/api/orders/my/', '');
+      req.params = { id };
+      return protectCustomer(req, res, () => orderController.getMyOrderById(req, res));
+    }
+    if (path === '/api/orders/webhook' && method === 'POST') {
+      return parseBody(() => orderController.webhook(req, res), { raw: true });
+    }
+
+    // 5b. Legacy public Checkout (back-compat for old frontend/tests)
+    if (path === '/api/checkout' && method === 'POST') {
       return parseBody(() => {
         return runMiddlewareChain([...checkoutValidator], () => {
-          orderController.checkout(req, res);
+          orderController.legacyCheckout(req, res);
         });
       });
     }
 
-    if ((path === '/api/checkout/verify' || path === '/api/orders/verify') && method === 'POST') {
+    if ((path === '/api/checkout/verify' || path === '/api/orders/verify-legacy') && method === 'POST') {
       return parseBody(() => {
         return runMiddlewareChain([...verifyPaymentValidator], () => {
-          orderController.verifyPayment(req, res);
+          orderController.verifyPaymentLegacy(req, res);
         });
       });
     }
@@ -449,6 +526,14 @@ export default function handleApiRequest(req, res) {
             });
           }
 
+          if (path.startsWith('/api/admin/orders/') && path.endsWith('/tracking') && method === 'PATCH') {
+            const id = path.replace('/api/admin/orders/', '').replace('/tracking', '');
+            req.params = { id };
+            return parseBody(() => {
+              orderController.updateTracking(req, res);
+            });
+          }
+
           if (path.startsWith('/api/admin/orders/') && method === 'GET') {
             const id = path.replace('/api/admin/orders/', '');
             req.params = { id };
@@ -526,6 +611,8 @@ export default function handleApiRequest(req, res) {
     path === '/health' ||
     path === '/api/health' ||
     path.startsWith('/api/auth') ||
+    path.startsWith('/api/customer') ||
+    path.startsWith('/api/orders') ||
     path.startsWith('/api/admin');
 
   if (isRateLimitExempt) return dispatch();

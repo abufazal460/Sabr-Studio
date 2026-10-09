@@ -1,54 +1,29 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../../shared/hooks/useCart';
 import { formatPrice } from '../../../shared/utils/formatPrice';
-import { createCheckoutSession } from '../api/checkout.api';
 import CartLineItem from '../components/CartLineItem';
 import { Button } from '../../../shared/components/Button';
 import EmptyState from '../../../shared/components/EmptyState';
 import Seo from '../../../shared/components/Seo';
-import { LuCircleCheck, LuCircleAlert, LuShieldCheck, LuShoppingBag } from 'react-icons/lu';
+import { LuCircleAlert, LuShieldCheck } from 'react-icons/lu';
 
 export const Cart = () => {
-  const { cartItems, cartCount, cartTotal, clearCart } = useCart();
+  const navigate = useNavigate();
+  const { cartItems, cartTotal } = useCart();
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
-  const [confirmedOrder, setConfirmedOrder] = useState(null);
 
-  const handleProceedToCheckout = async () => {
+  // ROOT-CAUSE FIX: never create an order / clear the cart from this button.
+  // It only routes to /checkout, which owns auth → address → Razorpay → verify → selective clear.
+  const handleProceedToCheckout = () => {
     if (cartItems.length === 0) return;
     if (!agreedToTerms) {
       setCheckoutError('Please accept the studio commission and delivery terms before proceeding.');
       return;
     }
-
-    setCheckoutLoading(true);
     setCheckoutError('');
-
-    try {
-      const payload = {
-        items: cartItems.map((item) => ({
-          productId: item.id,
-          quantity: item.quantity,
-        })),
-        totalAmount: cartTotal,
-      };
-
-      const res = await createCheckoutSession(payload);
-      if (res.success && res.data) {
-        setConfirmedOrder(res.data);
-        clearCart();
-      } else {
-        setCheckoutError(res.message || 'Checkout session creation failed. Please try again.');
-      }
-    } catch (err) {
-      setCheckoutError(
-        err.message || 'Checkout request failed. Please check your connection or try again.'
-      );
-    } finally {
-      setCheckoutLoading(false);
-    }
+    navigate('/checkout');
   };
 
   return (
@@ -59,52 +34,7 @@ export const Cart = () => {
       />
 
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 py-16 sm:py-24">
-        {confirmedOrder ? (
-          <div className="max-w-xl mx-auto text-center space-y-6 py-12">
-            <div className="w-16 h-16 mx-auto rounded-full bg-success/10 flex items-center justify-center text-success">
-              <LuCircleCheck className="w-8 h-8" />
-            </div>
-            <h1 className="font-abhaya text-3xl sm:text-5xl font-medium text-ink">
-              Order Confirmed
-            </h1>
-            <p className="font-inter text-sm sm:text-base text-muted leading-relaxed">
-              Thank you for acquiring Sabr Studio editions. Your order reference is{' '}
-              <strong className="text-ink font-mono font-semibold">
-                {confirmedOrder.orderNumber || confirmedOrder.id || 'SABR-CONFIRMED'}
-              </strong>
-              . Our logistics team will contact you to confirm production schedules and delivery coordinates.
-            </p>
-
-            <div className="bg-surface border border-border p-6 rounded-md text-left space-y-3 text-xs">
-              <div className="flex justify-between py-1 border-b border-border pb-2">
-                <span className="text-muted">Order ID</span>
-                <span className="font-mono text-ink font-medium">
-                  {confirmedOrder.id || 'Pending Generation'}
-                </span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-border pb-2">
-                <span className="text-muted">Validated Amount</span>
-                <span className="font-medium text-ink font-inter">
-                  {formatPrice(confirmedOrder.amount || cartTotal)}
-                </span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted">Status</span>
-                <span className="text-success uppercase font-semibold tracking-wider">
-                  Payment Confirmed
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-4">
-              <Button
-                to="/retail"
-                variant="Secondary-Outline"
-                label="Return to Retail Catalog"
-              />
-            </div>
-          </div>
-        ) : cartItems.length === 0 ? (
+        {cartItems.length === 0 ? (
           <div className="py-16">
             <EmptyState
               title="Your Bag is Empty"
@@ -120,7 +50,7 @@ export const Cart = () => {
                 Shopping Bag
               </span>
               <h1 className="font-abhaya text-3xl sm:text-5xl text-ink font-medium">
-                Your Studio Selection ({cartCount})
+                Your Studio Selection ({cartItems.length})
               </h1>
             </div>
 
@@ -198,7 +128,6 @@ export const Cart = () => {
                 <div className="space-y-3 pt-2">
                   <Button
                     onClick={handleProceedToCheckout}
-                    loading={checkoutLoading}
                     variant="Primary"
                     fullWidth
                     size="default"
@@ -206,7 +135,7 @@ export const Cart = () => {
                   />
                   <div className="flex items-center justify-center space-x-2 text-[11px] text-muted">
                     <LuShieldCheck className="w-3.5 h-3.5 text-ink" />
-                    <span>Secure SSL & Server-Side Tokenized Checkout</span>
+                    <span>Address & verified Razorpay payment next — bag stays safe</span>
                   </div>
                 </div>
               </div>

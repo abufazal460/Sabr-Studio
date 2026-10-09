@@ -1,11 +1,8 @@
 import mongoose from 'mongoose';
 
 /**
- * Order Mongoose Schema
- * References: DATABASE.md §2.4, §4, §6; prompts/06-features.md §4.8, §5.6
- * Line items are embedded snapshots, never live populate references (ADR-05).
- * paymentStatus is set only via backend signature verification (never admin-settable).
- * orderStatus is admin-managed.
+ * Order Mongoose Schema — production order + delivery tracking.
+ * Snapshots, never live populate. paymentStatus ONLY via Razorpay verify.
  */
 const orderItemSchema = new mongoose.Schema(
   {
@@ -15,6 +12,7 @@ const orderItemSchema = new mongoose.Schema(
     name: { type: String, required: true },
     title: { type: String }, // compatibility alias
     quantity: { type: Number, required: true, min: [1, 'Quantity must be at least 1'] },
+    variant: { type: String, default: '' },
     unitPrice: { type: Number, required: true, min: [0, 'Unit price must be non-negative'] },
     price: { type: Number }, // compatibility alias
     lineTotal: { type: Number, required: true, min: [0, 'Line total must be non-negative'] },
@@ -29,12 +27,27 @@ const orderSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      index: true,
     },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null, index: true },
     customer: {
       name: { type: String, default: 'Client' },
       email: { type: String, default: '' },
       phone: { type: String, default: '' },
       address: { type: String, default: '' },
+    },
+    deliveryAddress: {
+      fullName: { type: String, default: '' },
+      phone: { type: String, default: '' },
+      email: { type: String, default: '' },
+      house: { type: String, default: '' },
+      street: { type: String, default: '' },
+      landmark: { type: String, default: '' },
+      city: { type: String, default: '' },
+      state: { type: String, default: '' },
+      pincode: { type: String, default: '' },
+      country: { type: String, default: 'India' },
+      line: { type: String, default: '' },
     },
     items: {
       type: [orderItemSchema],
@@ -45,25 +58,33 @@ const orderSchema = new mongoose.Schema(
       required: [true, 'Amount is required'],
       min: [0, 'Amount must be non-negative'],
     },
+    subtotal: { type: Number, default: 0, min: 0 },
+    shipping: { type: Number, default: 0, min: 0 },
+    currency: { type: String, default: 'INR' },
     totalAmount: {
       type: Number, // compatibility alias
     },
     payment: {
+      provider: { type: String, default: 'razorpay' },
       razorpayOrderId: { type: String, default: null },
       razorpayPaymentId: { type: String, default: null },
       razorpaySignature: { type: String, default: null },
       verified: { type: Boolean, default: false },
+      method: { type: String, default: '' },
+      failureReason: { type: String, default: '' },
     },
     paymentStatus: {
       type: String,
-      enum: ['pending', 'paid', 'failed', 'cancelled'],
+      enum: ['pending', 'paid', 'failed', 'cancelled', 'refunded'],
       default: 'pending',
     },
     orderStatus: {
       type: String,
-      enum: ['pending', 'confirmed', 'completed', 'cancelled'],
+      enum: ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'completed', 'cancelled'],
       default: 'pending',
     },
+    trackingId: { type: String, default: null, trim: true },
+    idempotencyKey: { type: String, default: null, index: true },
   },
   {
     timestamps: true,
