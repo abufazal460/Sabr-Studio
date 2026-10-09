@@ -8,8 +8,6 @@ import EmptyState from '../../../shared/components/EmptyState';
 import ErrorState from '../../../shared/components/ErrorState';
 import Seo from '../../../shared/components/Seo';
 
-const categories = ['All', 'Chairs', 'Tables', 'Lighting', 'Storage', 'Sofas', 'Objects'];
-
 export const RetailListing = () => {
   const reduce = useReducedMotion();
   const [products, setProducts] = useState([]);
@@ -17,6 +15,13 @@ export const RetailListing = () => {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Derive category pills from the live catalog so newly created categories
+  // appear publicly without a hardcoded list. 'All' is always first.
+  const categories = [
+    'All',
+    ...Array.from(new Set(products.map((p) => p.category?.trim()).filter(Boolean))),
+  ];
 
   const fetchProducts = async () => {
     setLoading(true);
