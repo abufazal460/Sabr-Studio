@@ -4,6 +4,7 @@ import { LuShoppingBag, LuMenu, LuX } from 'react-icons/lu';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../hooks/useAuth';
+import useCustomer from '../hooks/useCustomer';
 import { Button } from './Button';
 
 export const Navbar = () => {
@@ -14,6 +15,7 @@ export const Navbar = () => {
   const navigate = useNavigate();
   const { cartCount, openDrawer } = useCart();
   const { isAuthenticated } = useAuth();
+  const { isAuthenticated: customerAuthed, customer } = useCustomer();
   const reduceMotion = useReducedMotion();
 
   const navLinks = [
@@ -130,6 +132,11 @@ export const Navbar = () => {
 
         {/* Action Controls */}
         <div className="flex items-center space-x-4 sm:space-x-6">
+          {customerAuthed && (
+            <button type="button" onClick={() => navigate('/orders')} className="hidden md:inline text-xs font-medium text-muted hover:text-ink underline underline-offset-4">
+              Orders
+            </button>
+          )}
           {/* Cart Trigger */}
           <motion.div {...enter(0.24)} className='p-2'>
             <button

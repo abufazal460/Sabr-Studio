@@ -84,7 +84,13 @@ app.use(
 );
 
 // --- Body & cookie parsing --------------------------------------------------
-app.use(express.json({ limit: '10mb' }));
+// Capture rawBody on webhook route so Razorpay HMAC can verify the exact bytes.
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => {
+    if (typeof req.url === 'string' && req.url.includes('/orders/webhook')) req.rawBody = buf.toString('utf8');
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(compression());

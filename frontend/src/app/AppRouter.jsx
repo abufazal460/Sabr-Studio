@@ -16,6 +16,10 @@ const Services = lazy(() => import('../features/services/pages/Services'));
 const About = lazy(() => import('../features/about/pages/About'));
 const Contact = lazy(() => import('../features/contact/pages/Contact'));
 const Cart = lazy(() => import('../features/cart/pages/Cart'));
+const Checkout = lazy(() => import('../features/checkout/pages/Checkout'));
+const OrderSuccess = lazy(() => import('../features/orders/pages/OrderSuccess'));
+const OrdersList = lazy(() => import('../features/orders/pages/OrdersList'));
+const OrderDetail = lazy(() => import('../features/orders/pages/OrderDetail'));
 
 // Admin features lazy loaded per 02-frontend.md §6 (FE-31, PERF-03)
 const AdminLayout = lazy(() => import('../shared/layouts/AdminLayout'));
@@ -103,6 +107,38 @@ export const AppRouter = () => {
           element={
             <Suspense fallback={<PageFallback />}>
               <Cart />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/checkout"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <Checkout />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <OrdersList />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/orders/:id"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <OrderDetail />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/order-success/:orderNumber"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <OrderSuccess />
             </Suspense>
           }
         />

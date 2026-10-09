@@ -39,12 +39,12 @@ export const verifyPaymentValidator = [
 export const updateOrderStatusValidator = [
   body('orderStatus')
     .optional()
-    .isIn(['pending', 'confirmed', 'completed', 'cancelled'])
-    .withMessage('orderStatus must be one of: pending, confirmed, completed, cancelled'),
+    .isIn(['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'completed', 'cancelled'])
+    .withMessage('orderStatus must be a valid fulfillment status'),
   body('status')
     .optional()
-    .isIn(['pending', 'confirmed', 'completed', 'cancelled'])
-    .withMessage('status must be one of: pending, confirmed, completed, cancelled'),
+    .isIn(['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'completed', 'cancelled'])
+    .withMessage('status must be a valid fulfillment status'),
   body().custom((value, { req }) => {
     if (!req.body.orderStatus && !req.body.status) {
       throw new Error('orderStatus is required');
