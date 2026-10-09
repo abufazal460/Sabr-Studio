@@ -3,7 +3,7 @@ import { Order, inMemoryOrders } from '../models/order.model.js';
 import { retailService } from './retail.service.js';
 import { projectService } from './project.service.js';
 import { fallbackOrders } from '../utils/fallbackStorage.js';
-import { createRazorpayOrder, verifyCheckoutSignature, verifyWebhookSignature } from './razorpay.service.js';
+import { createRazorpayOrder, verifyCheckoutSignature, verifyWebhookSignature, isRazorpayConfigured } from './razorpay.service.js';
 import { ORDER_STATUS_LIST, ORDER_TRANSITIONS } from '../constants/orderStatus.js';
 
 function genOrderNumber() {
@@ -75,6 +75,13 @@ export const orderService = {
     const ownerId = customerCtx?.id || null;
     const ownerEmail = customerCtx?.email || body?.customer?.email || '';
     let orderNumber = genOrderNumber();
+    // Fail-closed in production: never silently fall back to mock orders when
+    // real payment credentials are missing (would create unpayable orders).
+    if (process.env.NODE_ENV === 'production' && !isRazorpayConfigured()) {
+      const e = new Error('Payments are not configured on the server. Please try again later.');
+      e.statusCode = 503;
+      throw e;
+    }
     const rzp = await createRazorpayOrder({ amountPaise: toPaise(subtotal), currency: 'INR', receipt: orderNumber });
     // collision-safe regenerate if receipt already used
     const orderRecord = {
@@ -251,10 +258,10 @@ export const orderService = {
     Object.assign(order, update);
     return order;
   },
-  async _markPaid(order, { razorpayOrderId, razorpayPaymentId, razorpaySignature, mock }) {
+  async _markPaid(order, { razorpayOrderId, razorpayPaymentId, razorpaySignature, mock, method }) {
     return this._writeOrder(order, {
       paymentStatus: 'paid', orderStatus: 'confirmed',
-      payment: { ...(order.payment || {}), razorpayOrderId: razorpayOrderId || order.payment?.razorpayOrderId, razorpayPaymentId, razorpaySignature: razorpaySignature || (mock ? 'mock' : order.payment?.razorpaySignature), verified: true, failureReason: '' },
+      payment: { ...(order.payment || {}), razorpayOrderId: razorpayOrderId || order.payment?.razorpayOrderId, razorpayPaymentId, razorpaySignature: razorpaySignature || (mock ? 'mock' : order.payment?.razorpaySignature), verified: true, method: method || order.payment?.method || '', failureReason: '' },
     }, { kind: 'payment', from: order.paymentStatus || 'pending', to: 'paid', at: new Date(), by: 'razorpay', note: mock ? 'Mock-mode payment recorded' : 'Signature verified' });
   },
   async _markFailed(order, reason) {
@@ -276,7 +283,7 @@ export const orderService = {
     if (!order) return { ignored: true };
     if (/payment\.captured|order\.paid/i.test(event)) {
       if (order.paymentStatus === 'paid') return { orderNumber: order.orderNumber, alreadyPaid: true };
-      const updated = await this._markPaid(order, { razorpayOrderId: rzpOrderId, razorpayPaymentId: entity.id || order.payment?.razorpayPaymentId, razorpaySignature: 'webhook' });
+      const updated = await this._markPaid(order, { razorpayOrderId: rzpOrderId, razorpayPaymentId: entity.id || order.payment?.razorpayPaymentId, razorpaySignature: 'webhook', method: entity.method || entity.source || '' });
       this._sendConfirmationEmail(updated).catch(() => {});
       return { orderNumber: order.orderNumber, paid: true };
     }

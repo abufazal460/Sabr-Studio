@@ -17,7 +17,7 @@ import { orderService } from './services/order.service.js';
 
 import { protect } from './middlewares/protect.middleware.js';
 import { protectCustomer } from './middlewares/protectCustomer.middleware.js';
-import { authLimiter, adminLimiter, generalLimiter, enquiryLimiter } from './middlewares/rateLimit.middleware.js';
+import { authLimiter, adminLimiter, generalLimiter, enquiryLimiter, customerRegisterLimiter, resetLimiter, checkoutLimiter } from './middlewares/rateLimit.middleware.js';
 
 import { loginValidator } from './validators/auth.validator.js';
 import {
@@ -274,10 +274,16 @@ export default function handleApiRequest(req, res) {
 
     // 5. Customer auth (shoppers) + addresses + authenticated checkout
     if (path === '/api/customer/register' && method === 'POST') {
-      return parseBody(() => customerController.register(req, res));
+      return parseBody(() => { return runMiddlewareChain([customerRegisterLimiter], () => customerController.register(req, res)); });
     }
     if (path === '/api/customer/login' && method === 'POST') {
       return parseBody(() => { return runMiddlewareChain([authLimiter], () => customerController.login(req, res)); });
+    }
+    if (path === '/api/customer/forgot-password' && method === 'POST') {
+      return parseBody(() => { return runMiddlewareChain([resetLimiter], () => customerController.forgotPassword(req, res)); });
+    }
+    if (path === '/api/customer/reset-password' && method === 'POST') {
+      return parseBody(() => { return runMiddlewareChain([resetLimiter], () => customerController.resetPassword(req, res)); });
     }
     if (path === '/api/customer/google' && method === 'POST') {
       return parseBody(() => customerController.google(req, res));
@@ -315,14 +321,14 @@ export default function handleApiRequest(req, res) {
     if (path === '/api/orders/checkout' && method === 'POST') {
       return parseBody(() => {
         return protectCustomer(req, res, () => {
-          return runMiddlewareChain([...checkoutValidator], () => orderController.checkout(req, res));
+          return runMiddlewareChain([checkoutLimiter, ...checkoutValidator], () => orderController.checkout(req, res));
         });
       });
     }
     if (path === '/api/orders/verify' && method === 'POST') {
       return parseBody(() => {
         return protectCustomer(req, res, () => {
-          return runMiddlewareChain([...verifyPaymentValidator], () => orderController.verifyPayment(req, res));
+          return runMiddlewareChain([checkoutLimiter, ...verifyPaymentValidator], () => orderController.verifyPayment(req, res));
         });
       });
     }

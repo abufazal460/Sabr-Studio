@@ -78,3 +78,43 @@ export const enquiryLimiter = rateLimit({
     message: 'Too many enquiries. Please try again later.',
   },
 });
+
+// NOTE: all limiters below use express-rate-limit's default in-memory store.
+// On a multi-instance serverless deployment (e.g. Vercel) each instance keeps
+// its own counters, so effective limits scale with instance count. For strict
+// production guarantees, back these with a shared store (rate-limit-redis /
+// rate-limit-memcached-store). See deployment docs.
+
+function makeLimiter({ windowMs, prodMax, devMax, message }) {
+  return rateLimit({
+    windowMs,
+    max: isDev ? devMax : prodMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: false,
+    keyGenerator: (req) => req.ip || req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1',
+    statusCode: 429,
+    handler: (req, res, next, options) => {
+      res.status(options.statusCode || 429).json(options.message);
+    },
+    message: { success: false, message },
+  });
+}
+
+// Customer account creation (RATE: strict per-IP)
+export const customerRegisterLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000, prodMax: 5, devMax: 100,
+  message: 'Too many accounts created from this network. Please try again later.',
+});
+
+// Password reset request + confirmation (very strict; brute-force/enumeration guard)
+export const resetLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000, prodMax: 5, devMax: 100,
+  message: 'Too many password-reset attempts. Please try again later.',
+});
+
+// Checkout session creation + payment verification (moderate; normal shopping unaffected)
+export const checkoutLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000, prodMax: 30, devMax: 500,
+  message: 'Too many checkout attempts. Please try again shortly.',
+});
