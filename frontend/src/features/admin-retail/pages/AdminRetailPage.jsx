@@ -56,6 +56,12 @@ export const AdminDashboard = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
 
+  // Category management (DB is the source of truth via /admin/retail/categories)
+  const [categories, setCategories] = useState([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState(null);
+
   // Form states
   const [projectForm, setProjectForm] = useState({
     title: '',
@@ -88,13 +94,15 @@ export const AdminDashboard = () => {
   const getItemId = (item) => String(item?._id || item?.id || '').trim();
 
   const standardCats = ['Chair', 'Table', 'Lighting', 'Storage', 'Sofa', 'Decor', 'Objects'];
+  const productCats = retailItems.map((r) => r.category?.trim()).filter(Boolean);
   const availableCategories = [
     'All',
-    ...Array.from(new Set(retailItems.map((r) => r.category?.trim()).filter(Boolean))),
+    ...Array.from(new Set(productCats)),
   ];
-  const mergedCats = Array.from(
-    new Set([...standardCats, ...retailItems.map((r) => r.category?.trim()).filter(Boolean)])
-  );
+  // DB categories (source of truth) merged with the standard seed list and any
+  // category currently referenced by a product, so new categories show at once.
+  const mergedCats = Array.from(new Set([...standardCats, ...categories, ...productCats]));
+  const manageableCategories = mergedCats;
   const selectOptions = [
     ...mergedCats.map((c) => ({ value: c, label: c })),
     { value: '__custom__', label: '+ Add New Category...' },
@@ -112,6 +120,17 @@ export const AdminDashboard = () => {
     if (stockFilter === 'outOfStock' && isInStock) return false;
     return true;
   });
+
+  const loadCategories = async () => {
+    try {
+      const res = await adminApi.getCategories();
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setCategories(list.map((c) => String(c).trim()).filter(Boolean));
+    } catch (e) {
+      // Non-fatal: dropdown still derives from products + standard list.
+      console.error('Error loading retail categories', e);
+    }
+  };
 
   const loadAllData = async () => {
     setLoading(true);
@@ -137,6 +156,7 @@ export const AdminDashboard = () => {
       if (ordRes.status === 'fulfilled' && ordRes.value?.data) {
         setOrders(Array.isArray(ordRes.value.data) ? ordRes.value.data : []);
       }
+      await loadCategories();
     } catch (e) {
       console.error('Error loading admin data', e);
     } finally {
@@ -239,6 +259,16 @@ export const AdminDashboard = () => {
 
     setSavingRetail(true);
     try {
+      // Persist a newly-typed custom category to the DB first, so it becomes a
+      // real, deletable category (not just a string on the product). The backend
+      // de-duplicates case-insensitively and returns the existing record if present.
+      if (retailForm.category === '__custom__' && finalCategory) {
+        try {
+          await adminApi.createCategory(finalCategory);
+        } catch (catErr) {
+          console.error('Category persist failed; product still carries the category string', catErr);
+        }
+      }
       if (editingRetailId) {
         const res = await adminApi.updateRetailItem(editingRetailId, payload);
         const saved = res?.data || res;
@@ -257,6 +287,8 @@ export const AdminDashboard = () => {
           : { ...payload, id: `retail-${Date.now()}`, _id: `retail-${Date.now()}` };
         setRetailItems((prev) => [normalized, ...prev]);
       }
+      // Keep the DB-driven category list in sync after a successful save.
+      await loadCategories();
       setRetailModalOpen(false);
       setEditingRetailId(null);
       setRetailForm(emptyRetailForm);
@@ -265,6 +297,55 @@ export const AdminDashboard = () => {
       window.alert(msg);
     } finally {
       setSavingRetail(false);
+    }
+  };
+
+  // Create a standalone category (DB-first). Backend rejects empty names and
+  // de-duplicates case-insensitively; we also guard duplicates client-side.
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim();
+    if (addingCategory) return;
+    if (!name) {
+      window.alert('Category name is required.');
+      return;
+    }
+    if (mergedCats.some((c) => c.toLowerCase() === name.toLowerCase())) {
+      window.alert('That category already exists.');
+      return;
+    }
+    setAddingCategory(true);
+    try {
+      await adminApi.createCategory(name);
+      setNewCategoryName('');
+      await loadCategories();
+    } catch (err) {
+      window.alert(err?.message || 'Failed to create category.');
+    } finally {
+      setAddingCategory(false);
+    }
+  };
+
+  // Delete a category (DB-first, no cascade). The backend refuses (400) when the
+  // category still contains products and returns a clear message; we surface it.
+  const handleDeleteCategory = async (name) => {
+    const target = String(name || '').trim();
+    if (!target || deletingCategory) return;
+    if (
+      !window.confirm(
+        `Delete category "${target}"? This removes only the category itself — products are never deleted.`
+      )
+    ) {
+      return;
+    }
+    setDeletingCategory(target);
+    try {
+      await adminApi.deleteCategory(target);
+      setCategories((prev) => prev.filter((c) => c.toLowerCase() !== target.toLowerCase()));
+      if (categoryFilter.toLowerCase() === target.toLowerCase()) setCategoryFilter('All');
+    } catch (err) {
+      window.alert(err?.message || 'Failed to delete category.');
+    } finally {
+      setDeletingCategory(null);
     }
   };
 
@@ -573,6 +654,64 @@ export const AdminDashboard = () => {
                 label="Add Item"
                 onClick={openCreateRetailModal}
               />
+            </div>
+
+            {/* Category Management — add/delete categories (DB is source of truth) */}
+            <div className="border border-border rounded-md p-4 space-y-3 bg-surface/40">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-[11px] uppercase tracking-wider text-muted font-medium">
+                  Manage Categories
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateCategory();
+                      }
+                    }}
+                    placeholder="New category name"
+                    className="text-xs border border-border bg-white px-2.5 py-4 text-ink focus:border-black outline-none min-w-[180px]"
+                  />
+                  <Button
+                    type="button"
+                    variant="Primary"
+                    size="sm"
+                    icon={LuPlus}
+                    iconPosition="left"
+                    disabled={addingCategory}
+                    label={addingCategory ? 'Adding...' : 'Add Category'}
+                    onClick={handleCreateCategory}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {manageableCategories.length === 0 ? (
+                  <span className="text-xs text-muted">No categories yet.</span>
+                ) : (
+                  manageableCategories.map((cat) => (
+                    <span
+                      key={cat}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border border-border bg-white text-ink"
+                    >
+                      {cat}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCategory(cat)}
+                        disabled={deletingCategory === cat}
+                        className="text-muted hover:text-error transition-colors disabled:opacity-50"
+                        title={`Delete category "${cat}"`}
+                      >
+                        <LuTrash2 className="w-3 h-3 inline" />
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
             </div>
 
             {/* Filter Controls Bar */}
