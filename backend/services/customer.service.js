@@ -3,6 +3,8 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { Customer } from '../models/customer.model.js';
+import { OtpCode, inMemoryOtps } from '../models/otp.model.js';
+import { sendOtpSms, isOtpProviderConfigured } from './otp.service.js';
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -23,6 +25,16 @@ const RESET_MAX_ATTEMPTS = 5;
 const hashResetToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 const normalizeEmail = (v) => String(v || '').toLowerCase().trim();
 const isValidEmail = (v) => /^\S+@\S+\.\S+$/.test(v);
+
+// Phone-login OTP policy.
+const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_LENGTH = 6;
+const hashOtp = (code) => crypto.createHash('sha256').update(String(code)).digest('hex');
+const normalizePhone = (v) => String(v || '').replace(/[^\d+]/g, '').trim();
+const isValidPhone = (v) => /^\+?\d{10,15}$/.test(v);
+const genOtp = () => String(crypto.randomInt(0, 1000000)).padStart(OTP_LENGTH, '0');
 
 const inMemoryCustomers = [];
 const memKey = (c) => String(c.email || '').toLowerCase();
@@ -247,6 +259,110 @@ class CustomerService {
 
     if (connected && typeof doc.save === 'function') { await doc.save(); }
     return { customer: sanitize(typeof doc.toObject === 'function' ? doc.toObject() : doc) };
+  }
+
+  // ---- Phone OTP login --------------------------------------------------
+  async _findCustomerByPhone(phone) {
+    if (mongoose.connection?.readyState === 1) {
+      try { return await Customer.findOne({ phone }); } catch { return null; }
+    }
+    return inMemoryCustomers.find((c) => String(c.phone || '') === phone) || null;
+  }
+
+  async _latestOtp(phone) {
+    if (mongoose.connection?.readyState === 1) {
+      try { return await OtpCode.findOne({ phone }).sort({ createdAt: -1 }); } catch { return null; }
+    }
+    return inMemoryOtps
+      .filter((o) => o.phone === phone)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null;
+  }
+
+  async _saveOtp(record) {
+    if (mongoose.connection?.readyState === 1) {
+      await OtpCode.deleteMany({ phone: record.phone });
+      return OtpCode.create(record);
+    }
+    for (let i = inMemoryOtps.length - 1; i >= 0; i--) if (inMemoryOtps[i].phone === record.phone) inMemoryOtps.splice(i, 1);
+    inMemoryOtps.push({ ...record, createdAt: new Date() });
+    return record;
+  }
+
+  async _deleteOtp(phone) {
+    if (mongoose.connection?.readyState === 1) { try { await OtpCode.deleteMany({ phone }); } catch {} return; }
+    for (let i = inMemoryOtps.length - 1; i >= 0; i--) if (inMemoryOtps[i].phone === phone) inMemoryOtps.splice(i, 1);
+  }
+
+  /**
+   * Request a phone OTP. Fails closed when no SMS provider is configured —
+   * never generates, stores, or "sends" a code in that case.
+   */
+  async requestOtp(rawPhone) {
+    const phone = normalizePhone(rawPhone);
+    if (!isValidPhone(phone)) { const e = new Error('Please enter a valid phone number.'); e.statusCode = 400; throw e; }
+    if (!isOtpProviderConfigured()) {
+      const e = new Error('Phone OTP delivery is not configured on the server. Please log in with email instead.');
+      e.statusCode = 503; e.code = 'OTP_PROVIDER_NOT_CONFIGURED'; throw e;
+    }
+    const latest = await this._latestOtp(phone);
+    const lastSent = latest?.lastSentAt ? new Date(latest.lastSentAt).getTime() : 0;
+    if (lastSent && Date.now() - lastSent < OTP_RESEND_COOLDOWN_MS) {
+      const e = new Error('Please wait a moment before requesting another code.'); e.statusCode = 429; throw e;
+    }
+    const code = genOtp();
+    await this._saveOtp({ phone, otpHash: hashOtp(code), expiresAt: new Date(Date.now() + OTP_TTL_MS), attempts: 0, lastSentAt: new Date(), verifiedAt: null });
+    try {
+      await sendOtpSms(phone, code);
+    } catch (sendErr) {
+      // A code that was never delivered must not be usable.
+      await this._deleteOtp(phone);
+      throw sendErr;
+    }
+    return { sent: true };
+  }
+
+  /**
+   * Verify a phone OTP and, only on success, issue a session. Enforces expiry,
+   * single-use, and attempt limits. A verified phone finds-or-creates the account.
+   */
+  async verifyOtp(rawPhone, rawCode) {
+    const phone = normalizePhone(rawPhone);
+    const code = String(rawCode || '').trim();
+    if (!isValidPhone(phone) || !/^\d{4,8}$/.test(code)) { const e = new Error('Invalid phone number or code.'); e.statusCode = 400; throw e; }
+    const rec = await this._latestOtp(phone);
+    const invalid = (msg = 'Invalid or expired code.') => { const e = new Error(msg); e.statusCode = 400; throw e; };
+    if (!rec || !rec.otpHash || !rec.expiresAt) invalid();
+    if (rec.verifiedAt) invalid('This code has already been used. Request a new one.');
+    if (new Date(rec.expiresAt).getTime() < Date.now()) invalid('This code has expired. Request a new one.');
+    if ((rec.attempts || 0) >= OTP_MAX_ATTEMPTS) invalid('Too many incorrect attempts. Request a new code.');
+    if (hashOtp(code) !== rec.otpHash) {
+      rec.attempts = (rec.attempts || 0) + 1;
+      if (typeof rec.save === 'function') { try { await rec.save(); } catch {} }
+      invalid();
+    }
+    // Valid: consume the code (single-use). Delete rather than null-out otpHash —
+    // the field is schema-required, so a null save would silently fail and leave
+    // the code replayable. Deletion guarantees single-use in both DB and memory.
+    await this._deleteOtp(phone);
+
+    let doc = await this._findCustomerByPhone(phone);
+    if (!doc) {
+      const placeholderEmail = `phone_${phone.replace(/\D/g, '')}@sabr.invalid`;
+      doc = await this._findCustomerByEmail(placeholderEmail);
+      if (!doc) {
+        if (mongoose.connection?.readyState === 1) {
+          doc = await Customer.create({ name: `Customer ${phone.slice(-4)}`, email: placeholderEmail, phone, password: null });
+        } else {
+          doc = { id: `cust-${Date.now()}`, _id: `cust-${Date.now()}`, name: `Customer ${phone.slice(-4)}`, email: placeholderEmail, phone, password: null, addresses: [], status: 'active', lastLoginAt: new Date() };
+          inMemoryCustomers.unshift(doc);
+        }
+      }
+    }
+    if (doc.status === 'disabled') { const e = new Error('Account is disabled'); e.statusCode = 403; throw e; }
+    doc.lastLoginAt = new Date();
+    if (typeof doc.save === 'function') { try { await doc.save(); } catch {} }
+    const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+    return { customer: sanitize(plain), token: this.generateToken(doc) };
   }
 }
 

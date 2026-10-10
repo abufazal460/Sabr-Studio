@@ -17,7 +17,7 @@ import { orderService } from './services/order.service.js';
 
 import { protect } from './middlewares/protect.middleware.js';
 import { protectCustomer } from './middlewares/protectCustomer.middleware.js';
-import { authLimiter, adminLimiter, generalLimiter, enquiryLimiter, customerRegisterLimiter, resetLimiter, checkoutLimiter } from './middlewares/rateLimit.middleware.js';
+import { authLimiter, adminLimiter, generalLimiter, enquiryLimiter, customerRegisterLimiter, resetLimiter, checkoutLimiter, otpLimiter } from './middlewares/rateLimit.middleware.js';
 
 import { loginValidator } from './validators/auth.validator.js';
 import {
@@ -285,8 +285,14 @@ export default function handleApiRequest(req, res) {
     if (path === '/api/customer/reset-password' && method === 'POST') {
       return parseBody(() => { return runMiddlewareChain([resetLimiter], () => customerController.resetPassword(req, res)); });
     }
+    if (path === '/api/customer/request-otp' && method === 'POST') {
+      return parseBody(() => { return runMiddlewareChain([otpLimiter], () => customerController.requestOtp(req, res)); });
+    }
+    if (path === '/api/customer/verify-otp' && method === 'POST') {
+      return parseBody(() => { return runMiddlewareChain([otpLimiter], () => customerController.verifyOtp(req, res)); });
+    }
     if (path === '/api/customer/google' && method === 'POST') {
-      return parseBody(() => customerController.google(req, res));
+      return parseBody(() => { return runMiddlewareChain([authLimiter], () => customerController.google(req, res)); });
     }
     if (path === '/api/customer/me' && method === 'GET') {
       return protectCustomer(req, res, () => customerController.me(req, res));

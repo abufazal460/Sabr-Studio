@@ -118,3 +118,9 @@ export const checkoutLimiter = makeLimiter({
   windowMs: 15 * 60 * 1000, prodMax: 30, devMax: 500,
   message: 'Too many checkout attempts. Please try again shortly.',
 });
+
+// Phone OTP request + verify (strict; brute-force / SMS-pumping guard)
+export const otpLimiter = makeLimiter({
+  windowMs: 15 * 60 * 1000, prodMax: 8, devMax: 200,
+  message: 'Too many login-code attempts. Please try again later.',
+});
