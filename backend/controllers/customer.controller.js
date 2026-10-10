@@ -1,4 +1,5 @@
 import { customerService } from '../services/customer.service.js';
+import { verifyGoogleIdToken } from '../services/google.service.js';
 import { COOKIE_NAME, getCookieOptions, getClearCookieOptions } from '../utils/cookieOptions.js';
 
 export const CUSTOMER_COOKIE = 'sabr_customer';
@@ -34,7 +35,11 @@ class CustomerController {
   async google(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     try {
-      const result = await customerService.googleLogin(req.body || {});
+      // Browser sends ONLY an opaque Google ID token. Identity is established
+      // from the server-side-verified claims, never from client-submitted data.
+      const credential = req.body?.credential || req.body?.idToken || req.body?.token;
+      const identity = await verifyGoogleIdToken(credential);
+      const result = await customerService.googleLogin(identity);
       setCustomerCookie(res, result.token);
       return res.status(200).json({ success: true, message: 'Google login successful', data: { customer: result.customer } });
     } catch (err) {
@@ -77,6 +82,26 @@ class CustomerController {
       return res.status(200).json({ success: true, message: 'Password reset successful. Please log in with your new password.' });
     } catch (err) {
       return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Password reset failed' });
+    }
+  }
+  async requestOtp(req, res) {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      await customerService.requestOtp(req.body?.phone);
+      return res.status(200).json({ success: true, message: 'If the number is valid, a login code has been sent by SMS.' });
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Could not send login code' });
+    }
+  }
+  async verifyOtp(req, res) {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const { phone, code } = req.body || {};
+      const result = await customerService.verifyOtp(phone, code);
+      setCustomerCookie(res, result.token);
+      return res.status(200).json({ success: true, message: 'Phone verified. Login successful.', data: { customer: result.customer } });
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'OTP verification failed' });
     }
   }
 }

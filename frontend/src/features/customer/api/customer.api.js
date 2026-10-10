@@ -8,4 +8,7 @@ export const setDefaultAddress = (id) => axiosClient.patch(`/customer/addresses/
 export const updateProfile = (payload) => axiosClient.put('/customer/profile', payload);
 export const forgotPassword = (email) => axiosClient.post('/customer/forgot-password', { email });
 export const resetPassword = (payload) => axiosClient.post('/customer/reset-password', payload);
+export const requestOtp = (phone) => axiosClient.post('/customer/request-otp', { phone });
+export const verifyOtp = (phone, code) => axiosClient.post('/customer/verify-otp', { phone, code });
+export const googleAuth = (credential) => axiosClient.post('/customer/google', { credential });
 export const getProfile = () => axiosClient.get('/customer/me');

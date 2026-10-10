@@ -37,13 +37,23 @@ export const CustomerProvider = ({ children }) => {
     } catch (err) { return { success: false, message: err?.message || 'Registration failed' }; }
   };
 
-  const googleLogin = async (payload) => {
+  const googleLogin = async (credential) => {
     try {
-      const res = await axiosClient.post('/customer/google', payload);
+      // Send ONLY the opaque Google ID token; the backend verifies it server-side.
+      const res = await axiosClient.post('/customer/google', { credential });
       const data = res?.data?.customer || null;
       if (res?.success && data) { setCustomer(data); return { success: true }; }
       return { success: false, message: res?.message || 'Google login failed' };
     } catch (err) { return { success: false, message: err?.message || 'Google login failed' }; }
+  };
+
+  const loginWithOtp = async (phone, code) => {
+    try {
+      const res = await axiosClient.post('/customer/verify-otp', { phone, code });
+      const data = res?.data?.customer || null;
+      if (res?.success && data) { setCustomer(data); return { success: true }; }
+      return { success: false, message: res?.message || 'OTP verification failed' };
+    } catch (err) { return { success: false, message: err?.message || 'OTP verification failed' }; }
   };
 
   const logout = async () => {
@@ -61,7 +71,7 @@ export const CustomerProvider = ({ children }) => {
   };
 
   return (
-    <CustomerContext.Provider value={{ customer, setCustomer, loading, isAuthenticated: Boolean(customer), login, register, googleLogin, logout, updateProfile, checkAuth }}>
+    <CustomerContext.Provider value={{ customer, setCustomer, loading, isAuthenticated: Boolean(customer), login, register, googleLogin, loginWithOtp, logout, updateProfile, checkAuth }}>
       {children}
     </CustomerContext.Provider>
   );

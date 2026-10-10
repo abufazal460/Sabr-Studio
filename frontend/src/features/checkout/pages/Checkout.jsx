@@ -16,7 +16,7 @@ import { LuMapPin, LuPencil, LuCircleAlert, LuShieldCheck } from 'react-icons/lu
 export const Checkout = () => {
   const navigate = useNavigate();
   const { customer, isAuthenticated } = useCustomer();
-  const { cartItems, removePurchasedItems } = useCart();
+  const { cartItems } = useCart();
   const [addresses, setAddresses] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -55,9 +55,10 @@ export const Checkout = () => {
     finally { setAddrSaving(false); }
   };
 
-  const finishPaidOrder = (order, fallbackIds) => {
-    const ids = ((order?.items || fallbackIds || []).map((i) => i.itemId || i.productId || i.id || i._id)).filter(Boolean);
-    removePurchasedItems(ids);
+  const finishPaidOrder = (order) => {
+    // Requirement: NEVER auto-clear the bag. Purchased items stay in the cart
+    // until the customer removes them manually. The order keeps its own snapshot,
+    // so retaining the cart cannot cause duplicate orders or duplicate charges.
     navigate(`/order-success/${order?.orderNumber}`, { state: { order } });
   };
 
@@ -77,10 +78,12 @@ export const Checkout = () => {
       const data = session?.data || session;
       if (!data?.razorpayOrderId) throw new Error('Checkout session could not be created.');
       if (data.priceChanges?.length) setNotice(`Price updated for ${data.priceChanges.length} item(s) to the latest studio price. Please review before paying.`);
-      if (String(data.razorpayOrderId).startsWith('order_mock_')) {
-        setPlacing(false); setVerifying(true);
-        const verified = await verifyPayment({ orderId: data.orderId, razorpayOrderId: data.razorpayOrderId, razorpayPaymentId: `pay_mock_${Date.now()}`, razorpaySignature: 'mock' });
-        finishPaidOrder(verified?.data?.order || verified?.order || verified?.data, cartItems);
+      // The gateway opens ONLY when the server returned a real Razorpay key.
+      // Without configured credentials the order stays pending and we NEVER
+      // fabricate an "Order Confirmed" success screen (that was the reported bug).
+      if (!data.keyId) {
+        setPlacing(false);
+        setError('Payment gateway is not configured on the server yet (Razorpay keys missing). Your order is saved as pending and no charge was made. Please complete payment once the gateway is enabled.');
         return;
       }
       await loadRazorpayScript();
@@ -92,7 +95,7 @@ export const Checkout = () => {
           setVerifying(true);
           try {
             const verified = await verifyPayment({ orderId: data.orderId, razorpayOrderId: resp.razorpay_order_id, razorpayPaymentId: resp.razorpay_payment_id, razorpaySignature: resp.razorpay_signature });
-            finishPaidOrder(verified?.data?.order || verified?.order || verified?.data, cartItems);
+            finishPaidOrder(verified?.data?.order || verified?.order || verified?.data);
           } catch (e) {
             setError(`${e?.message || 'Verification pending.'} If money was debited, open My Orders to reconcile — do not pay again yet.`);
           } finally { setVerifying(false); }
@@ -187,7 +190,7 @@ export const Checkout = () => {
             </div>
             {selected && <p className="text-[11px] text-muted leading-relaxed">Deliver to: {selected.fullName}, {selected.house}, {selected.street}, {selected.city} — {selected.pincode} · {selected.phone}</p>}
             <Button fullWidth variant="Primary" loading={placing || verifying} onClick={placeOrder} label={verifying ? 'Verifying Payment…' : placing ? 'Creating Order…' : 'Place Order · Pay Securely'} />
-            <p className="flex items-center justify-center gap-2 text-[11px] text-muted"><LuShieldCheck className="w-3.5 h-3.5" />Cart clears only after verified payment</p>
+            <p className="flex items-center justify-center gap-2 text-[11px] text-muted"><LuShieldCheck className="w-3.5 h-3.5" />Your bag stays until you remove items — even after payment</p>
             <Link to="/cart" className="block text-center text-xs underline text-muted hover:text-ink">Back to bag</Link>
           </div>
         </div>

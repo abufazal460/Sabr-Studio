@@ -5,6 +5,14 @@ export default {
     "./src/**/*.{js,jsx}"
   ],
   theme: {
+    screens: {
+      'xs': '375px',
+      'sm': '640px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1280px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
         black: '#000000',
@@ -45,6 +53,7 @@ export default {
       },
       maxWidth: {
         'content': '42rem',
+        'container': '1100px',
         'container-desktop': '1280px',
         'container-wide': '1400px',
       },

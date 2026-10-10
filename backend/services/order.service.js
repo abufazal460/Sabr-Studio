@@ -155,8 +155,8 @@ export const orderService = {
       const expected = crypto.createHmac('sha256', keySecret).update(bodyStr).digest('hex');
       const a = Buffer.from(expected); const b = Buffer.from(String(razorpaySignature));
       isValid = a.length === b.length && crypto.timingSafeEqual(a, b);
-    } else if (!keySecret && String(razorpayOrderId || '').startsWith('order_mock_')) {
-      isValid = Boolean(razorpayPaymentId); // local mock mode only
+    } else if (!keySecret && process.env.NODE_ENV !== 'production' && String(razorpayOrderId || '').startsWith('order_mock_')) {
+      isValid = Boolean(razorpayPaymentId); // local dev mock only — never allowed in production
     }
 
     if (isValid) {
