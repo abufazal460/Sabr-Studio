@@ -85,7 +85,7 @@ export const About = () => {
                   loading="lazy"
                   whileHover={imageHover}
                   transition={imageHoverTransition}
-                  className="w-full h-full object-cover object-center"
+                  className="w-full h-full object-fit object-center"
                 />
               </div>
             </motion.div>

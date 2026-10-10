@@ -1,5 +1,5 @@
 import founder from "../../../assets/images/founder/founder.jpeg"
-
+import about from "../../../assets/images/about/brand-logo.png"
 export const aboutData = {
   hero: {
     titleMain: 'Designing with',
@@ -12,7 +12,7 @@ export const aboutData = {
   },
   story: {
     heading: 'About Us',
-    image: founder,
+    image: about,
     imageAlt:
       'Studio interior — warm beige living room with sculptural seating, tall glazing and soft daylight',
 
