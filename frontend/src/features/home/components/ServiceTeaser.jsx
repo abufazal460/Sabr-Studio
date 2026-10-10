@@ -1,24 +1,24 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LuLampCeiling, LuArmchair, LuTrees } from 'react-icons/lu';
+import { LuBuilding2, LuArmchair, LuTrees } from 'react-icons/lu';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { fadeUpProps } from '../../../shared/animations/reveal';
 
 // Home Services trio per the Figma `home/service` design (title, copy, icon).
 const homeServices = [
   {
-    id: 'lighting-design',
-    icon: LuLampCeiling,
-    title: 'Lighting Design',
+    id: 'commercial-design',
+    icon: LuBuilding2,
+    title: 'Commercial Design',
     description:
-      'Achieve the perfect balance of ambient, task, and accent lighting for a functional atmosphere',
+      'Thoughtful and functional commercial spaces for offices, retail, hospitality and other business environments.',
   },
   {
     id: 'interior-design',
     icon: LuArmchair,
     title: 'Interior Design',
     description:
-      'From concept to completion, we oversee every detail to bring your vision to life efficiently',
+      'From concept to completion, we oversee every detail to bring your vision to life efficiently.',
   },
   {
     id: 'outdoor-design',

@@ -1,61 +1,57 @@
+import founder from "../../../assets/images/founder/founder.jpeg"
+import about from "../../../assets/images/about/brand-logo.png"
 export const aboutData = {
   hero: {
     titleMain: 'Designing with',
     accentWord: 'Sabr Studio',
     introParagraphs: [
-      'Founded in 2016 by Ar. Anchal Garg, Design Sense Architects is a young, idea-driven architecture and interior design office based in New Delhi.',
-      'We create contextual, artistic, and bespoke architecture and interiors — spaces that feel practical, comfortable, and inviting. From the first conversation to the last site visit, the studio stays close to proportion, material, light, and the people who will use the finished work.',
-      'Based in New Delhi, we work across Delhi NCR and India on homes, hospitality, commercial interiors, and space styling for film and events.',
+      'Founded in 2017 by Ruchi Kapoor, Sabr Studio is a thoughtful, design-led interior design studio committed to crafting functional and elegant spaces.',
+      'We create contextual, artistic, and bespoke interiors — spaces that feel practical, comfortable, and inviting. From the first conversation to the last site visit, the studio stays close to proportion, material, light, and the people who will use the finished work.',
+      'We work on residential homes, commercial environments, space planning, and turnkey interior projects designed to blend aesthetics with real-world living.',
     ],
   },
   story: {
     heading: 'About Us',
-    image:
-      'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
+    image: about,
     imageAlt:
       'Studio interior — warm beige living room with sculptural seating, tall glazing and soft daylight',
-    paragraphs: [
+
+    "paragraphs": [
       {
-        parts: [
-          { text: 'Sculpt Design Studio ' },
-          { text: 'best interior designers in delhi', emphasis: true },
+        "parts": [
+          { "text": "Sabr Studio " },
+          { "text": "thoughtfully crafted interior design studio", "emphasis": true },
           {
-            text:
-              ' derives its uniqueness and multifacetedness from its founders, who are well-versed in the realm of Architecture. In 2019, Vardha Aggarwal and Chirag Gupta founded Sculpt Design Studio with the ambition of delivering the highest quality architecture, planning, and design while providing exceptional customer service.',
-          },
-        ],
+            "text": " derives its uniqueness from a deep passion for creating functional, elegant, and liveable spaces. Founded in 2017 by Ruchi Kapoor, Sabr Studio was built with the ambition of designing environments that feel refined, balanced, and truly like home."
+          }
+        ]
       },
-      'Our studio’s basic ethos revolves around developing new, appealing, and enchanting solutions for our customers through the rapid development of projects that employ distinctive styles and architecture. In times of confusion or unawareness of what you want, we will assist you in achieving your dreams.',
-      'Whether you want to combine two or more different styles, are fond of “Old is Gold”, or lack space in rooms, don’t worry we got you covered! The mystery is a well-oiled team of diverse individuals, each endowed with a unique skill. It is a MULTIDISCIPLINARY TEAM of designers and architects who are obsessed with detail and creative expression.',
-      'Our mission is established on the conviction that a people-centered approach is at the heart of effective design. We approach each project with a young perspective, leaving our ego at the door, and most importantly, we are all ears! We and our team work together in our thriving studio to create captivating designs that portray each owner’s vision statement. We are always determined, evolving, and striving to be better than before.',
-    ],
+      "Our studio’s basic ethos revolves around developing thoughtful, appealing, and functional solutions for our clients through quality materials, timeless aesthetics, and a deep understanding of how people live, work, and experience their spaces. In times of confusion or uncertainty about your space, we assist you in bringing your vision to life.",
+      "Whether you are looking to optimize room layouts, blend modern aesthetics with practical warmth, or need full execution support, don’t worry, we have got you covered! From residential interiors to commercial environments, our expertise spans space planning, 3D visualization, and complete end-to-end design.",
+      "Our mission is established on the conviction that a people-centered approach is at the heart of effective design. We approach each project with thoughtful perseverance, listening closely to your needs, leaving ego at the door, and crafting bespoke spaces that feel natural, comfortable, and uniquely yours."
+    ]
+
   },
   // Consumed by the home page AboutSection — intentionally distinct from founderProfile below.
   founder: {
-    name: 'Aamir Qureshi',
-    role: 'Principal Architect & Founder',
-    badge: 'sabr studio · est. 2012',
+    name: 'Ruchi Kapoor',
+    role: 'Founder & Principal Interior Designer',
+    badge: 'SABR STUDIO • EST. 2017',
     bio:
-      'With over a decade of practice spanning monumental residential architecture and limited-edition collectible furniture, Aamir leads the studio with an emphasis on tectonic truth and tactile calmness. His work has been cited across national and international design publications for redefining contemporary Indian minimalism.',
-    photo:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80',
+      'With a passion for creating functional, elegant and liveable spaces, I founded Sabr Studio in 2017 to design environments that feel like home. With a background in interior design and a keen eye for detail, I work across residential and commercial projects, blending aesthetics with practicality. My approach is rooted in thoughtful design, quality materials and a deep understanding of how people live, work and experience their spaces.',
+    photo: founder,
   },
   founderProfile: {
     eyebrow: 'Founder',
-    name: 'Ar. Anchal Garg',
-    role: 'Founder & Principal Architect',
+    name: 'Ruchi Kapoor',
+    role: 'Founder & Principal Interior Designer',
     bio: [
-      'Anchal founded Design Sense Architects in 2016. A graduate of MBS School of Planning & Architecture, she blends modern design with traditional and unconventional ideas, and has also worked as a set designer on films including October and Veere Di Wedding.',
-      'Her design sensibility is shaped by architectural practice and early work in the film industry as a set designer and art assistant. That experience strengthened an ability to design environments that evoke mood, narrative, and character — while still working hard for everyday life.',
-      'Anchal believes great design is not only constructed; it is felt, lived, and remembered. Through Design Sense she aims to develop thoughtful, sensitive work that reflects users’ needs and infuses spaces with playfulness and joy.',
+      'Ruchi Kapoor founded Sabr Studio in 2017 with a passion for creating functional, elegant, and liveable spaces. With a strong background in interior design and a keen eye for detail, she crafts environments that seamlessly blend aesthetics with everyday practicality.',
+      'Her design approach is rooted in thoughtful perseverance, quality materials, and a deep understanding of how people live, work, and experience their surroundings. That philosophy strengthens her ability to design spaces that evoke warmth and balance — while remaining deeply practical for modern life.',
+      'Ruchi believes a well-designed space is not just about visual appeal; it is about how a space makes you feel and how naturally it fits into daily living. Through Sabr Studio, she aims to deliver refined, human-centric interiors that reflect each client’s unique vision.',
     ],
-    portrait:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80',
+    portrait: founder,
     portraitAlt: 'Portrait of Ar. Anchal Garg, founder and principal architect',
-    studioPanel: {
-      monogram: 'DSA',
-      line1: 'Design Sense Architects · New Delhi ·',
-      line2: 'Architecture & interiors since 2016',
-    },
+
   },
 };

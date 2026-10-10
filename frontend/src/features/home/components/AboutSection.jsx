@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { aboutData } from '../../about/data/about.data';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';

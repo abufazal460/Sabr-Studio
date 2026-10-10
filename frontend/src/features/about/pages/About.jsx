@@ -55,7 +55,7 @@ export const About = () => {
                 {hero.introParagraphs.map((paragraph, idx) => (
                   <p
                     key={idx}
-                    className="font-inter text-sm sm:text-base leading-relaxed text-brown/90"
+                    className="font-inter text-sm sm:text-base leading-relaxed"
                   >
                     {paragraph}
                   </p>
@@ -85,7 +85,7 @@ export const About = () => {
                   loading="lazy"
                   whileHover={imageHover}
                   transition={imageHoverTransition}
-                  className="w-full h-full object-cover object-center"
+                  className="w-full h-full object-fit object-center"
                 />
               </div>
             </motion.div>
@@ -176,20 +176,6 @@ export const About = () => {
                 ))}
               </div>
             </motion.div>
-
-            <motion.aside
-              {...fadeUpProps(reduce, 0.3)}
-              className="lg:col-span-3 bg-cream p-8 sm:p-10 space-y-4"
-            >
-              <span className="block font-abhaya text-5xl 2xl:text-6xl font-medium text-brown">
-                {founderProfile.studioPanel.monogram}
-              </span>
-              <p className="font-inter text-xs leading-relaxed text-brown/90">
-                {founderProfile.studioPanel.line1}
-                <br />
-                {founderProfile.studioPanel.line2}
-              </p>
-            </motion.aside>
           </div>
         </div>
       </section>
