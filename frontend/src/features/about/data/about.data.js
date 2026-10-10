@@ -1,3 +1,5 @@
+import founder from "../../../assets/images/founder/founder.jpeg"
+
 export const aboutData = {
   hero: {
     titleMain: 'Designing with',
@@ -10,8 +12,7 @@ export const aboutData = {
   },
   story: {
     heading: 'About Us',
-    image:
-      'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
+    image: founder,
     imageAlt:
       'Studio interior — warm beige living room with sculptural seating, tall glazing and soft daylight',
     paragraphs: [
@@ -32,13 +33,12 @@ export const aboutData = {
   },
   // Consumed by the home page AboutSection — intentionally distinct from founderProfile below.
   founder: {
-    name: 'Aamir Qureshi',
-    role: 'Principal Architect & Founder',
-    badge: 'sabr studio · est. 2012',
+    name: 'Ruchi Kapoor',
+    role: 'Founder & Principal Interior Designer',
+    badge: 'SABR STUDIO • EST. 2017',
     bio:
-      'With over a decade of practice spanning monumental residential architecture and limited-edition collectible furniture, Aamir leads the studio with an emphasis on tectonic truth and tactile calmness. His work has been cited across national and international design publications for redefining contemporary Indian minimalism.',
-    photo:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80',
+      'With a passion for creating functional, elegant and liveable spaces, I founded Sabr Studio in 2017 to design environments that feel like home. With a background in interior design and a keen eye for detail, I work across residential and commercial projects, blending aesthetics with practicality. My approach is rooted in thoughtful design, quality materials and a deep understanding of how people live, work and experience their spaces.',
+    photo: founder,
   },
   founderProfile: {
     eyebrow: 'Founder',
