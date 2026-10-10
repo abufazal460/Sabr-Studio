@@ -1,8 +1,8 @@
 export const homeHeroData = {
-  eyebrow: 'Sabr Studio · Architecture & Interior Practice',
-  title: 'Spaces conceived with stillness, executed with reverence.',
+  eyebrow: 'INTERIOR DESIGN | HOME FURNISHINGS | STYLING',
+  title: 'Thoughtfully crafted spaces for everyday living.',
   description:
-    'We craft monolithic residential and commercial environments that celebrate tactile wabi-sabi textures, filtered daylight, and bespoke furniture craft.',
+    'We design serene, functional and timeless residential and commercial spaces, and curate home furnishings that bring comfort, character and lasting value.',
   primaryCta: {
     label: 'Explore Projects',
     to: '/projects',
