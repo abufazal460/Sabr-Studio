@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node dev.js",
+    "start": "node server.js",
     "dev": "nodemon dev.js",
     "test:routes": "node ../scripts/test-all-routes.mjs"
   },

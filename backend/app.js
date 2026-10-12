@@ -6,6 +6,7 @@
 // backend-directory launches identical.
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
@@ -27,6 +28,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // process.env read below (CORS list, cookie flags, NODE_ENV, PORT).
 dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
+
+// Same-domain SPA hosting flag (e.g. Hostinger single Node app). When true, this
+// Express server also serves the built frontend (../frontend/dist) and falls
+// back to index.html for client-side routes. Gated to production + non-Vercel +
+// a build actually existing (or SERVE_FRONTEND=true), so Vercel (static output +
+// serverless /api) and local dev (Vite on :5173) are completely unaffected.
+const frontendDist = path.join(__dirname, '../frontend/dist');
+const serveFrontend =
+  process.env.NODE_ENV === 'production' &&
+  !process.env.VERCEL &&
+  (process.env.SERVE_FRONTEND === 'true' || fs.existsSync(path.join(frontendDist, 'index.html')));
 
 // Behind Hostinger/Vercel reverse proxies: needed for correct req.ip (rate
 // limiting) and secure-cookie handling.
@@ -106,7 +118,9 @@ app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 // JSON 404 handler below.
 // --- Root API status endpoint ------------------------------------------------
 // Minimal status response confirming the backend is running (API-only mode).
-app.get('/', (req, res) => {
+app.get('/', (req, res, next) => {
+  // In same-domain SPA mode, let the static handler below serve index.html.
+  if (serveFrontend) return next();
   res.status(200).json({
     success: true,
     message: 'Sabr Studio API is running',
@@ -154,7 +168,37 @@ app.get('/health', (req, res) => {
 // fallback; the React app is served separately (Vite dev server on :5173
 // locally, static output on Vercel). apiHandler calls next() for any non-API
 // path, which falls through to the JSON 404 handler below.
+// --- Production database fail-safe (§5) -------------------------------------
+// In production the app must NEVER silently serve in-memory / fallback demo data
+// when MongoDB Atlas is unreachable. If the connection is not ready, give the
+// (cached) connect one chance, then return a sanitized 503 instead of fake data.
+// Development keeps the in-memory fallback so local work needs no Atlas.
+app.use('/api', async (req, res, next) => {
+  if (process.env.NODE_ENV !== 'production') return next();
+  if (req.path === '/health') return next();
+  if (mongoose.connection.readyState === 1) return next();
+  try { await connectDB(); } catch { /* sanitized response below */ }
+  if (mongoose.connection.readyState === 1) return next();
+  return res.status(503).json({
+    success: false,
+    message: 'Service temporarily unavailable. Please try again shortly.',
+    code: 'DB_UNAVAILABLE',
+  });
+});
+
 app.use(apiHandler);
+
+// --- Same-domain SPA hosting (e.g. Hostinger single Node app) ---------------
+// serveFrontend / frontendDist are computed near the top of this file. Serves the
+// built frontend and falls back to index.html for client-side routes so deep
+// links / refreshes don't 404. /api and /health are never intercepted here.
+if (serveFrontend) {
+  app.use(express.static(frontendDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') return next();
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
 
 // --- 404 (JSON) for anything still unmatched --------------------------------
 app.use((req, res) => {
