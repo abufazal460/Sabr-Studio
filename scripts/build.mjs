@@ -14,9 +14,24 @@ const frontendDir = path.join(root, 'frontend');
 const distDir = path.join(frontendDir, 'dist');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
-if (!fs.existsSync(path.join(frontendDir, 'node_modules'))) {
-  console.log('[build] Installing frontend dependencies...');
-  execFileSync(npm, ['install'], { cwd: frontendDir, stdio: 'inherit', shell: true });
+// Vite lives in devDependencies. Hosts such as Hostinger run the build with
+// NODE_ENV=production, and npm then omits devDependencies, so `vite` is missing
+// and `npm run build` fails with "sh: line 1: vite: command not found".
+// frontend/.npmrc sets `include=dev` so a plain install still brings Vite in;
+// --include=dev is passed explicitly here too, so the build is correct even if
+// the host overrides that with `--omit=dev`.
+const viteBin = process.platform === 'win32'
+  ? path.join(frontendDir, 'node_modules', '.bin', 'vite.cmd')
+  : path.join(frontendDir, 'node_modules', '.bin', 'vite');
+
+if (!fs.existsSync(viteBin)) {
+  console.log('[build] Vite not found — installing frontend dependencies (including devDependencies)...');
+  execFileSync(npm, ['install', '--include=dev'], { cwd: frontendDir, stdio: 'inherit', shell: true });
+}
+
+if (!fs.existsSync(viteBin)) {
+  console.error('[build] Vite is still unavailable after install — cannot build frontend.');
+  process.exit(1);
 }
 
 console.log('[build] Building frontend (vite build)...');
