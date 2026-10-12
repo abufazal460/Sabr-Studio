@@ -20,7 +20,15 @@ const [{ logger }, { default: app }, { connectDB }] = await Promise.all([
 
 const PORT = parseInt(process.env.PORT, 10) ||
   parseInt(process.env.BACKEND_PORT, 10) || 3000;
-const HOST = process.env.HOST; // optional; unset = bind all interfaces
+// Hostinger runs behind its own reverse proxy: binding all interfaces is the
+// safe default. HOST stays overridable but never silently becomes 'localhost'
+// (a localhost-only bind would make the app unreachable from the proxy).
+const HOST = process.env.HOST || undefined;
+// Hostinger does not guarantee NODE_ENV=production in the Node runtime env.
+// The same-domain SPA layer and the production DB fail-safe both key off it,
+// so default it here (explicit values always win). Local dev sets
+// NODE_ENV=development in backend/.env; Vercel sets it to production itself.
+if (!process.env.NODE_ENV) process.env.NODE_ENV = 'production';
 
 // Establish the DB connection before accepting traffic. In production the app
 // has a fail-safe guard that returns 503 (never in-memory/fake data) if Atlas is

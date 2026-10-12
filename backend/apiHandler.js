@@ -44,8 +44,27 @@ const __dirname = nodePath.dirname(__filename);
 export function apiHandler(req, res, next) {
   // If next is provided (Express/Connect middleware style) and the path is not
   // an API/health/root status path, pass through to static + SPA handling downstream.
-  if (next && req.url && !req.url.startsWith('/api') && !req.url.startsWith('/health') && req.url !== '/' && !req.url.startsWith('/?')) {
+  // Non-API, non-health, non-root requests (static assets, SPA client routes,
+  // favicon, ...) always fall through so the static-file layer registered AFTER
+  // this middleware can serve them. Intercepting anything else here is exactly
+  // how a site root can end up returning JSON instead of the React index.html.
+  if (
+    next &&
+    req.url &&
+    !req.url.startsWith('/api') &&
+    !req.url.startsWith('/health') &&
+    !req.url.startsWith('/assets') &&
+    !req.url.startsWith('/favicon') &&
+    req.url !== '/' &&
+    !req.url.startsWith('/?')
+  ) {
     return next();
+  }
+  if (req.url === '/' || req.url.startsWith('/?')) {
+    // Same-domain SPA mode: express.static (registered AFTER this middleware)
+    // owns '/'. Falling through here is REQUIRED.
+    if (next) return next();
+    // Serverless fallback (api/index.js with no static layer): describe the API.
   }
   return handleApiRequest(req, res);
 }

@@ -29,16 +29,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 
+const isVercel = Boolean(process.env.VERCEL);
+
 // Same-domain SPA hosting flag (e.g. Hostinger single Node app). When true, this
 // Express server also serves the built frontend (../frontend/dist) and falls
-// back to index.html for client-side routes. Gated to production + non-Vercel +
-// a build actually existing (or SERVE_FRONTEND=true), so Vercel (static output +
-// serverless /api) and local dev (Vite on :5173) are completely unaffected.
+// back to index.html for client-side routes.
+// Hostinger quirk: Vercel is never set there; Hostinger also does not guarantee
+// NODE_ENV=production in the Node runtime env, and its build output lives under
+// the app root (frontend/dist is git-ignored, so it only exists if the Hostinger
+// build step produced it). Therefore the flag is explicit-first:
+//   SERVE_FRONTEND=true  => always serve (recommended Hostinger setting);
+//   SERVE_FRONTEND=false => never serve (API-only, honors explicit opt-out);
+//   unset                => auto-detect (production + non-Vercel + dist exists).
+// Local dev (Vite on :5173) and Vercel (static output + serverless /api) stay
+// completely unaffected.
 const frontendDist = path.join(__dirname, '../frontend/dist');
-const serveFrontend =
-  process.env.NODE_ENV === 'production' &&
-  !process.env.VERCEL &&
-  (process.env.SERVE_FRONTEND === 'true' || fs.existsSync(path.join(frontendDist, 'index.html')));
+const serveFrontend = isVercel
+  ? false
+  : process.env.SERVE_FRONTEND === 'true'
+    ? true
+    : process.env.SERVE_FRONTEND === 'false'
+      ? false
+      : process.env.NODE_ENV === 'production' &&
+        fs.existsSync(path.join(frontendDist, 'index.html'));
 
 // Behind Hostinger/Vercel reverse proxies: needed for correct req.ip (rate
 // limiting) and secure-cookie handling.
@@ -111,22 +124,37 @@ app.use(compression());
 app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 
 
-// --- Root status route ---------------------------------------------------------
-// API-only marker: confirms the backend is running without serving the
-// frontend, frontend dist files, or an SPA fallback. Real status detail
-// lives on the health endpoints; unknown routes still fall through to the
-// JSON 404 handler below.
+// --- Same-domain SPA static layer (Hostinger single Node app) ----------------
+// Registered BEFORE the API router on purpose: Express matches middleware in
+// registration order, and apiHandler is a catch-all `app.use(...)` that would
+// otherwise swallow `/` (and non-/api paths) before express.static runs.
+// express.static only answers when a real file exists (/, /index.html, hashed
+// /assets/*, /favicon.svg, ...) and calls next() for everything else, so /api
+// and /health always fall through to the API routes below.
+if (serveFrontend && fs.existsSync(path.join(frontendDist, 'index.html'))) {
+  app.use(express.static(frontendDist));
+  console.log(`[hosting] Serving frontend from ${frontendDist}`);
+} else if (process.env.SERVE_FRONTEND === 'true') {
+  console.warn(`[hosting] SERVE_FRONTEND=true but no build at ${path.join(frontendDist, 'index.html')} — serving API only. Check the Hostinger build step / output directory.`);
+}
+
+
 // --- Root API status endpoint ------------------------------------------------
-// Minimal status response confirming the backend is running (API-only mode).
-app.get('/', (req, res, next) => {
-  // In same-domain SPA mode, let the static handler below serve index.html.
-  if (serveFrontend) return next();
-  res.status(200).json({
-    success: true,
-    message: 'Sabr Studio API is running',
-    health: '/api/health',
+// API-only marker when this process does NOT serve the SPA. In same-domain SPA
+// mode (Hostinger) GET / must fall through to express.static so the React
+// index.html is returned — an unconditional JSON response here is exactly why
+// https://sabrstudio.in/ showed {"success":true,...} instead of the frontend.
+// Registered before the static block but guarded by serveFrontend; Vercel is
+// unaffected (it never routes / to the function — static /index.html wins).
+if (!serveFrontend) {
+  app.get('/', (req, res) => {
+    res.status(200).json({
+      success: true,
+      message: 'Sabr Studio API is running',
+      health: '/api/health',
+    });
   });
-});
+}
 
 // --- Health check endpoint ---------------------------------------------------
 // Registered BEFORE the API router so it always returns JSON.
@@ -188,12 +216,12 @@ app.use('/api', async (req, res, next) => {
 
 app.use(apiHandler);
 
-// --- Same-domain SPA hosting (e.g. Hostinger single Node app) ---------------
-// serveFrontend / frontendDist are computed near the top of this file. Serves the
-// built frontend and falls back to index.html for client-side routes so deep
-// links / refreshes don't 404. /api and /health are never intercepted here.
-if (serveFrontend) {
-  app.use(express.static(frontendDist));
+// --- Same-domain SPA client-route fallback (deep links / refreshes) ----------
+// Serves index.html for non-API, non-asset paths so React Router routes (e.g.
+// /projects/:id, /retail, /admin/...) return 200 instead of the JSON 404 below.
+// Kept AFTER the API router but BEFORE the 404 handler, and strictly limited:
+// /api/*, /health, and real static files are never intercepted here.
+if (serveFrontend && fs.existsSync(path.join(frontendDist, 'index.html'))) {
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path === '/health') return next();
     res.sendFile(path.join(frontendDist, 'index.html'));
