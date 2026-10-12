@@ -12,8 +12,8 @@ export const AuthProvider = ({ children }) => {
     try {
       // Axios interceptor returns response.data = { success, data: { admin } }
       const res = await axiosClient.get('/auth/me');
-      const payload = res?.data || {};
-      const adminData = payload.admin || payload.user || null;
+      const payload = res || {};
+      const adminData = payload?.data?.admin || payload?.data?.user || null;
       if (res?.success && adminData) {
         setAdmin(adminData);
       } else {
@@ -34,8 +34,8 @@ export const AuthProvider = ({ children }) => {
     try {
       // Axios interceptor returns response.data = { success, data: { admin }, message }
       const res = await axiosClient.post('/auth/login', { email, password });
-      const payload = res?.data || {};
-      const adminData = payload.admin || payload.user || null;
+      const payload = res || {};
+      const adminData = payload?.data?.admin || payload?.data?.user || null;
       if (res?.success && adminData) {
         setAdmin(adminData);
         return { success: true };
