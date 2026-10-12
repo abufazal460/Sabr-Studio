@@ -1,7 +1,7 @@
 
 (async () => {
   try {
-    await import('./backend/server.js');
+    await import('./server.js');
   } catch (error) {
     console.error('[Hostinger Startup Error]', error);
     process.exit(1);
