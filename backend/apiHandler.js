@@ -556,47 +556,52 @@ export default function handleApiRequest(req, res) {
           if (path === '/api/admin/uploads' && method === 'POST') {
             return parseBody(async () => {
               const uploadTarget = req.body?.dataUri || req.body?.image || req.body?.file;
-              if (
-                uploadTarget &&
-                process.env.CLOUDINARY_CLOUD_NAME &&
-                process.env.CLOUDINARY_API_KEY &&
-                process.env.CLOUDINARY_API_SECRET
-              ) {
-                try {
-                  const { v2: cloudinary } = await import('cloudinary');
-                  cloudinary.config({
-                    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-                    api_key: process.env.CLOUDINARY_API_KEY,
-                    api_secret: process.env.CLOUDINARY_API_SECRET,
-                  });
-                  const uploadRes = await cloudinary.uploader.upload(uploadTarget, {
-                    folder: 'sabr/projects',
-                    resource_type: 'auto',
-                  });
-                  return res.status(201).json({
-                    success: true,
-                    data: {
-                      images: [
-                        {
-                          url: uploadRes.secure_url,
-                          publicId: uploadRes.public_id,
-                        },
-                      ],
-                    },
-                  });
-                } catch (cloudErr) {
-                  console.error('[Upload] Cloudinary upload error:', cloudErr.message);
-                }
+              if (!uploadTarget) {
+                return res.status(400).json({ success: false, message: 'No image data received.', code: 'UPLOAD_NO_DATA' });
               }
-
-              const sampleUpload = {
-                url: req.body?.url || 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
-                publicId: `sabr_upload_${Date.now()}`,
-              };
-              return res.status(201).json({
-                success: true,
-                data: { images: [sampleUpload] },
-              });
+              if (
+                !process.env.CLOUDINARY_CLOUD_NAME ||
+                !process.env.CLOUDINARY_API_KEY ||
+                !process.env.CLOUDINARY_API_SECRET
+              ) {
+                // Never fabricate a successful upload (§9). Report the missing config.
+                return res.status(503).json({
+                  success: false,
+                  message: 'Image upload is not configured on the server (Cloudinary credentials missing).',
+                  code: 'UPLOAD_NOT_CONFIGURED',
+                });
+              }
+              try {
+                const { v2: cloudinary } = await import('cloudinary');
+                cloudinary.config({
+                  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+                  api_key: process.env.CLOUDINARY_API_KEY,
+                  api_secret: process.env.CLOUDINARY_API_SECRET,
+                });
+                const uploadRes = await cloudinary.uploader.upload(uploadTarget, {
+                  folder: 'sabr/projects',
+                  resource_type: 'auto',
+                });
+                return res.status(201).json({
+                  success: true,
+                  data: {
+                    images: [
+                      {
+                        url: uploadRes.secure_url,
+                        publicId: uploadRes.public_id,
+                      },
+                    ],
+                  },
+                });
+              } catch (cloudErr) {
+                // Log details server-side; return a sanitized error (no fake URL).
+                console.error('[Upload] Cloudinary upload error:', cloudErr.message);
+                return res.status(502).json({
+                  success: false,
+                  message: 'Image upload failed. Please try again.',
+                  code: 'UPLOAD_FAILED',
+                });
+              }
             });
           }
 
