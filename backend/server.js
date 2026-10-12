@@ -12,11 +12,16 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const [{ logger }, { default: app }, { connectDB }] = await Promise.all([
+const [{ logger }, { checkEnv }, { default: app }, { connectDB }] = await Promise.all([
   import('./utils/logger.js'),
+  import('./utils/envCheck.js'),
   import('./app.js'),
   import('./config/db.js'),
 ]);
+
+// Fail fast on missing production secrets (names only, values never printed).
+// Must run AFTER dotenv load + NODE_ENV default above, BEFORE listen/connect.
+checkEnv();
 
 const PORT = parseInt(process.env.PORT, 10) ||
   parseInt(process.env.BACKEND_PORT, 10) || 3000;

@@ -33,6 +33,11 @@ const server = spawn('node', ['server.js'], {
     PORT: String(PORT),
     NODE_ENV: 'production',
     SERVE_FRONTEND: 'true',
+    // Dummy values ONLY for this local boot check — never real secrets.
+    // server.js now fails fast without JWT_SECRET (fail-closed); the dummy
+    // satisfies the gate so routing can be verified. MONGODB_URI points at a
+    // closed port so the production DB fail-safe path is exercised too.
+    JWT_SECRET: 'smoke-test-dummy-secret-not-a-real-credential',
     MONGODB_URI: 'mongodb://127.0.0.1:27017/sabr-smoke-unreachable',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
