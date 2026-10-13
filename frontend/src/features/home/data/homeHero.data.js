@@ -15,13 +15,13 @@ export const homeHeroData = {
     {
       id: 1,
       image:
-        'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1800&q=85',
+        'https://res.cloudinary.com/nk6amlza/image/upload/v1791907751/hero1.png',
       alt: 'Monolithic interior architectural pavilion by Sabr Studio',
     },
     {
       id: 2,
       image:
-        'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1800&q=85',
+        'https://res.cloudinary.com/nk6amlza/image/upload/v1791907750/hero2.png',
       alt: 'Tactile travertine and ash joinery living space by Sabr Studio',
     },
   ],
