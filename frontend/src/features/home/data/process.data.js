@@ -4,7 +4,7 @@ export const processData = {
   description:
     'A disciplined six-phase architectural progression from initial spatial diagnosis through turnkey execution and material consultation.',
   centerImage:
-    'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1000&q=80',
+    'https://res.cloudinary.com/nk6amlza/image/upload/v1791908935/how_we_work.png',
   steps: [
     {
       num: '01',

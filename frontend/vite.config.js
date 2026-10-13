@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,6 +6,30 @@ import http from 'http';
 import { spawn } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Vite's import.meta.env is injected into client/browser code only. It is
+// undefined when this config module is parsed by Node (the cause of the
+// Hostinger build failure: "Cannot read properties of undefined (reading
+// 'VITE_API_BASE_URL')"). Read config-time variables through Vite's own
+// loadEnv() instead, which merges the .env files and never throws on missing
+// keys. VITE_* variables are read here, never in client code.
+const env = loadEnv(
+  process.env.MODE || process.env.NODE_ENV || 'development',
+  __dirname,
+  'VITE_',
+);
+
+// VITE_API_BASE_URL is a *client* base URL (relative "/api" in same-origin
+// deployments). It must never be used as the dev-server proxy target, because
+// a relative value cannot be a proxy target and the proxy must forward /api
+// to the local backend. Only an absolute URL (e.g. a separate backend
+// subdomain) is meaningful here; otherwise fall back to the local backend.
+const apiProxyTarget =
+  env.VITE_API_BASE_URL &&
+  (env.VITE_API_BASE_URL.startsWith('http://') ||
+    env.VITE_API_BASE_URL.startsWith('https://'))
+    ? env.VITE_API_BASE_URL
+    : 'http://127.0.0.1:3000';
 
 function autoStartBackendPlugin() {
   // Safety net only: the documented flow is `npm run dev` (scripts/dev.mjs)
@@ -110,7 +134,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000',
+        target: apiProxyTarget,
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('error', (err, _req, res) => {
