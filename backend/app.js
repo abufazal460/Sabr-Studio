@@ -158,6 +158,7 @@ if (!serveFrontend) {
 
 // --- Health check endpoint ---------------------------------------------------
 // Registered BEFORE the API router so it always returns JSON.
+// Reports API up and DB connected or disconnected — no secrets or connection strings.
 app.get('/health', (req, res) => {
   const dbState = mongoose?.connection?.readyState;
   const dbStatuses = {
@@ -166,29 +167,26 @@ app.get('/health', (req, res) => {
     2: 'connecting',
     3: 'disconnecting',
   };
+  const dbStatus = dbState !== undefined ? (dbStatuses[dbState] || 'unknown') : 'unknown';
 
-  res.status(200).json({
-    success: true,
-    data: {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      version: process.env.npm_package_version || '1.0.0',
-      environment: process.env.NODE_ENV || 'development',
-      database: {
-        status: dbState !== undefined ? dbStatuses[dbState] : 'unknown',
-        state: dbState,
-      },
-      fallbackStorage: {
-        orders: {
-          count: typeof fallbackOrders?.count === 'function' ? fallbackOrders.count() : 0,
-        },
-        enquiries: {
-          count: typeof fallbackEnquiries?.count === 'function' ? fallbackEnquiries.count() : 0,
-        },
-      },
-    },
-  });
+  const data = {
+    status: dbStatus === 'connected' ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.npm_package_version || '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    database: dbStatus,
+  };
+
+  // In development, include fallback storage counts for debugging.
+  if (process.env.NODE_ENV !== 'production') {
+    data.fallbackStorage = {
+      orders: typeof fallbackOrders?.count === 'function' ? fallbackOrders.count() : 0,
+      enquiries: typeof fallbackEnquiries?.count === 'function' ? fallbackEnquiries.count() : 0,
+    };
+  }
+
+  res.status(200).json({ success: true, data });
 });
 
 // --- API routes (all under /api, plus /health) ------------------------------

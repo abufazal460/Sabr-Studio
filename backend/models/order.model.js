@@ -84,14 +84,16 @@ const orderSchema = new mongoose.Schema(
       default: 'pending',
     },
     trackingId: { type: String, default: null, trim: true },
-    idempotencyKey: { type: String, default: null, index: true },
+    idempotencyKey: { type: String, default: null, sparse: true, unique: true },
   },
   {
     timestamps: true,
   }
 );
 
-orderSchema.index({ paymentStatus: 1, orderStatus: 1, createdAt: -1 });
+// Composite indexes for admin order listing and filtering.
+orderSchema.index({ orderStatus: 1, createdAt: -1 });
+orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 
 export const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 

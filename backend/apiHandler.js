@@ -69,7 +69,7 @@ export function apiHandler(req, res, next) {
   return handleApiRequest(req, res);
 }
 
-export default function handleApiRequest(req, res) {
+export default async function handleApiRequest(req, res) {
   const method = req.method;
   const [pathname, queryString] = (req.url || '').split('?');
   const path = pathname;
@@ -217,7 +217,18 @@ export default function handleApiRequest(req, res) {
   }
 
   if ((path === '/health' || path === '/api/health') && method === 'GET') {
-    return res.status(200).json({ status: 'ok' });
+    // Import mongoose dynamically (it's already loaded in the process)
+    const mongoose = (await import('mongoose')).default;
+    const dbState = mongoose?.connection?.readyState;
+    const dbStatuses = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+    const dbStatus = dbState !== undefined ? (dbStatuses[dbState] || 'unknown') : 'unknown';
+    return res.status(200).json({
+      success: true,
+      data: {
+        status: dbStatus === 'connected' ? 'ok' : 'degraded',
+        database: dbStatus,
+      },
+    });
   }
 
   if ((path === '/api/audit/download' || path === '/CONNECTIVITY_AUDIT.md') && method === 'GET') {
