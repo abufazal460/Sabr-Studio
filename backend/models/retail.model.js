@@ -73,6 +73,7 @@ const retailSchema = new mongoose.Schema(
 );
 
 retailSchema.index({ published: 1, availability: 1, createdAt: -1 });
+retailSchema.index({ category: 1, createdAt: -1 });
 
 export const Retail = mongoose.models.Retail || mongoose.model('Retail', retailSchema);
 

@@ -1,14 +1,12 @@
 /**
  * Persistent Fallback Storage
- * When MongoDB is unavailable, critical data is persisted to JSON files.
  *
- * Serverless note (Vercel/AWS Lambda): the deployment filesystem is READ-ONLY
- * except for /tmp. Writing inside the project directory crashes the function
- * at import time with EROFS. Therefore:
- *  - On Vercel we write to /tmp (per-warm-instance persistence).
- *  - FALLBACK_DIR can override the directory explicitly.
- *  - If directory creation still fails, storage degrades to pure in-memory
- *    mode (data lives for the process lifetime) instead of crashing.
+ * PRODUCTION POLICY: Fallback storage is DISABLED in production. The app must
+ * never silently serve demo/in-memory data or write to /tmp when Atlas is down.
+ * API calls that need the DB will receive a 503 from the middleware in app.js.
+ *
+ * DEVELOPMENT: When MongoDB is unavailable locally, critical data is persisted
+ * to JSON files so local work can proceed without Atlas.
  */
 
 import fs from 'fs';
@@ -17,8 +15,20 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Returns true when fallback/in-memory data stores should be used.
+ * In production this is always false — the DB middleware returns 503 instead.
+ */
+export function isFallbackEnabled() {
+  return process.env.NODE_ENV !== 'production';
+}
+
 function resolveFallbackDir() {
+  // Production: never resolve a fallback directory
+  if (!isFallbackEnabled()) return null;
+
   if (process.env.FALLBACK_DIR) return process.env.FALLBACK_DIR;
+  // In development on Vercel-like environments, use /tmp
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
     return path.join('/tmp', 'sabr-studio-fallback');
   }
@@ -27,29 +37,31 @@ function resolveFallbackDir() {
   return path.join(__dirname, '../data/fallback');
 }
 
-let persistenceEnabled = true;
+let persistenceEnabled = isFallbackEnabled();
 const fallbackDir = resolveFallbackDir();
 
-try {
-  if (!fs.existsSync(fallbackDir)) {
-    fs.mkdirSync(fallbackDir, { recursive: true });
+if (fallbackDir && persistenceEnabled) {
+  try {
+    if (!fs.existsSync(fallbackDir)) {
+      fs.mkdirSync(fallbackDir, { recursive: true });
+    }
+  } catch (err) {
+    persistenceEnabled = false;
+    console.error(
+      `[FallbackStorage] Directory not writable (${fallbackDir}): ${err.message}. Running in in-memory mode.`
+    );
   }
-} catch (err) {
-  persistenceEnabled = false;
-  console.error(
-    `[FallbackStorage] Directory not writable (${fallbackDir}): ${err.message}. Running in in-memory mode.`
-  );
 }
 
 class FallbackStorage {
   constructor(collectionName) {
     this.collectionName = collectionName;
-    this.filePath = path.join(fallbackDir, `${collectionName}.json`);
+    this.filePath = fallbackDir ? path.join(fallbackDir, `${collectionName}.json`) : null;
     this.data = this._load();
   }
 
   _load() {
-    if (!persistenceEnabled) return [];
+    if (!persistenceEnabled || !this.filePath) return [];
     try {
       if (fs.existsSync(this.filePath)) {
         return JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
@@ -61,7 +73,7 @@ class FallbackStorage {
   }
 
   _save() {
-    if (!persistenceEnabled) return false; // in-memory only (serverless / read-only fs)
+    if (!persistenceEnabled || !this.filePath) return false; // in-memory only (serverless / read-only fs)
     try {
       fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
       return true;
@@ -72,10 +84,12 @@ class FallbackStorage {
   }
 
   findAll() {
+    if (!isFallbackEnabled()) return [];
     return [...this.data];
   }
 
   findOne(query) {
+    if (!isFallbackEnabled()) return null;
     if (query._id || query.id) {
       const id = query._id || query.id;
       return this.data.find(item => item._id === id || item.id === id) || null;
@@ -87,6 +101,7 @@ class FallbackStorage {
   }
 
   add(record) {
+    if (!isFallbackEnabled()) return null;
     const generatedId = record._id || record.id || `fb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newRecord = {
       ...record,
@@ -101,6 +116,7 @@ class FallbackStorage {
   }
 
   update(id, updates) {
+    if (!isFallbackEnabled()) return null;
     const index = this.data.findIndex(item => item._id === id || item.id === id);
     if (index === -1) return null;
     this.data[index] = { ...this.data[index], ...updates, updatedAt: new Date().toISOString() };
@@ -109,6 +125,7 @@ class FallbackStorage {
   }
 
   delete(id) {
+    if (!isFallbackEnabled()) return false;
     const len = this.data.length;
     this.data = this.data.filter(item => item._id !== id && item.id !== id);
     if (this.data.length < len) {
@@ -119,10 +136,12 @@ class FallbackStorage {
   }
 
   count() {
+    if (!isFallbackEnabled()) return 0;
     return this.data.length;
   }
 
   clear() {
+    if (!isFallbackEnabled()) return;
     this.data = [];
     this._save();
   }
@@ -132,15 +151,18 @@ export const fallbackOrders = new FallbackStorage('orders');
 export const fallbackEnquiries = new FallbackStorage('enquiries');
 
 export function hasFallbackData(collectionName) {
+  if (!isFallbackEnabled() || !fallbackDir) return false;
   const filePath = path.join(fallbackDir, `${collectionName}.json`);
   return fs.existsSync(filePath) && fs.statSync(filePath).size > 0;
 }
 
 export function getFallbackCount(collectionName) {
+  if (!isFallbackEnabled()) return 0;
   return new FallbackStorage(collectionName).count();
 }
 
 export function clearAllFallbackData() {
+  if (!isFallbackEnabled() || !fallbackDir) return false;
   try {
     if (fs.existsSync(fallbackDir)) {
       fs.rmSync(fallbackDir, { recursive: true, force: true });
