@@ -126,7 +126,9 @@ export const Contact = () => {
       {/* Reusable Enquiry Form */}
       <section className="py-20 sm:py-28 lg:py-32 bg-white" aria-label="Studio Consultation Inquiry">
         <div className="max-w-2xl mx-auto px-5 sm:px-8 lg:px-12">
-          <EnquiryForm />
+          <EnquiryForm 
+          subtitle="Have a question or an idea to share? Get in touch with us to discuss your requirements, explore our services, or learn more about Sabr Studio."
+          />
         </div>
       </section>
     </div>
