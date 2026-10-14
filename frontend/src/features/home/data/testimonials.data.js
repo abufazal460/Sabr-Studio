@@ -2,7 +2,7 @@ export const testimonialsData = [
   {
     id: 1,
     quote:
-      'Sabr Studio brought an astonishing level of peace to our residence in New Delhi. The way light moves across their lime-plastered walls throughout the afternoon is pure poetry.',
+      'I ordered a product from Sabr Studio and was really happy with the quality. It looks just as good as I expected, feels well made, and has become a part of my daily routine. Definitely a good experience.',
     author: 'Sunil & Gayatri Mehra',
     avatar:
       'https://res.cloudinary.com/nk6amlza/image/upload/v1791910271/sunil.png',
@@ -10,7 +10,7 @@ export const testimonialsData = [
   {
     id: 2,
     quote:
-      'Their obsession with joinery and tactile restraint transformed our flagship showroom into an unforgettable architectural experience. Every client remarks on the silence of the space.',
+      'I had a great experience working with Sabr Studio on my interior design project. The team understood what I wanted, communicated clearly, and handled the work professionally. I really liked their approach and attention to detail.',
     author: 'Vikramaditya Singhania',
     avatar:
       'https://res.cloudinary.com/nk6amlza/image/upload/v1791910276/Vikramaditya.png',
@@ -18,7 +18,7 @@ export const testimonialsData = [
   {
     id: 3,
     quote:
-      'Working with the studio felt like an unhurried artistic collaboration. The custom dining table and travertine fireplace they fabricated remain the soul of our home.',
+      'The product I purchased from Sabr Studio has a lovely design and a quality finish. It fits beautifully into my space, and I am happy with my purchase. The overall experience was smooth, and I would consider buying from them again.',
     author: 'Ananya & Rohan Kapoor',
     avatar:
       'https://res.cloudinary.com/nk6amlza/image/upload/v1791910272/ananya.png',
@@ -26,7 +26,7 @@ export const testimonialsData = [
   {
     id: 4,
     quote:
-      'Sabr Studio possesses a rare gift: the ability to strip away the unnecessary until only pure material elegance, perfect shadow lines, and stillness remain.',
+      'Sabr Studio made the interior design process much easier for us. They listened to our ideas, guided us through the options, and kept the work organised. We really appreciated their professional approach and are pleased with how everything came together.',
     author: 'Tarun Varma',
     avatar:
       'https://res.cloudinary.com/nk6amlza/image/upload/v1791910276/tarun_varma.png',

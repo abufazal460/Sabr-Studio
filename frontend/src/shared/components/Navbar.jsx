@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import useCustomer from '../hooks/useCustomer';
 import { Button } from './Button';
 import AuthModal from '../../features/checkout/components/AuthModal';
+import Logo from "../../assets/icons/brand-logo-navbar.svg"
 
 export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -24,7 +25,7 @@ export const Navbar = () => {
 
   const goAccount = (path) => { setUserMenuOpen(false); setMobileMenuOpen(false); navigate(path); };
   const openCustomerAuth = () => { setUserMenuOpen(false); setMobileMenuOpen(false); setAuthOpen(true); };
-  const handleCustomerLogout = async () => { setUserMenuOpen(false); setMobileMenuOpen(false); try { await logout(); } catch {} navigate('/'); };
+  const handleCustomerLogout = async () => { setUserMenuOpen(false); setMobileMenuOpen(false); try { await logout(); } catch { } navigate('/'); };
   // Logged-out -> open login modal. Logged-in (customer or admin) -> account menu.
   const handleUserIcon = () => {
     if (customerAuthed || isAuthenticated) setUserMenuOpen((v) => !v);
@@ -99,22 +100,29 @@ export const Navbar = () => {
 
   return (
     <header
-      className={`sticky top-0 z-50 bg-white transition-colors duration-200 ${
-        scrolled ? 'border-b border-border shadow-xs' : 'border-b border-transparent'
-      }`}
+      className={`sticky top-0 z-50 bg-white transition-colors duration-200 ${scrolled ? 'border-b border-border shadow-xs' : 'border-b border-transparent'
+        }`}
     >
       <div className="max-w-container-wide mx-auto px-4 sm:px-8 lg:px-12 h-16 sm:h-20 flex items-center justify-between">
         {/* Brand Lockup */}
         <motion.div {...enter(0)} className="shrink-0">
+
           <Link
             to="/"
-            className="flex items-center space-x-3 group focus:outline-none"
-            aria-label="Sabr Studio Home"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Sabr Studio home"
+            className="inline-flex items-center min-w-0 shrink"
           >
-            <span className="font-abhaya text-xl sm:text-2xl lg:text-3xl font-medium tracking-tight text-ink group-hover:opacity-80 transition-opacity">
-              Sabr Studio
-            </span>
+            <img
+              src={Logo}
+              alt="Sabr Studio"
+              className="block h-9 w-auto max-w-[180px] object-contain sm:h-10 sm:max-w-[200px]"
+              width="200"
+              height="40"
+              decoding="async"
+            />
           </Link>
+
         </motion.div>
 
         {/* Desktop Navigation */}
@@ -135,9 +143,8 @@ export const Navbar = () => {
                 onFocus={() => setHoveredIndex(index)}
                 onBlur={() => setHoveredIndex(null)}
                 aria-current={active ? 'page' : undefined}
-                className={`relative block rounded-md px-3 py-1.5 text-sm transition-colors duration-200 focus:outline-none whitespace-nowrap ${
-                  active ? 'font-semibold' : 'font-medium'
-                } ${isTarget ? 'text-white' : 'text-muted'}`}
+                className={`relative block rounded-md px-3 py-1.5 text-sm transition-colors duration-200 focus:outline-none whitespace-nowrap ${active ? 'font-semibold' : 'font-medium'
+                  } ${isTarget ? 'text-white' : 'text-muted'}`}
               >
                 {isTarget && (
                   <motion.span
@@ -294,11 +301,10 @@ export const Navbar = () => {
                       key={link.path}
                       to={link.path}
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`text-base sm:text-lg font-inter font-medium py-2.5 px-2 rounded-md transition-colors ${
-                        isActive(link.path)
+                      className={`text-base sm:text-lg font-inter font-medium py-2.5 px-2 rounded-md transition-colors ${isActive(link.path)
                           ? 'text-white font-semibold bg-white/10'
                           : 'text-white/70 hover:text-white hover:bg-white/5'
-                      }`}
+                        }`}
                     >
                       {link.name}
                     </Link>
