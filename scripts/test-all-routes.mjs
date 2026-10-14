@@ -718,18 +718,59 @@ async function runAudit() {
     }
 
     console.log('\n--- SECTION 12: PROTECTED MEDIA UPLOADS ---');
+    // Work 04: POST /api/admin/uploads is a real multipart upload.
+    // Without Cloudinary credentials configured it fails CLOSED with 503
+    // (never a fabricated URL), so either 201 or 503 proves the contract:
+    //   - 401 when unauthenticated (auth boundary)
+    //   - 503 UPLOAD_NOT_CONFIGURED when Cloudinary env is absent
+    //   - 201 {images:[{url,publicId}]} when it is configured
     await testRoute({
+      id: '34-neg',
+      group: 'Admin Uploads (Negative)',
+      method: 'POST',
+      path: '/api/admin/uploads',
+      body: {},
+      expectedStatus: 401,
+      reason: 'Unauthenticated upload must be rejected with 401 before any file handling',
+      requiresAuth: false,
+      useCookie: false,
+    });
+
+    const uploadRes = await testRoute({
       id: 34,
       group: 'Admin Uploads',
       method: 'POST',
       path: '/api/admin/uploads',
-      body: {
-        url: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
-      },
-      expectedStatus: 201,
-      reason: 'Uploads and processes media assets (201 Created)',
+      body: {},
+      expectedStatus: 503,
+      reason: 'Multipart upload: 503 UPLOAD_NOT_CONFIGURED without Cloudinary creds, or 201 when configured (never a fake URL)',
       requiresAuth: true,
     });
+    {
+      // Accept the configured path too, and never allow a false success.
+      const ok =
+        (uploadRes.status === 503 &&
+          uploadRes.body?.success === false &&
+          uploadRes.body?.code === 'UPLOAD_NOT_CONFIGURED') ||
+        (uploadRes.status === 201 && uploadRes.body?.success === true) ||
+        uploadRes.status === 400; // JSON body instead of multipart: still not a false success
+      const mark = ok ? ' PASS ' : ' FAIL ';
+      console.log(
+        `[${mark}] #34-strict POST /api/admin/uploads never-false-success | Actual: ${uploadRes.status} code=${uploadRes.body?.code || '-'}`
+      );
+      results.push({
+        id: '34-strict',
+        group: 'Admin Uploads (Strict)',
+        method: 'POST',
+        path: '/api/admin/uploads',
+        expectedStatus: 'strict',
+        actualStatus: uploadRes.status,
+        matched: ok,
+        duration: 0,
+        reason: 'Upload must never return a fabricated/placeholder image URL',
+        responseSummary: `status=${uploadRes.status} code=${uploadRes.body?.code || '-'}`,
+      });
+    }
 
     console.log('\n--- SECTION 13: LOGOUT & POST-LOGOUT PROTECTION ---');
     await testRoute({

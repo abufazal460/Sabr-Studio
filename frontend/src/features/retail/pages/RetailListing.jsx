@@ -106,9 +106,9 @@ export const RetailListing = () => {
           {/* Header — clip-reveal entry, mount-only like Projects heading */}
           <motion.div {...headingEnter} className="max-w-3xl mb-12">
             <SectionHeading
-              eyebrow="Editions & Objects"
-              title="Bespoke Furniture & Objects"
-              description="Studio-designed monolithic tables, sculptural lounge seating, and hand-thrown ceramic luminaires fabricated to order in our New Delhi workshop."
+              eyebrow="Shop the Collection"
+              title="Discover Furniture & Home Objects"
+              description="Explore our collection of thoughtfully designed furniture and home objects, created to bring character, function, and a considered finish to your space. Discover pieces you love and order directly through our shop.."
               as="h1"
             />
           </motion.div>

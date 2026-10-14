@@ -232,3 +232,140 @@ async function main() {
       `public_id=${last?.publicId}`
     );
   }
+  let createdSlug = null;
+  if (uploaded) {
+    const create = await request(base, 'POST', '/api/admin/projects', {
+      headers: auth,
+      body: {
+        title: 'Work 04 Upload Render Test',
+        category: 'Residential',
+        description: 'Verifies an uploaded Cloudinary image is stored and served publicly.',
+        coverImage: uploaded.url,
+        coverImagePublicId: uploaded.publicId,
+        images: [{ url: uploaded.url, publicId: uploaded.publicId }],
+        published: true,
+      },
+    });
+    createdSlug = create.body?.data?.slug;
+    check('3a create project -> 201', create.status === 201, `status ${create.status}`);
+    const pub = await request(base, 'GET', `/api/projects/${createdSlug}`);
+    const served = pub.body?.data;
+    check(
+      '3b public page serves uploaded image + publicId',
+      pub.status === 200 &&
+        served?.coverImage === uploaded.url &&
+        served?.images?.[0]?.publicId === uploaded.publicId,
+      `status ${pub.status} coverImage=${served?.coverImage ? 'set' : 'MISSING'} publicId=${served?.images?.[0]?.publicId || 'MISSING'}`
+    );
+  }
+
+  {
+    const mp = multipartFile('file', 'totally-safe.jpg', EXE_BYTES, 'image/jpeg', {
+      folder: 'projects',
+    });
+    const r = await request(base, 'POST', '/api/admin/uploads', { headers: auth, multipart: mp });
+    check(
+      '4 .exe renamed to .jpg -> 415',
+      r.status === 415 && r.body?.code === 'UPLOAD_INVALID_IMAGE',
+      `status ${r.status} code=${r.body?.code} msg="${r.body?.message || ''}"`
+    );
+  }
+
+  {
+    const big = Buffer.concat([TINY_JPEG, Buffer.alloc(5 * 1024 * 1024, 0x41)]);
+    const mp = multipartFile('file', 'huge.jpg', big, 'image/jpeg', { folder: 'projects' });
+    const r = await request(base, 'POST', '/api/admin/uploads', { headers: auth, multipart: mp });
+    check(
+      '5 over 4 MB -> 413',
+      r.status === 413 && r.body?.code === 'UPLOAD_TOO_LARGE',
+      `status ${r.status} code=${r.body?.code} msg="${r.body?.message || ''}"`
+    );
+  }
+
+  {
+    const mp = multipartFile('notfile', 'x.jpg', TINY_JPEG, 'image/jpeg');
+    const r = await request(base, 'POST', '/api/admin/uploads', { headers: auth, multipart: mp });
+    check('6 missing file field -> 400', r.status === 400, `status ${r.status} code=${r.body?.code}`);
+  }
+
+  {
+    const mp = multipartFile('file', 'notes.jpg', TINY_JPEG, 'text/plain', { folder: 'projects' });
+    const r = await request(base, 'POST', '/api/admin/uploads', { headers: auth, multipart: mp });
+    check('7 non-image MIME -> 415', r.status === 415, `status ${r.status} code=${r.body?.code}`);
+  }
+
+  {
+    const mp = multipartFile('file', 'chair.png', TINY_PNG, 'image/png', { folder: 'retail' });
+    const r = await request(base, 'POST', '/api/admin/uploads', { headers: auth, multipart: mp });
+    const last = mockUploads[mockUploads.length - 1];
+    check(
+      '7b folder=retail routes to sabrstudio/retail',
+      r.status === 201 && last?.folder === 'sabrstudio/retail',
+      `status ${r.status} folder=${last?.folder}`
+    );
+  }
+
+  {
+    const mp = multipartFile('file', 'a.jpg', TINY_JPEG, 'image/jpeg', { folder: '../../etc' });
+    const r = await request(base, 'POST', '/api/admin/uploads', { headers: auth, multipart: mp });
+    const last = mockUploads[mockUploads.length - 1];
+    check(
+      '7c path-traversal folder ignored -> sabrstudio/projects',
+      r.status === 201 && last?.folder === 'sabrstudio/projects',
+      `status ${r.status} folder=${last?.folder}`
+    );
+  }
+
+  if (createdSlug) {
+    failDelete = true;
+    const del = await request(base, 'DELETE', `/api/admin/projects/${createdSlug}`, { headers: auth });
+    check(
+      '8 delete still 200 when Cloudinary cleanup fails',
+      del.status === 200 && del.body?.success === true,
+      `status ${del.status} success=${del.body?.success}`
+    );
+    failDelete = false;
+  }
+  {
+    const second = spawnApp(APP_PORT + 1, {
+      CLOUDINARY_CLOUD_NAME: '',
+      CLOUDINARY_API_KEY: '',
+      CLOUDINARY_API_SECRET: '',
+      CLOUDINARY_URL: '',
+    });
+    spawned.push(second);
+    const base2 = `http://127.0.0.1:${APP_PORT + 1}`;
+    if (await waitForHealth(base2)) {
+      const c2 = await login(base2);
+      const mp = multipartFile('file', 'x.jpg', TINY_JPEG, 'image/jpeg', { folder: 'projects' });
+      const r = await request(base2, 'POST', '/api/admin/uploads', {
+        headers: { Cookie: c2 },
+        multipart: mp,
+      });
+      check(
+        '9 missing Cloudinary env -> 503, no fake URL',
+        r.status === 503 &&
+          r.body?.code === 'UPLOAD_NOT_CONFIGURED' &&
+          !r.raw.includes('unsplash'),
+        `status ${r.status} code=${r.body?.code}`
+      );
+    } else {
+      check('9 missing Cloudinary env -> 503', false, 'second instance never became healthy');
+    }
+    try { second.kill('SIGTERM'); } catch {}
+  }
+
+  const passed = results.filter((r) => r.ok).length;
+  console.log('\n' + '='.repeat(72));
+  console.log(`WORK 04 UPLOAD VERIFICATION: ${passed}/${results.length} checks passed`);
+  console.log('='.repeat(72));
+
+  for (const p of spawned) { try { p.kill('SIGTERM'); } catch {} }
+  mockCloudinary.close();
+  process.exit(passed === results.length ? 0 : 1);
+}
+
+main().catch((err) => {
+  console.error('Harness error:', err);
+  process.exit(1);
+});
