@@ -59,7 +59,7 @@ export const Services = () => {
               return (
                 <motion.div key={svc.id} {...revealItem(idx)} className="h-full">
                   <div
-                    className="h-full bg-white border border-border p-8 sm:p-10 rounded-md transition-all duration-250 ease-out hover:scale-[1.02] hover:shadow-hover group flex flex-col justify-between"
+                    className="h-full bg-white border border-border p-8 sm:p-10 rounded-md transition-all duration-250 ease-out hover:scale-[1.02] hover:shadow-hover hover:border-ink group flex flex-col justify-between"
                   >
                     <div className="space-y-6">
                       {/* Icon: 32px outline, scales to 1.1 on hover */}
