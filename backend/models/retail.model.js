@@ -41,6 +41,13 @@ const retailSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Cloudinary public_id of the primary product image (Work 04). Additive and
+    // optional: legacy documents that only have `image` stay fully readable.
+    imagePublicId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     price: {
       type: Number,
       required: [true, 'Price is required'],
@@ -49,6 +56,20 @@ const retailSchema = new mongoose.Schema(
     availability: {
       type: Boolean,
       default: true,
+    },
+    // Real inventory counter (Work 05). Migration-safe: existing documents that
+    // predate this field are treated as "untracked" and fall back to the
+    // `inStock` boolean instead of appearing out of stock. `inStock` is derived
+    // from this value whenever stock is present (see retail.service.js).
+    // `null` = legacy/untracked (no counter, boolean flag is authoritative).
+    stock: {
+      type: Number,
+      default: null,
+      min: [0, 'Stock cannot be negative'],
+      validate: {
+        validator: (v) => v === null || Number.isInteger(v),
+        message: 'Stock must be a whole number',
+      },
     },
     inStock: {
       type: Boolean,
@@ -75,6 +96,8 @@ const retailSchema = new mongoose.Schema(
 retailSchema.index({ category: 1 });
 retailSchema.index({ published: 1, availability: 1, createdAt: -1 });
 retailSchema.index({ category: 1, createdAt: -1 });
+// Supports low-stock / out-of-stock admin filters (Work 05).
+retailSchema.index({ stock: 1 });
 
 export const Retail = mongoose.models.Retail || mongoose.model('Retail', retailSchema);
 

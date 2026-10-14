@@ -27,6 +27,8 @@ export const TestimonialCard = ({ item }) => {
           src={avatarUrl}
           alt={item.author}
           loading="lazy"
+          width="40"
+          height="40"
           className="w-10 h-10 rounded-full object-cover border border-white/20 shrink-0"
         />
         <span className="font-inter text-sm font-semibold text-white">
@@ -63,7 +65,7 @@ export const TestimonialsSection = () => {
   return (
     <section
       className="py-14 sm:py-20 lg:py-24 bg-white border-b border-border overflow-hidden overflow-x-clip"
-      aria-label="Client Testimonials"
+      aria-label="Testimonials"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={() => setIsPaused(true)}
@@ -72,7 +74,7 @@ export const TestimonialsSection = () => {
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
         <motion.div {...fadeUpProps(reduce, 0, 20, 0.3)} className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
           <SectionHeading
-            eyebrow="Client Testimonials"
+            eyebrow="Testimonials"
             title="What Our Customers Say About Us"
             align="center"
           />

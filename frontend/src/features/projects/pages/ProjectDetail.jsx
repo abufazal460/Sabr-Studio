@@ -34,6 +34,8 @@ const ContentBlock = ({ block, projectTitle, index }) => {
           src={buildCloudinaryUrl(block.url, { width: 1400, height: 875 })}
           alt={`${projectTitle} — image ${index + 1}`}
           loading="lazy"
+          width="1400"
+          height="875"
           className="w-full h-full object-cover object-center"
         />
       </div>
@@ -160,6 +162,8 @@ export const ProjectDetail = () => {
                 alt={project.title}
                 loading="eager"
                 fetchpriority="high"
+                width="1800"
+                height="1012"
                 className="w-full h-full object-cover object-center"
               />
             </div>
@@ -198,6 +202,8 @@ export const ProjectDetail = () => {
                         src={buildCloudinaryUrl(imgUrl, { width: 1400, height: 875 })}
                         alt={`${project.title} detail photograph ${idx + 1}`}
                         loading="lazy"
+                        width="1400"
+                        height="875"
                         className="w-full h-full object-cover object-center"
                       />
                     </div>
@@ -218,7 +224,7 @@ export const ProjectDetail = () => {
       <section className="py-20 sm:py-28 lg:py-32 bg-white" aria-label="Commission Inquiry">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <EnquiryForm
-            title="Inquire About Similar Architecture"
+            // title="Inquire About Similar Architecture"
             subtitle={`Discuss commissioning an architectural or interior work inspired by ${project.title}.`}
           />
 

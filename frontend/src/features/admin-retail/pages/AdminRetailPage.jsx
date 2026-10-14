@@ -18,6 +18,12 @@ import {
 import adminApi from '../api/adminRetail.api';
 import { getProjects } from '../../projects/api/projects.api';
 import { formatPrice } from '../../../shared/utils/formatPrice';
+import {
+  ACCEPTED_IMAGE_TYPES,
+  describeUploadError,
+  uploadImagesSequentially,
+} from '../../../shared/utils/uploadImage';
+import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 import { Button } from '../../../shared/components/Button';
 import Badge from '../../../shared/components/Badge';
 import TextInput from '../../../shared/components/TextInput';
@@ -54,6 +60,8 @@ export const AdminDashboard = () => {
   const [togglingStockId, setTogglingStockId] = useState(null);
   const [togglingPublishId, setTogglingPublishId] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState('');
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
 
   // Category management (DB is the source of truth via /admin/retail/categories)
@@ -79,6 +87,7 @@ export const AdminDashboard = () => {
     customCategory: '',
     price: '',
     image: '',
+    imagePublicId: '',
     description: '',
     dimensions: '',
     materials: '',
@@ -211,6 +220,8 @@ export const AdminDashboard = () => {
       customCategory: isStandardCat ? '' : cat,
       price: item.price !== undefined && item.price !== null ? item.price : '',
       image: item.image || (Array.isArray(item.images) && item.images[0]?.url) || '',
+      imagePublicId:
+        item.imagePublicId || (Array.isArray(item.images) && item.images[0]?.publicId) || '',
       description: item.description || '',
       dimensions: item.dimensions || '',
       materials: item.materials || '',
@@ -249,7 +260,10 @@ export const AdminDashboard = () => {
       price: Number(retailForm.price),
       description: retailForm.description.trim(),
       image: retailForm.image?.trim() || '',
-      images: retailForm.image?.trim() ? [{ url: retailForm.image.trim(), publicId: '' }] : [],
+      imagePublicId: retailForm.imagePublicId?.trim() || '',
+      images: retailForm.image?.trim()
+        ? [{ url: retailForm.image.trim(), publicId: retailForm.imagePublicId?.trim() || '' }]
+        : [],
       dimensions: retailForm.dimensions?.trim() || '',
       materials: retailForm.materials?.trim() || '',
       inStock: Boolean(retailForm.inStock),
@@ -439,27 +453,37 @@ export const AdminDashboard = () => {
     }
   };
 
-  const handleImageUpload = (e) => {
+  /**
+   * Upload the product image to Cloudinary (Work 04).
+   * Sends real multipart/form-data to POST /admin/uploads with folder=retail,
+   * shows progress, and stores BOTH the delivery url and its publicId so the
+   * server can delete the old asset when this image is replaced.
+   */
+  const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUri = reader.result;
-      try {
-        setUploadingImage(true);
-        const res = await adminApi.uploadImage({ dataUri, filename: file.name });
-        const uploaded = res?.data?.images?.[0] || res?.images?.[0];
-        if (uploaded?.url) {
-          setRetailForm((prev) => ({ ...prev, image: uploaded.url }));
-        }
-      } catch (err) {
-        window.alert(err?.message || 'Failed to upload image.');
-      } finally {
-        setUploadingImage(false);
-      }
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file || uploadingImage) return;
+
+    setUploadError('');
+    setUploadingImage(true);
+    setUploadProgress(0);
+
+    const { uploaded, errors } = await uploadImagesSequentially([file], (f) =>
+      adminApi.uploadImage(f, { onUploadProgress: setUploadProgress })
+    );
+
+    const image = uploaded[0];
+    if (image) {
+      setRetailForm((prev) => ({
+        ...prev,
+        image: image.url,
+        imagePublicId: image.publicId || '',
+      }));
+    }
+    if (errors.length) setUploadError(errors.join(' '));
+
+    setUploadingImage(false);
+    setUploadProgress(0);
   };
 
   const handleUpdateEnquiryStatus = (id, newStatus) => {
@@ -1149,23 +1173,65 @@ export const AdminDashboard = () => {
                     id="ret-image"
                     label="Product Image URL"
                     value={retailForm.image}
-                    onChange={(e) => setRetailForm({ ...retailForm, image: e.target.value })}
-                    placeholder="https://images.unsplash.com/..."
+                    onChange={(e) =>
+                      setRetailForm({ ...retailForm, image: e.target.value, imagePublicId: '' })
+                    }
+                    placeholder="https://res.cloudinary.com/..."
                   />
-                  <div className="flex items-center space-x-2">
-                    <label className="inline-flex items-center space-x-1.5 px-3 py-1.5 border border-border bg-surface text-ink text-xs font-medium cursor-pointer hover:border-black transition-colors">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label
+                      className={`inline-flex items-center space-x-1.5 px-3 py-1.5 border border-border bg-surface text-ink text-xs font-medium transition-colors ${
+                        uploadingImage
+                          ? 'opacity-60 cursor-not-allowed'
+                          : 'cursor-pointer hover:border-black'
+                      }`}
+                    >
                       <LuUpload className="w-3.5 h-3.5" />
-                      <span>{uploadingImage ? 'Uploading...' : 'Upload Image'}</span>
+                      <span>
+                        {uploadingImage ? `Uploading… ${uploadProgress}%` : 'Upload Image'}
+                      </span>
                       <input
                         type="file"
-                        accept="image/*"
+                        accept={ACCEPTED_IMAGE_TYPES}
                         disabled={uploadingImage}
                         onChange={handleImageUpload}
                         className="hidden"
                       />
                     </label>
-                    <span className="text-[11px] text-muted">Or enter URL above</span>
+                    <span className="text-[11px] text-muted">
+                      JPG, PNG, WEBP or AVIF · max 4 MB
+                    </span>
                   </div>
+
+                  {uploadingImage ? (
+                    <div
+                      className="h-1 w-full bg-white border border-border"
+                      role="progressbar"
+                      aria-valuenow={uploadProgress}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div className="h-full bg-ink" style={{ width: `${uploadProgress}%` }} />
+                    </div>
+                  ) : null}
+
+                  {uploadError ? (
+                    <p className="text-[11px] text-error leading-relaxed" role="alert">
+                      {uploadError}
+                    </p>
+                  ) : null}
+
+                  {/* Preview after upload */}
+                  {buildCloudinaryUrl(retailForm.image, { width: 160, height: 160 }) ? (
+                    <div className="w-24 h-24 bg-surface border border-border overflow-hidden flex items-center justify-center">
+                      <img
+                        src={buildCloudinaryUrl(retailForm.image, { width: 160, height: 160 })}
+                        alt="Product image preview"
+                        className="w-full h-full object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

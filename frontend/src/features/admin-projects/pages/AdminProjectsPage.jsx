@@ -15,10 +15,17 @@ import {
   LuEyeOff,
   LuArrowUp,
   LuArrowDown,
+  LuUpload,
 } from 'react-icons/lu';
 import adminApi from '../api/adminProjects.api';
 import { getRetailProducts } from '../../retail/api/retail.api';
 import { formatPrice } from '../../../shared/utils/formatPrice';
+import {
+  ACCEPTED_IMAGE_TYPES,
+  describeUploadError,
+  uploadImagesSequentially,
+} from '../../../shared/utils/uploadImage';
+import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 import { Button } from '../../../shared/components/Button';
 import Badge from '../../../shared/components/Badge';
 import TextInput from '../../../shared/components/TextInput';
@@ -47,6 +54,8 @@ export const AdminDashboard = () => {
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [savingProject, setSavingProject] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState('');
   const [uploadingBlockIdx, setUploadingBlockIdx] = useState(null);
   const [deletingProjectId, setDeletingProjectId] = useState(null);
   const [retailModalOpen, setRetailModalOpen] = useState(false);
@@ -62,9 +71,13 @@ export const AdminDashboard = () => {
     shortDescription: '',
     description: '',
     coverImage: '',
+    coverImagePublicId: '',
     published: false,
     images: [],
     contentBlocks: [],
+    seoTitle: '',
+    seoDescription: '',
+    seoOgImage: '',
   };
 
   const [projectForm, setProjectForm] = useState(emptyProjectForm);
@@ -144,6 +157,7 @@ export const AdminDashboard = () => {
       description: cleanDesc,
       coverImage:
         projectForm.coverImage?.trim() || (usableImages[0] && usableImages[0].url) || '',
+      coverImagePublicId: projectForm.coverImagePublicId?.trim() || '',
       images: usableImages.map((img) => ({ url: img.url.trim(), publicId: img.publicId || '' })),
       gallery: usableImages.map((img) => img.url.trim()),
       contentBlocks: (projectForm.contentBlocks || []).map((block) => ({
@@ -152,6 +166,11 @@ export const AdminDashboard = () => {
         url: block.url || '',
       })),
       published: Boolean(projectForm.published),
+      seo: {
+        title: projectForm.seoTitle?.trim() || '',
+        description: projectForm.seoDescription?.trim() || '',
+        ogImage: projectForm.seoOgImage?.trim() || '',
+      },
     };
 
     setSavingProject(true);
@@ -207,11 +226,15 @@ export const AdminDashboard = () => {
         shortDescription: project.shortDescription || '',
         description: project.description || '',
         coverImage: project.coverImage || '',
+        coverImagePublicId: project.coverImagePublicId || '',
         published: Boolean(project.published),
         images: seededImages,
         contentBlocks: Array.isArray(project.contentBlocks)
           ? project.contentBlocks.map((block) => ({ ...block }))
           : [],
+        seoTitle: project.seo?.title || '',
+        seoDescription: project.seo?.description || '',
+        seoOgImage: project.seo?.ogImage || '',
       });
     } else {
       setEditingProjectId(null);
@@ -237,42 +260,77 @@ export const AdminDashboard = () => {
     }
   };
 
+  /**
+   * Upload one or more project images to Cloudinary (Work 04).
+   * Sends real multipart/form-data to POST /admin/uploads, shows progress,
+   * and appends every returned image (url + publicId) to the form so the
+   * public page can render it and the server can clean it up later.
+   */
+  const handleUploadImageFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length || uploadingImage) return;
+
+    setUploadError('');
+    setUploadingImage(true);
+    setUploadProgress(0);
+
+    const { uploaded, errors } = await uploadImagesSequentially(files, (file) =>
+      adminApi.uploadImage(file, {
+        folder: 'projects',
+        onUploadProgress: setUploadProgress,
+      })
+    );
+
+    if (uploaded.length) {
+      setProjectForm((f) => ({
+        ...f,
+        images: [...f.images, ...uploaded],
+        coverImage: f.coverImage || uploaded[0].url,
+        coverImagePublicId: f.coverImagePublicId || uploaded[0].publicId || '',
+      }));
+    }
+    if (errors.length) setUploadError(errors.join(' '));
+
+    setUploadingImage(false);
+    setUploadProgress(0);
+  };
+
+  /** Replace one existing gallery slot with a freshly uploaded image. */
   const handleUploadImageFile = async (e, targetIdx) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUri = reader.result;
-      try {
-        setUploadingImage(true);
-        const res = await adminApi.uploadImage({ dataUri, filename: file.name });
-        const uploaded = res?.data?.images?.[0] || res?.images?.[0];
-        if (uploaded?.url) {
-          if (targetIdx !== null && targetIdx !== undefined) {
-            setProjectForm((f) => ({
-              ...f,
-              images: f.images.map((img, i) =>
-                i === targetIdx ? { url: uploaded.url, publicId: uploaded.publicId || '' } : img
-              ),
-              coverImage: f.coverImage || uploaded.url,
-            }));
-          } else {
-            setProjectForm((f) => ({
-              ...f,
-              images: [...f.images, { url: uploaded.url, publicId: uploaded.publicId || '' }],
-              coverImage: f.coverImage || uploaded.url,
-            }));
-          }
-        }
-      } catch (err) {
-        window.alert(err?.response?.data?.message || err?.message || 'Failed to upload image.');
-      } finally {
-        setUploadingImage(false);
-      }
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file || uploadingImage) return;
+
+    setUploadError('');
+    setUploadingImage(true);
+    setUploadProgress(0);
+
+    const { uploaded, errors } = await uploadImagesSequentially([file], (f) =>
+      adminApi.uploadImage(f, {
+        folder: 'projects',
+        onUploadProgress: setUploadProgress,
+      })
+    );
+
+    const image = uploaded[0];
+    if (image) {
+      setProjectForm((f) => {
+        const wasCover = f.images[targetIdx]?.url === f.coverImage;
+        return {
+          ...f,
+          images: f.images.map((img, i) =>
+            i === targetIdx ? { url: image.url, publicId: image.publicId || '' } : img
+          ),
+          coverImage: wasCover ? image.url : f.coverImage,
+          coverImagePublicId: wasCover ? image.publicId || '' : f.coverImagePublicId,
+        };
+      });
+    }
+    if (errors.length) setUploadError(errors.join(' '));
+
+    setUploadingImage(false);
+    setUploadProgress(0);
   };
 
   const updateProjectImage = (idx, url) =>
@@ -334,26 +392,22 @@ export const AdminDashboard = () => {
 
   const handleUploadContentBlockImage = async (e, targetIdx) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUri = reader.result;
-      try {
-        setUploadingBlockIdx(targetIdx);
-        const res = await adminApi.uploadImage({ dataUri, filename: file.name });
-        const uploaded = res?.data?.images?.[0] || res?.images?.[0];
-        if (uploaded?.url) {
-          updateContentBlock(targetIdx, { url: uploaded.url });
-        }
-      } catch (err) {
-        window.alert(err?.message || 'Failed to upload image.');
-      } finally {
-        setUploadingBlockIdx(null);
-      }
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file || uploadingBlockIdx !== null) return;
+
+    setUploadError('');
+    setUploadingBlockIdx(targetIdx);
+
+    const { uploaded, errors } = await uploadImagesSequentially([file], (f) =>
+      adminApi.uploadImage(f, { folder: 'projects' })
+    );
+
+    if (uploaded[0]) {
+      updateContentBlock(targetIdx, { url: uploaded[0].url });
+    }
+    if (errors.length) setUploadError(errors.join(' '));
+
+    setUploadingBlockIdx(null);
   };
 
   const handleCreateRetail = async (e) => {
@@ -848,6 +902,8 @@ export const AdminDashboard = () => {
                 onClick={() => {
                   setProjectModalOpen(false);
                   setEditingProjectId(null);
+                  setUploadError('');
+                  setUploadProgress(0);
                 }}
                 className="p-1 text-muted hover:text-ink"
               >
@@ -927,45 +983,128 @@ export const AdminDashboard = () => {
                 <span className="text-xs uppercase tracking-wider font-medium text-muted block">
                   Project Images
                 </span>
-                {projectForm.images.map((img, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="proj-cover-select"
-                      checked={projectForm.coverImage === img.url && img.url !== ''}
-                      onChange={() => setProjectForm({ ...projectForm, coverImage: img.url })}
-                      title="Use as listing & hero image"
-                      className="w-4 h-4 accent-black shrink-0"
-                    />
-                    <TextInput
-                      value={img.url}
-                      onChange={(e) => updateProjectImage(idx, e.target.value)}
-                      placeholder="https://... image URL"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeProjectImage(idx)}
-                      className="p-1 text-muted hover:text-error transition-colors shrink-0"
-                      title="Remove image"
+
+                {/* Upload control: multiple files, real multipart upload, progress */}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label
+                      className={`inline-flex items-center gap-2 px-3 py-2 border border-border bg-white text-ink text-xs uppercase tracking-wider font-medium transition-colors ${
+                        uploadingImage
+                          ? 'opacity-60 cursor-not-allowed'
+                          : 'cursor-pointer hover:border-black'
+                      }`}
                     >
-                      <LuTrash2 className="w-4 h-4" />
-                    </button>
+                      <LuUpload className="w-3.5 h-3.5" />
+                      <span>
+                        {uploadingImage ? `Uploading… ${uploadProgress}%` : 'Upload images'}
+                      </span>
+                      <input
+                        type="file"
+                        accept={ACCEPTED_IMAGE_TYPES}
+                        multiple
+                        className="hidden"
+                        disabled={uploadingImage}
+                        onChange={handleUploadImageFiles}
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      variant="Secondary-Outline"
+                      size="sm"
+                      icon={LuPlus}
+                      iconPosition="left"
+                      label="Add URL"
+                      onClick={addProjectImage}
+                    />
                   </div>
-                ))}
-                <div className="flex items-center justify-between gap-3">
-                  <Button
-                    type="button"
-                    variant="Secondary-Outline"
-                    size="sm"
-                    icon={LuPlus}
-                    iconPosition="left"
-                    label="Add image"
-                    onClick={addProjectImage}
-                  />
-                  <span className="text-[11px] text-muted">
-                    Select the radio button to choose the listing & hero image.
-                  </span>
+
+                  {uploadingImage ? (
+                    <div
+                      className="h-1 w-full bg-surface border border-border"
+                      role="progressbar"
+                      aria-valuenow={uploadProgress}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div className="h-full bg-ink" style={{ width: `${uploadProgress}%` }} />
+                    </div>
+                  ) : null}
+
+                  {uploadError ? (
+                    <p className="text-[11px] text-error leading-relaxed" role="alert">
+                      {uploadError}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-muted">
+                      JPG, PNG, WEBP or AVIF · max 4 MB each. Images upload straight to Cloudinary.
+                    </p>
+                  )}
                 </div>
+
+                {projectForm.images.map((img, idx) => {
+                  const previewUrl = buildCloudinaryUrl(img.url, { width: 160, height: 160 });
+                  return (
+                    <div key={idx} className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        name="proj-cover-select"
+                        checked={projectForm.coverImage === img.url && img.url !== ''}
+                        onChange={() =>
+                          setProjectForm({
+                            ...projectForm,
+                            coverImage: img.url,
+                            coverImagePublicId: img.publicId || '',
+                          })
+                        }
+                        title="Use as listing & hero image"
+                        className="w-4 h-4 accent-black shrink-0 mt-2"
+                      />
+                      {/* Preview after upload */}
+                      <div className="w-14 h-14 shrink-0 bg-surface border border-border overflow-hidden flex items-center justify-center">
+                        {previewUrl ? (
+                          <img
+                            src={previewUrl}
+                            alt={`Project image ${idx + 1} preview`}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <TextInput
+                          value={img.url}
+                          onChange={(e) => updateProjectImage(idx, e.target.value)}
+                          placeholder="https://... image URL"
+                        />
+                        <label
+                          className={`inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-medium ${
+                            uploadingImage ? 'text-muted' : 'text-ink cursor-pointer hover:text-black'
+                          }`}
+                        >
+                          <span>{uploadingImage ? 'Uploading…' : 'Replace'}</span>
+                          <input
+                            type="file"
+                            accept={ACCEPTED_IMAGE_TYPES}
+                            className="hidden"
+                            disabled={uploadingImage}
+                            onChange={(e) => handleUploadImageFile(e, idx)}
+                          />
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeProjectImage(idx)}
+                        className="p-1 text-muted hover:text-error transition-colors shrink-0 mt-2"
+                        title="Remove image"
+                      >
+                        <LuTrash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+                <span className="text-[11px] text-muted block">
+                  Select the radio button to choose the listing &amp; hero image.
+                </span>
               </div>
 
               {/* Detail page content blocks editor */}
@@ -1033,10 +1172,16 @@ export const AdminDashboard = () => {
                           </div>
                         ) : null}
                         <div className="flex flex-wrap items-center gap-2">
-                          <label className="inline-flex items-center gap-2 px-3 py-2 border border-border bg-white text-ink text-xs uppercase tracking-wider font-medium hover:border-black transition-colors cursor-pointer">
+                          <label
+                            className={`inline-flex items-center gap-2 px-3 py-2 border border-border bg-white text-ink text-xs uppercase tracking-wider font-medium transition-colors ${
+                              uploadingBlockIdx === idx
+                                ? 'opacity-60 cursor-not-allowed'
+                                : 'cursor-pointer hover:border-black'
+                            }`}
+                          >
                             <input
                               type="file"
-                              accept="image/*"
+                              accept={ACCEPTED_IMAGE_TYPES}
                               className="hidden"
                               disabled={uploadingBlockIdx === idx}
                               onChange={(e) => handleUploadContentBlockImage(e, idx)}
@@ -1092,6 +1237,35 @@ export const AdminDashboard = () => {
                 </div>
               </div>
 
+              {/* SEO Settings */}
+              <div className="space-y-3 border-t border-border pt-4">
+                <span className="text-xs uppercase tracking-wider font-medium text-muted block">
+                  SEO & Social Sharing (Optional)
+                </span>
+                <TextInput
+                  id="proj-seo-title"
+                  label="SEO Title Tag"
+                  value={projectForm.seoTitle || ''}
+                  onChange={(e) => setProjectForm({ ...projectForm, seoTitle: e.target.value })}
+                  placeholder="e.g. Vasant Vihar Residence | Sabr Studio"
+                />
+                <TextArea
+                  id="proj-seo-desc"
+                  label="Meta Description"
+                  rows={2}
+                  value={projectForm.seoDescription || ''}
+                  onChange={(e) => setProjectForm({ ...projectForm, seoDescription: e.target.value })}
+                  placeholder="Summary for search results (approx 150-160 characters)..."
+                />
+                <TextInput
+                  id="proj-seo-og-image"
+                  label="Open Graph Image URL"
+                  value={projectForm.seoOgImage || ''}
+                  onChange={(e) => setProjectForm({ ...projectForm, seoOgImage: e.target.value })}
+                  placeholder="https://res.cloudinary.com/... or image URL"
+                />
+              </div>
+
               <div className="pt-2 flex justify-end space-x-3">
                 <Button
                   type="button"
@@ -1100,6 +1274,8 @@ export const AdminDashboard = () => {
                   onClick={() => {
                     setProjectModalOpen(false);
                     setEditingProjectId(null);
+                    setUploadError('');
+                    setUploadProgress(0);
                   }}
                 />
                 <Button type="submit" variant="Primary" label="Save Project" />

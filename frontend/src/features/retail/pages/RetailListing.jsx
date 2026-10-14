@@ -7,6 +7,11 @@ import Skeleton from '../../../shared/components/Skeleton';
 import EmptyState from '../../../shared/components/EmptyState';
 import ErrorState from '../../../shared/components/ErrorState';
 import Seo from '../../../shared/components/Seo';
+import { Button } from '../../../shared/components/Button';
+
+// Batch size for "Load more". Matches ProjectsListing behaviour.
+const BATCH_SIZE = 12;
+
 
 export const RetailListing = () => {
   const reduce = useReducedMotion();
@@ -15,6 +20,7 @@ export const RetailListing = () => {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
 
   // Derive category pills from the live catalog so newly created categories
   // appear publicly without a hardcoded list. 'All' is always first.
@@ -106,9 +112,9 @@ export const RetailListing = () => {
           {/* Header — clip-reveal entry, mount-only like Projects heading */}
           <motion.div {...headingEnter} className="max-w-3xl mb-12">
             <SectionHeading
-              eyebrow="Editions & Objects"
-              title="Bespoke Furniture & Objects"
-              description="Studio-designed monolithic tables, sculptural lounge seating, and hand-thrown ceramic luminaires fabricated to order in our New Delhi workshop."
+              eyebrow="Shop the Collection"
+              title="Discover Furniture & Home Objects"
+              description="Explore our collection of thoughtfully designed furniture and home objects, created to bring character, function, and a considered finish to your space. Discover pieces you love and order directly through our shop.."
               as="h1"
             />
           </motion.div>
@@ -174,11 +180,28 @@ export const RetailListing = () => {
               onAction={handleResetFilters}
             />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
-              {filteredProducts.map((product) => (
-                <ProductCard key={product.id || product.slug} product={product} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
+                {filteredProducts.slice(0, visibleCount).map((product) => (
+                  <ProductCard key={product.id || product.slug} product={product} />
+                ))}
+              </div>
+              {filteredProducts.length > visibleCount && (
+                <div className="flex justify-center pt-10 sm:pt-14">
+                  <Button
+                    variant="Secondary-Outline"
+                    label={visibleCount < filteredProducts.length ? 'Load more' : 'Show less'}
+                    onClick={() =>
+                      setVisibleCount((count) =>
+                        count < filteredProducts.length
+                          ? Math.min(filteredProducts.length, count + BATCH_SIZE)
+                          : BATCH_SIZE
+                      )
+                    }
+                  />
+                </div>
+              )}
+            </>
           )}
           </motion.div>
         </div>

@@ -4,6 +4,7 @@ import { homeHeroData } from '../data/homeHero.data';
 import { Button } from '../../../shared/components/Button';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { mountFadeProps } from '../../../shared/animations/reveal';
+import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 
 export const HeroSlider = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -67,10 +68,12 @@ export const HeroSlider = () => {
           {slides.map((slide, index) => (
             <div key={slide.id} className="relative h-full w-full shrink-0">
               <img
-                src={slide.image}
-                alt=""
+                src={buildCloudinaryUrl(slide.image, { width: 1920, height: 1080 })}
+                alt="Sabr Studio interior architecture showcase"
                 loading="eager"
                 fetchpriority={index === 0 ? 'high' : 'auto'}
+                width="1920"
+                height="1080"
                 className="w-full h-full object-cover object-center"
               />
             </div>

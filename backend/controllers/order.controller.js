@@ -32,15 +32,6 @@ export const orderController = {
       return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Payment verification failed' });
     }
   },
-  async verifyPaymentLegacy(req, res) {
-    try {
-      const result = await orderService.verifyPayment(req.body, null);
-      return res.status(200).json({ success: true, message: 'Payment verified successfully', data: result });
-    } catch (err) {
-      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Payment verification failed' });
-    }
-  },
-
   /**
    * List all orders (strictly admin-only)
    */

@@ -1,35 +1,43 @@
 import React, { useEffect } from 'react';
 
+const PRODUCTION_ORIGIN = 'https://sabrstudio.in';
+
 /**
- * Pure React document head SEO component (02-frontend.md §19)
- * Updates document.title, meta description, Open Graph tags, and canonical link per page.
+ * Pure React document head SEO component
+ * Updates document.title, meta description, Open Graph tags, canonical link, and robots per page.
  */
 export const Seo = ({
   title,
   description = 'Sabr Studio is an architecture, interior design, and bespoke furniture practice based in New Delhi.',
-  ogImage = '/assets/brand/sabr-logo-dark.svg',
+  ogImage = '/og-images/default-og-image.png',
+  image, // fallback alias
   ogType = 'website',
   canonicalUrl,
+  noIndex = false,
 }) => {
   const fullTitle = title
-    ? `${title} | Sabr Studio`
+    ? (title.includes('Sabr Studio') ? title : `${title} | Sabr Studio`)
     : 'Sabr Studio | Architecture & Interior Practice New Delhi';
+
+  const finalImage = ogImage || image || '/og-images/default-og-image.png';
 
   useEffect(() => {
     // 1. Document Title
     document.title = fullTitle;
 
-    // 2. Meta description
-    let metaDesc = document.querySelector('meta[name="description"]');
-    if (!metaDesc) {
-      metaDesc = document.createElement('meta');
-      metaDesc.name = 'description';
-      document.head.appendChild(metaDesc);
-    }
-    metaDesc.content = description;
+    // Helper for <meta name="..." content="...">
+    const updateOrCreateMetaByName = (name, content) => {
+      let tag = document.querySelector(`meta[name="${name}"]`);
+      if (!tag) {
+        tag = document.createElement('meta');
+        tag.setAttribute('name', name);
+        document.head.appendChild(tag);
+      }
+      tag.content = content;
+    };
 
-    // 3. Open Graph
-    const updateOrCreateMeta = (property, content) => {
+    // Helper for <meta property="..." content="...">
+    const updateOrCreateMetaByProperty = (property, content) => {
       let tag = document.querySelector(`meta[property="${property}"]`);
       if (!tag) {
         tag = document.createElement('meta');
@@ -39,24 +47,42 @@ export const Seo = ({
       tag.content = content;
     };
 
-    updateOrCreateMeta('og:title', fullTitle);
-    updateOrCreateMeta('og:description', description);
-    updateOrCreateMeta('og:type', ogType);
-    if (ogImage) {
-      updateOrCreateMeta('og:image', ogImage);
+    // 2. Meta description
+    updateOrCreateMetaByName('description', description);
+
+    // 3. Robots meta (noindex for admin / private pages)
+    updateOrCreateMetaByName('robots', noIndex ? 'noindex, nofollow' : 'index, follow');
+
+    // 4. Canonical URL (always https://sabrstudio.in/...)
+    let canonicalHref = canonicalUrl;
+    if (!canonicalHref) {
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+      canonicalHref = `${PRODUCTION_ORIGIN}${pathname === '/' ? '' : pathname}`;
+    } else if (canonicalHref.startsWith('/')) {
+      canonicalHref = `${PRODUCTION_ORIGIN}${canonicalHref}`;
     }
 
-    // 4. Canonical URL
-    if (canonicalUrl && typeof window !== 'undefined') {
-      let linkCanonical = document.querySelector('link[rel="canonical"]');
-      if (!linkCanonical) {
-        linkCanonical = document.createElement('link');
-        linkCanonical.rel = 'canonical';
-        document.head.appendChild(linkCanonical);
-      }
-      linkCanonical.href = canonicalUrl || window.location.href;
+    let linkCanonical = document.querySelector('link[rel="canonical"]');
+    if (!linkCanonical) {
+      linkCanonical = document.createElement('link');
+      linkCanonical.rel = 'canonical';
+      document.head.appendChild(linkCanonical);
     }
-  }, [fullTitle, description, ogImage, ogType, canonicalUrl]);
+    linkCanonical.href = canonicalHref;
+
+    // 5. Open Graph tags
+    updateOrCreateMetaByProperty('og:title', fullTitle);
+    updateOrCreateMetaByProperty('og:description', description);
+    updateOrCreateMetaByProperty('og:type', ogType);
+    updateOrCreateMetaByProperty('og:url', canonicalHref);
+
+    if (finalImage) {
+      const absoluteImageUrl = finalImage.startsWith('http')
+        ? finalImage
+        : `${PRODUCTION_ORIGIN}${finalImage.startsWith('/') ? '' : '/'}${finalImage}`;
+      updateOrCreateMetaByProperty('og:image', absoluteImageUrl);
+    }
+  }, [fullTitle, description, finalImage, ogType, canonicalUrl, noIndex]);
 
   return null;
 };

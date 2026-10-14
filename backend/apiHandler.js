@@ -9,6 +9,7 @@ import { projectController } from './controllers/project.controller.js';
 import { retailController } from './controllers/retail.controller.js';
 import { enquiryController } from './controllers/enquiry.controller.js';
 import { orderController } from './controllers/order.controller.js';
+import { uploadController } from './controllers/upload.controller.js';
 
 import { projectService } from './services/project.service.js';
 import { retailService } from './services/retail.service.js';
@@ -17,6 +18,7 @@ import { orderService } from './services/order.service.js';
 
 import { protect } from './middlewares/protect.middleware.js';
 import { protectCustomer } from './middlewares/protectCustomer.middleware.js';
+import { uploadImage } from './middlewares/upload.middleware.js';
 import { authLimiter, adminLimiter, generalLimiter, enquiryLimiter, customerRegisterLimiter, resetLimiter, checkoutLimiter, otpLimiter } from './middlewares/rateLimit.middleware.js';
 
 import { loginValidator } from './validators/auth.validator.js';
@@ -389,13 +391,11 @@ export default async function handleApiRequest(req, res) {
       });
     }
 
-    if ((path === '/api/checkout/verify' || path === '/api/orders/verify-legacy') && method === 'POST') {
-      return parseBody(() => {
-        return runMiddlewareChain([...verifyPaymentValidator], () => {
-          orderController.verifyPaymentLegacy(req, res);
-        });
-      });
-    }
+    // Work 05: the legacy verify routes `/api/checkout/verify` and
+    // `/api/orders/verify-legacy` were removed. They had no frontend callers
+    // (only the route harness) and were unauthenticated (SEC-008). Payment
+    // verification now happens exclusively on the authenticated
+    // `POST /api/orders/verify` (protectCustomer + ownership check).
 
     // 6. Admin Routes (guarded by adminLimiter + protect middleware)
     if (path.startsWith('/api/admin')) {
@@ -582,56 +582,14 @@ export default async function handleApiRequest(req, res) {
             return orderController.getAdminOrderById(req, res);
           }
 
-          // 6.6 Admin Cloudinary Upload Endpoint (06-features.md §5.7)
+          // 6.6 Admin Image Upload — real multipart upload to Cloudinary (Work 04).
+          // Guarded by adminLimiter + protect above. Multipart bodies are NOT read
+          // by parseBody (which would consume the stream as JSON); the upload
+          // middleware parses the file, validates MIME + magic bytes and hands a
+          // memory buffer to the controller, which streams it to Cloudinary.
           if (path === '/api/admin/uploads' && method === 'POST') {
-            return parseBody(async () => {
-              const uploadTarget = req.body?.dataUri || req.body?.image || req.body?.file;
-              if (!uploadTarget) {
-                return res.status(400).json({ success: false, message: 'No image data received.', code: 'UPLOAD_NO_DATA' });
-              }
-              if (
-                !process.env.CLOUDINARY_CLOUD_NAME ||
-                !process.env.CLOUDINARY_API_KEY ||
-                !process.env.CLOUDINARY_API_SECRET
-              ) {
-                // Never fabricate a successful upload (§9). Report the missing config.
-                return res.status(503).json({
-                  success: false,
-                  message: 'Image upload is not configured on the server (Cloudinary credentials missing).',
-                  code: 'UPLOAD_NOT_CONFIGURED',
-                });
-              }
-              try {
-                const { v2: cloudinary } = await import('cloudinary');
-                cloudinary.config({
-                  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-                  api_key: process.env.CLOUDINARY_API_KEY,
-                  api_secret: process.env.CLOUDINARY_API_SECRET,
-                });
-                const uploadRes = await cloudinary.uploader.upload(uploadTarget, {
-                  folder: 'sabr/projects',
-                  resource_type: 'auto',
-                });
-                return res.status(201).json({
-                  success: true,
-                  data: {
-                    images: [
-                      {
-                        url: uploadRes.secure_url,
-                        publicId: uploadRes.public_id,
-                      },
-                    ],
-                  },
-                });
-              } catch (cloudErr) {
-                // Log details server-side; return a sanitized error (no fake URL).
-                console.error('[Upload] Cloudinary upload error:', cloudErr.message);
-                return res.status(502).json({
-                  success: false,
-                  message: 'Image upload failed. Please try again.',
-                  code: 'UPLOAD_FAILED',
-                });
-              }
+            return runMiddlewareChain([uploadImage], () => {
+              uploadController.uploadImage(req, res);
             });
           }
 

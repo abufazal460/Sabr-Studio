@@ -14,20 +14,20 @@ export const Services = () => {
     reduce
       ? {}
       : {
-          initial: { opacity: 0, y: 20 },
-          whileInView: { opacity: 1, y: 0 },
-          viewport: { once: true, amount },
-          transition: { duration: 0.55, ease: 'easeOut' },
-        };
+        initial: { opacity: 0, y: 20 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, amount },
+        transition: { duration: 0.55, ease: 'easeOut' },
+      };
   const revealItem = (i, amount = 0.15) =>
     reduce
       ? {}
       : {
-          initial: { opacity: 0, y: 20 },
-          whileInView: { opacity: 1, y: 0 },
-          viewport: { once: true, amount },
-          transition: { duration: 0.5, ease: 'easeOut', delay: 0.07 * i },
-        };
+        initial: { opacity: 0, y: 20 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, amount },
+        transition: { duration: 0.5, ease: 'easeOut', delay: 0.07 * i },
+      };
 
   return (
     <div className="w-full bg-white">
@@ -58,27 +58,27 @@ export const Services = () => {
               const Icon = svc.icon;
               return (
                 <motion.div key={svc.id} {...revealItem(idx)} className="h-full">
-                <div
-                  className="h-full bg-white border border-border p-8 sm:p-10 rounded-md transition-all duration-250 ease-out hover:scale-[1.02] hover:shadow-hover group flex flex-col justify-between"
-                >
-                  <div className="space-y-6">
-                    {/* Icon: 32px outline, scales to 1.1 on hover */}
-                    <div className="w-14 h-14 rounded-sm bg-surface border border-border flex items-center justify-center text-ink transition-transform duration-200 group-hover:scale-110">
-                      <Icon className="w-8 h-8 stroke-[1.5]" />
-                    </div>
+                  <div
+                    className="h-full bg-white border border-border p-8 sm:p-10 rounded-md transition-all duration-250 ease-out hover:scale-[1.02] hover:shadow-hover hover:border-ink group flex flex-col justify-between"
+                  >
+                    <div className="space-y-6">
+                      {/* Icon: 32px outline, scales to 1.1 on hover */}
+                      <div className="w-14 h-14 rounded-sm bg-surface border border-border flex items-center justify-center text-ink transition-transform duration-200 group-hover:scale-110">
+                        <Icon className="w-8 h-8 stroke-[1.5]" />
+                      </div>
 
-                    <div className="space-y-3">
-                      {/* Title: Inter 600, uppercase per reference */}
-                      <h2 className="font-inter text-lg sm:text-xl font-semibold uppercase tracking-wider text-ink">
-                        {svc.title}
-                      </h2>
-                      {/* Description: Inter 400, color-muted, 2-line */}
-                      <p className="font-inter text-sm text-muted leading-relaxed">
-                        {svc.description}
-                      </p>
+                      <div className="space-y-3">
+                        {/* Title: Inter 600, uppercase per reference */}
+                        <h2 className="font-inter text-lg sm:text-xl font-semibold uppercase tracking-wider text-ink">
+                          {svc.title}
+                        </h2>
+                        {/* Description: Inter 400, color-muted, 2-line */}
+                        <p className="font-inter text-sm text-muted leading-relaxed">
+                          {svc.description}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
                 </motion.div>
               );
             })}
@@ -92,7 +92,7 @@ export const Services = () => {
           <motion.div {...reveal(0.15)}>
             <EnquiryForm
               title="Book a Studio Consultation"
-              subtitle="Tell us about your spatial requirements, whether private residence, commercial flagship, or custom furniture layout."
+              subtitle="Tell us about your space and what you have in mind. Whether you're planning a home, a commercial interior, or a furniture layout, we'd love to understand your requirements and discuss how we can help."
             />
           </motion.div>
         </div>

@@ -14,9 +14,9 @@ import {
 export const contactData = {
   header: {
     eyebrow: 'Get in Touch',
-    title: 'Keep In Touch',
+    title: "Let's Start a Conversation",
     description:
-      'Whether discussing an upcoming architectural commission, visiting our New Delhi workshop, or acquiring bespoke furniture, we welcome your conversation.',
+      "Have a project in mind, a question about our services, or an enquiry about our collection? We'd love to hear from you. Get in touch with Sabr Studio to discuss your ideas and requirements.",
   },
   infoCards: [
     {

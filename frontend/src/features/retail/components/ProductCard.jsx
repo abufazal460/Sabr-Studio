@@ -13,7 +13,8 @@ export const ProductCard = ({ product }) => {
   const reduce = useReducedMotion();
   const [justAdded, setJustAdded] = useState(false);
 
-  const imageUrl = buildCloudinaryUrl(product.image || product.images?.[0], {
+  const imageSource = product.image || product.images?.[0]?.url || product.images?.[0];
+  const imageUrl = buildCloudinaryUrl(imageSource, {
     width: 700,
     height: 700,
   });
@@ -40,6 +41,8 @@ export const ProductCard = ({ product }) => {
               src={imageUrl}
               alt={product.title}
               loading="lazy"
+              width="700"
+              height="700"
               whileHover={reduce ? undefined : { scale: 1.04 }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
               className="w-full h-full object-cover object-center will-change-transform motion-reduce:transform-none"

@@ -11,7 +11,7 @@ export const servicesData = {
   eyebrow: 'Studio Practice',
   title: 'Our Services',
   description:
-    'Six holistic disciplines covering spatial diagnosis, interior architecture, custom furniture, and contemplative material palettes.',
+    'Six holistic disciplines covering spatial diagnosis, residential and commercial interiors, 3D visualization, and material consultation. Explore all six services.',
   services: [
     {
       id: 'residential-interiors',

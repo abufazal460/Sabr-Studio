@@ -114,7 +114,9 @@ export const RetailDetail = () => {
       ? product.images
       : [product.image].filter(Boolean);
 
-  const mainImageUrl = buildCloudinaryUrl(selectedImage || product.image, {
+  const selectedSource =
+    typeof selectedImage === 'string' ? selectedImage : selectedImage?.url;
+  const mainImageUrl = buildCloudinaryUrl(selectedSource || product.image, {
     width: 900,
     height: 900,
   });
@@ -156,13 +158,17 @@ export const RetailDetail = () => {
             {/* Left: Main Image (aspect 1/1, cream/surface bg) + thumbnail strip */}
             <div className="lg:col-span-7 space-y-4">
               <div className="aspect-square bg-surface border border-border rounded-md overflow-hidden p-8 sm:p-12 flex items-center justify-center">
-                <img
-                  src={mainImageUrl}
-                  alt={product.title}
-                  loading="eager"
-                  fetchpriority="high"
-                  className="max-h-full max-w-full object-contain"
-                />
+                {mainImageUrl ? (
+                  <img
+                    src={mainImageUrl}
+                    alt={product.title}
+                    loading="eager"
+                    fetchpriority="high"
+                    width="900"
+                    height="900"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : null}
               </div>
 
               {/* Thumbnail Strip */}
@@ -170,7 +176,10 @@ export const RetailDetail = () => {
                 <div className="flex space-x-3 overflow-x-auto pb-2">
                   {imageGallery.map((img, idx) => {
                     const isSelected = img === selectedImage;
-                    const thumbUrl = buildCloudinaryUrl(img, { width: 160, height: 160 });
+                    const thumbUrl = buildCloudinaryUrl(
+                      typeof img === 'string' ? img : img?.url,
+                      { width: 160, height: 160 }
+                    );
                     return (
                       <button
                         key={idx}
@@ -182,11 +191,16 @@ export const RetailDetail = () => {
                             : 'border-border opacity-70 hover:opacity-100'
                         }`}
                       >
-                        <img
-                          src={thumbUrl}
-                          alt={`${product.title} thumb ${idx + 1}`}
-                          className="w-full h-full object-contain"
-                        />
+                        {thumbUrl ? (
+                          <img
+                            src={thumbUrl}
+                            alt={`${product.title} thumb ${idx + 1}`}
+                            width="160"
+                            height="160"
+                            className="w-full h-full object-contain"
+                            loading="lazy"
+                          />
+                        ) : null}
                       </button>
                     );
                   })}
