@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { LuInstagram, LuMail, LuPhone, LuMapPin } from 'react-icons/lu';
 import { FaWhatsapp, FaFacebookF, FaYoutube } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
+import footerLogo from "../../assets/icons/brand-logo-navbar.svg"
 
 export const Footer = () => {
   const reduceMotion = useReducedMotion();
@@ -14,17 +15,34 @@ export const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-12 lg:gap-16">
           {/* Column 1 — Brand & Studio Philosophy */}
           <div className="md:col-span-5 space-y-6">
-            <motion.span
-             initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+
+            <motion.div
+              initial={reduceMotion ? false : { opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={
-                reduceMotion ? { duration: 0 } : { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
+                reduceMotion
+                  ? { duration: 0 }
+                  : { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
               }
-              className="font-abhaya text-3xl sm:text-4xl text-white font-medium block"
+              className="flex items-center"
             >
-              Sabr Studio
-            </motion.span>
+              <Link
+                to="/"
+                aria-label="Sabr Studio home"
+                className="inline-flex items-center shrink-0 rounded-lg bg-white px-4 py-2.5 shadow-[0_2px_12px_rgba(255,255,255,0.12)] transition-shadow duration-300 hover:shadow-[0_4px_18px_rgba(255,255,255,0.2)]"
+              >
+                <img
+                  src={footerLogo}
+                  alt="Sabr Studio"
+                  className="block h-12 w-auto max-w-[200px] object-contain object-left sm:h-[52px] md:h-14"
+                  width="200"
+                  height="56"
+                  decoding="async"
+                />
+              </Link>
+            </motion.div>
+
             <p className="text-footer-muted text-sm leading-relaxed max-w-sm font-inter">
               A design studio blending natural textures, thoughtful layouts, and timeless furnishings to create meaningful spaces. From residential and commercial interiors to space planning, furniture layouts, 3D visualization, and material and colour consultation, every detail is shaped with purpose.
             </p>
