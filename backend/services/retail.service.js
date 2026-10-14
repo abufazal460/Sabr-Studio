@@ -2,7 +2,136 @@ import { Retail, RetailCategory, inMemoryRetail, inMemoryCategories } from '../m
 import { slugify } from './project.service.js';
 import { collectPublicIds, deleteAssets } from './cloudinary.service.js';
 
+/**
+ * Normalize an incoming stock value to a non-negative integer, or null when the
+ * caller intends "untracked" (legacy behaviour, no counter). Used by both
+ * create and update so admin input can never persist a fractional/negative
+ * counter.
+ */
+function normalizeStock(value) {
+  if (value === undefined || value === null) return null;
+  if (value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.round(n));
+}
+
 export const retailService = {
+  /**
+   * Normalize a product for API output: derive `inStock` from the real `stock`
+   * counter whenever stock is present, so the public API reflects inventory
+   * immediately. Legacy documents without a `stock` value keep their boolean.
+   */
+  _withDerivedStock(item) {
+    if (!item || typeof item !== 'object') return item;
+    if (item.stock === null || item.stock === undefined) {
+      // Legacy/untracked: keep the boolean authoritative.
+      return { ...item, inStock: item.inStock !== false && item.availability !== false };
+    }
+    const inStock = Number(item.stock) > 0;
+    return { ...item, stock: Number(item.stock), inStock, availability: inStock };
+  },
+
+  /**
+   * Atomically reserve stock for a set of retail line items.
+   *
+   * Each reservation is a conditional `findOneAndUpdate` with a `$gte` guard
+   * followed by `$inc`, so two concurrent checkouts can never drive stock below
+   * zero. Legacy products (stock === null) are untracked and always succeed.
+   * Returns { ok, reserved, failedItem } — on failure the caller must not
+   * create an order, and any already-reserved lines must be released.
+   */
+  async reserveStock(items = []) {
+    const lines = (items || []).filter((it) => it && it.itemType !== 'project');
+    const reserved = [];
+    for (const line of lines) {
+      const qty = Number(line.quantity) || 0;
+      const id = String(line.itemId || '').trim();
+      if (!id || qty < 1) continue;
+      const isMongoConnected = Retail.db?.readyState === 1;
+      if (isMongoConnected) {
+        let doc;
+        try {
+          doc = await Retail.findOneAndUpdate(
+            { _id: id, stock: { $ne: null, $gte: qty } },
+            { $inc: { stock: -qty } },
+            { new: true }
+          ).lean();
+        } catch (e) {
+          doc = null;
+        }
+        if (!doc) {
+          // Either not found, untracked, or not enough stock left.
+          const current = await Retail.findById(id).lean().catch(() => null);
+          if (!current) return { ok: false, reserved, failedItem: { id, name: line.name, reason: 'unavailable' } };
+          if (current.stock === null || current.stock === undefined) {
+            // Untracked legacy item — no counter to decrement.
+            continue;
+          }
+          return {
+            ok: false,
+            reserved,
+            failedItem: {
+              id,
+              name: current.title || line.name,
+              reason: 'out_of_stock',
+              available: Number(current.stock) || 0,
+            },
+          };
+        }
+        reserved.push({ id, quantity: qty });
+      } else {
+        const idx = inMemoryRetail.findIndex((r) => r.id === id || r._id === id || r.slug === id);
+        if (idx === -1) return { ok: false, reserved, failedItem: { id, name: line.name, reason: 'unavailable' } };
+        const rec = inMemoryRetail[idx];
+        if (rec.stock === null || rec.stock === undefined) continue; // untracked
+        const next = Number(rec.stock) - qty;
+        if (next < 0) {
+          return { ok: false, reserved, failedItem: { id, name: rec.title, reason: 'out_of_stock', available: Number(rec.stock) || 0 } };
+        }
+        rec.stock = next;
+        rec.inStock = next > 0;
+        rec.availability = next > 0;
+        rec.updatedAt = new Date();
+        reserved.push({ id, quantity: qty });
+      }
+    }
+    return { ok: true, reserved, failedItem: null };
+  },
+
+  /**
+   * Release previously reserved stock (best-effort). Used when a payment fails
+   * or an order is cancelled so inventory is never lost. Never throws.
+   */
+  async releaseStock(reservations = []) {
+    for (const res of reservations || []) {
+      const id = String(res.id || '').trim();
+      const qty = Number(res.quantity) || 0;
+      if (!id || qty < 1) continue;
+      const isMongoConnected = Retail.db?.readyState === 1;
+      try {
+        if (isMongoConnected) {
+          await Retail.updateOne(
+            { _id: id, stock: { $ne: null } },
+            [{ $set: { stock: { $add: ['$stock', qty] }, inStock: { $gt: [{ $add: ['$stock', qty] }, 0] }, availability: { $gt: [{ $add: ['$stock', qty] }, 0] } } }]
+          );
+        } else {
+          const idx = inMemoryRetail.findIndex((r) => r.id === id || r._id === id || r.slug === id);
+          if (idx !== -1) {
+            const rec = inMemoryRetail[idx];
+            if (rec.stock === null || rec.stock === undefined) continue;
+            rec.stock = Number(rec.stock) + qty;
+            rec.inStock = rec.stock > 0;
+            rec.availability = rec.stock > 0;
+            rec.updatedAt = new Date();
+          }
+        }
+      } catch (e) {
+        // Best-effort: cleanup must never break the caller.
+      }
+    }
+    return true;
+  },
   /**
    * Get public retail items (published only - in stock and out of stock are both shown)
    * References: DATABASE.md §2.2; prompts/06-features.md §4.3
@@ -26,7 +155,7 @@ export const retailService = {
         .sort({ createdAt: -1 })
         .lean();
       if (dbItems && dbItems.length) {
-        return dbItems.map((doc) => ({
+        return dbItems.map((doc) => this._withDerivedStock({
           ...doc,
           id: doc._id.toString(),
         }));
@@ -46,7 +175,7 @@ export const retailService = {
       );
     }
 
-    return items;
+    return items.map((item) => this._withDerivedStock(item));
   },
 
   /**
@@ -59,7 +188,7 @@ export const retailService = {
         $or: [{ slug }, { _id: slug.match(/^[0-9a-fA-F]{24}$/) ? slug : null }],
         published: true,
       }).lean();
-      if (item) return { ...item, id: item._id.toString() };
+      if (item) return this._withDerivedStock({ ...item, id: item._id.toString() });
     }
 
     const item = inMemoryRetail.find(
@@ -67,7 +196,7 @@ export const retailService = {
         (r.slug === slug || r.id === slug || r._id === slug) &&
         r.published === true
     );
-    return item || null;
+    return item ? this._withDerivedStock(item) : null;
   },
 
   /**
@@ -77,12 +206,12 @@ export const retailService = {
     const isMongoConnected = Retail.db?.readyState === 1;
     if (isMongoConnected) {
       const docs = await Retail.find().sort({ createdAt: -1 }).lean();
-      return docs.map((doc) => ({
+      return docs.map((doc) => this._withDerivedStock({
         ...doc,
         id: doc._id.toString(),
       }));
     }
-    return inMemoryRetail.map((item) => ({
+    return inMemoryRetail.map((item) => this._withDerivedStock({
       ...item,
       id: (item._id || item.id).toString(),
     }));
@@ -138,6 +267,11 @@ export const retailService = {
       imagePublicId: String(data.imagePublicId || '').trim(),
       dimensions: String(data.dimensions || '').trim(),
       materials: String(data.materials || '').trim(),
+      // Real inventory counter (Work 05). `stock` (integer >= 0) is the source
+      // of truth; `inStock`/`availability` are derived from it so the public
+      // API reflects it immediately. A null/omitted stock stays untracked
+      // (legacy behaviour driven purely by the inStock boolean).
+      stock: normalizeStock(data.stock),
       availability:
         data.availability !== undefined
           ? Boolean(data.availability)
@@ -152,12 +286,16 @@ export const retailService = {
           : true,
       published: Boolean(data.published),
     };
+    if (retailData.stock !== null) {
+      retailData.inStock = retailData.stock > 0;
+      retailData.availability = retailData.stock > 0;
+    }
 
     const isMongoConnected = Retail.db?.readyState === 1;
     if (isMongoConnected) {
       const doc = await Retail.create(retailData);
       const obj = doc.toObject();
-      return { ...obj, id: obj._id.toString() };
+      return this._withDerivedStock({ ...obj, id: obj._id.toString() });
     }
 
     const newItem = {
@@ -168,7 +306,7 @@ export const retailService = {
       updatedAt: new Date(),
     };
     inMemoryRetail.unshift(newItem);
-    return newItem;
+    return this._withDerivedStock(newItem);
   },
 
   /**
@@ -211,6 +349,18 @@ export const retailService = {
     if (updateData.inStock !== undefined) {
       allowedUpdates.inStock = Boolean(updateData.inStock);
     }
+    // Real inventory counter (Work 05). When the admin supplies `stock`, it
+    // becomes authoritative and `inStock`/`availability` are derived from it so
+    // the public API reflects the change immediately. An explicit boolean
+    // (stock toggle) is still honoured for legacy untracked products.
+    if (updateData.stock !== undefined) {
+      const stock = normalizeStock(updateData.stock);
+      allowedUpdates.stock = stock;
+      if (stock !== null) {
+        allowedUpdates.inStock = stock > 0;
+        allowedUpdates.availability = stock > 0;
+      }
+    }
     if (updateData.published !== undefined) {
       allowedUpdates.published = Boolean(updateData.published);
     }
@@ -242,7 +392,7 @@ export const retailService = {
       if (updated) {
         // Best-effort: cleanup never breaks the update (deleteAssets never throws).
         await cleanupReplacedAssets(previous, allowedUpdates);
-        return { ...updated, id: updated._id.toString() };
+        return this._withDerivedStock({ ...updated, id: updated._id.toString() });
       }
       return null;
     }
@@ -259,7 +409,10 @@ export const retailService = {
       updatedAt: new Date(),
     };
     await cleanupReplacedAssets(previous, allowedUpdates);
-    return { ...inMemoryRetail[index], id: inMemoryRetail[index]._id || inMemoryRetail[index].id };
+    return this._withDerivedStock({
+      ...inMemoryRetail[index],
+      id: inMemoryRetail[index]._id || inMemoryRetail[index].id,
+    });
   },
 
   /**

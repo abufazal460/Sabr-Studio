@@ -391,13 +391,11 @@ export default async function handleApiRequest(req, res) {
       });
     }
 
-    if ((path === '/api/checkout/verify' || path === '/api/orders/verify-legacy') && method === 'POST') {
-      return parseBody(() => {
-        return runMiddlewareChain([...verifyPaymentValidator], () => {
-          orderController.verifyPaymentLegacy(req, res);
-        });
-      });
-    }
+    // Work 05: the legacy verify routes `/api/checkout/verify` and
+    // `/api/orders/verify-legacy` were removed. They had no frontend callers
+    // (only the route harness) and were unauthenticated (SEC-008). Payment
+    // verification now happens exclusively on the authenticated
+    // `POST /api/orders/verify` (protectCustomer + ownership check).
 
     // 6. Admin Routes (guarded by adminLimiter + protect middleware)
     if (path.startsWith('/api/admin')) {

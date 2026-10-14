@@ -57,6 +57,20 @@ const retailSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Real inventory counter (Work 05). Migration-safe: existing documents that
+    // predate this field are treated as "untracked" and fall back to the
+    // `inStock` boolean instead of appearing out of stock. `inStock` is derived
+    // from this value whenever stock is present (see retail.service.js).
+    // `null` = legacy/untracked (no counter, boolean flag is authoritative).
+    stock: {
+      type: Number,
+      default: null,
+      min: [0, 'Stock cannot be negative'],
+      validate: {
+        validator: (v) => v === null || Number.isInteger(v),
+        message: 'Stock must be a whole number',
+      },
+    },
     inStock: {
       type: Boolean,
       default: true,
@@ -82,6 +96,8 @@ const retailSchema = new mongoose.Schema(
 retailSchema.index({ category: 1 });
 retailSchema.index({ published: 1, availability: 1, createdAt: -1 });
 retailSchema.index({ category: 1, createdAt: -1 });
+// Supports low-stock / out-of-stock admin filters (Work 05).
+retailSchema.index({ stock: 1 });
 
 export const Retail = mongoose.models.Retail || mongoose.model('Retail', retailSchema);
 
