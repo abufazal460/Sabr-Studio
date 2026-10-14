@@ -66,43 +66,7 @@ adminSchema.methods.comparePassword = async function (candidatePassword) {
 
 export const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 
-// In-memory store for fallback / local development when MongoDB Atlas is not connected
-export const inMemoryAdmins = [
-  {
-    _id: 'admin-1',
-    id: 'admin-1',
-    name: 'admin',
-    email: 'admin',
-    // Pre-hashed bcrypt hash for 'admin' (10 rounds)
-    password: '$2b$10$D/C9XXYbz02XVmcN/tZCmOLObxqhAXTUgseHC0WujNW41rrX6YBg6',
-    role: 'admin',
-    status: 'active',
-    lastLoginAt: null,
-    createdAt: new Date('2024-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2024-01-01T00:00:00.000Z'),
-  },
-  {
-    _id: 'admin-2',
-    id: 'admin-2',
-    name: 'Sabr Admin',
-    email: 'admin@sabrstudio.com',
-    password: '$2b$10$D/C9XXYbz02XVmcN/tZCmOLObxqhAXTUgseHC0WujNW41rrX6YBg6',
-    role: 'admin',
-    status: 'active',
-    lastLoginAt: null,
-    createdAt: new Date('2024-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2024-01-01T00:00:00.000Z'),
-  },
-  {
-    _id: 'admin-3',
-    id: 'admin-3',
-    name: 'Sabr Admin Example',
-    email: 'admin@sabrstudio.example',
-    password: '$2b$10$D/C9XXYbz02XVmcN/tZCmOLObxqhAXTUgseHC0WujNW41rrX6YBg6',
-    role: 'admin',
-    status: 'active',
-    lastLoginAt: null,
-    createdAt: new Date('2024-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2024-01-01T00:00:00.000Z'),
-  },
-];
+// In-memory store for fallback / local development when MongoDB Atlas is not connected.
+// Default-credential backdoors were removed: in production this array is strictly empty.
+// In non-production, an admin is created only via explicit environment configuration.
+export const inMemoryAdmins = [];

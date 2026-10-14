@@ -1,0 +1,69 @@
+name: SabrStudio CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-build:
+    name: Frontend install and production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        # The current committed frontend lockfile appears to contain a dependency
+        # (puppeteer) absent from frontend/package.json. Use npm install until the
+        # lockfile is reconciled; then switch this step to npm ci.
+        run: npm install --prefix frontend --include=dev --no-audit --no-fund
+
+      - name: Build frontend
+        run: npm run build --prefix frontend
+
+      - name: Verify Vite output
+        run: test -s frontend/dist/index.html
+
+  backend-static-checks:
+    name: Backend dependency install and syntax checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install backend dependencies
+        run: npm install --prefix backend --include=dev --no-audit --no-fund
+
+      - name: Check backend JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --check "$file"
+          done < <(find backend -type f -name '*.js' -not -path '*/node_modules/*' -print0)
+
+      - name: Verify backend entry point exists
+        run: test -s backend/dev.js && test -s backend/app.js

@@ -156,47 +156,33 @@ export const projectService = {
    */
   async updateProject(id, updateData) {
     const cleanId = String(id || '').trim();
-    // Slug is immutable post-publish per DATABASE.md §2.1
-    const { slug, _id, id: rawId, createdAt, ...allowedUpdates } = updateData;
-
-    if (allowedUpdates.title !== undefined) {
-      allowedUpdates.title = String(allowedUpdates.title).trim();
-    }
-    if (allowedUpdates.category !== undefined) {
-      allowedUpdates.category = String(allowedUpdates.category).trim();
-    }
-    if (allowedUpdates.location !== undefined) {
-      allowedUpdates.location = allowedUpdates.location ? String(allowedUpdates.location).trim() : null;
-    }
-    if (allowedUpdates.area !== undefined) {
-      allowedUpdates.area = allowedUpdates.area ? String(allowedUpdates.area).trim() : null;
-    }
-    if (allowedUpdates.shortDescription !== undefined) {
-      allowedUpdates.shortDescription = String(allowedUpdates.shortDescription).trim();
-    }
-    if (allowedUpdates.description !== undefined) {
-      allowedUpdates.description = String(allowedUpdates.description).trim();
-    }
-    if (allowedUpdates.year !== undefined && allowedUpdates.year !== null) {
-      allowedUpdates.year = Number(allowedUpdates.year);
-    }
-    if (allowedUpdates.price !== undefined && allowedUpdates.price !== null) {
-      allowedUpdates.price = Number(allowedUpdates.price);
-    }
-    if (allowedUpdates.published !== undefined) {
-      allowedUpdates.published = Boolean(allowedUpdates.published);
-    }
-    if (Array.isArray(allowedUpdates.images)) {
-      allowedUpdates.images = allowedUpdates.images.map((img) => ({
+    // Strict allow-list: client-sent role, amount, isPaid, paymentStatus, status, etc. are completely ignored
+    const allowedUpdates = {};
+    if (updateData.title !== undefined) allowedUpdates.title = String(updateData.title).trim();
+    if (updateData.category !== undefined) allowedUpdates.category = String(updateData.category).trim();
+    if (updateData.location !== undefined) allowedUpdates.location = updateData.location ? String(updateData.location).trim() : null;
+    if (updateData.area !== undefined) allowedUpdates.area = updateData.area ? String(updateData.area).trim() : null;
+    if (updateData.shortDescription !== undefined) allowedUpdates.shortDescription = String(updateData.shortDescription).trim();
+    if (updateData.description !== undefined) allowedUpdates.description = String(updateData.description).trim();
+    if (updateData.year !== undefined && updateData.year !== null) allowedUpdates.year = Number(updateData.year);
+    if (updateData.price !== undefined && updateData.price !== null) allowedUpdates.price = Number(updateData.price);
+    if (updateData.published !== undefined) allowedUpdates.published = Boolean(updateData.published);
+    if (updateData.featured !== undefined) allowedUpdates.featured = Boolean(updateData.featured);
+    if (updateData.coverImage !== undefined) allowedUpdates.coverImage = String(updateData.coverImage).trim();
+    if (Array.isArray(updateData.images)) {
+      allowedUpdates.images = updateData.images.map((img) => ({
         url: typeof img === 'string' ? img.trim() : String(img?.url || '').trim(),
         publicId: typeof img === 'string' ? '' : String(img?.publicId || '').trim(),
       }));
-      if (!allowedUpdates.gallery) {
+      if (updateData.gallery === undefined) {
         allowedUpdates.gallery = allowedUpdates.images.map((img) => img.url);
       }
     }
-    if (Array.isArray(allowedUpdates.contentBlocks)) {
-      allowedUpdates.contentBlocks = allowedUpdates.contentBlocks.map((block) => ({
+    if (Array.isArray(updateData.gallery)) {
+      allowedUpdates.gallery = updateData.gallery.map((g) => (typeof g === 'string' ? g : String(g?.url || '')));
+    }
+    if (Array.isArray(updateData.contentBlocks)) {
+      allowedUpdates.contentBlocks = updateData.contentBlocks.map((block) => ({
         type: block.type,
         text: block.text || '',
         url: block.url || '',

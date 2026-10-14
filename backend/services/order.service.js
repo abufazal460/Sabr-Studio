@@ -355,17 +355,17 @@ export const orderService = {
    * Rejects any attempt to write paymentStatus.
    */
   async updateOrderStatus(id, newOrderStatus, disallowedPayload = {}) {
-    if (disallowedPayload.paymentStatus !== undefined) {
+    if (disallowedPayload.paymentStatus !== undefined || disallowedPayload.isPaid !== undefined) {
       const err = new Error(
-        'Security policy violation: paymentStatus is system-controlled via Razorpay and cannot be modified by admin'
+        'Security policy violation: paymentStatus and isPaid are system-controlled via Razorpay and cannot be modified by admin'
       );
       err.statusCode = 403;
       throw err;
     }
 
-    if (disallowedPayload.amount !== undefined) {
+    if (disallowedPayload.amount !== undefined || disallowedPayload.price !== undefined || disallowedPayload.role !== undefined) {
       const err = new Error(
-        'Security policy violation: order amount is immutable and cannot be modified'
+        'Security policy violation: order amount, price, and role are immutable and cannot be modified'
       );
       err.statusCode = 403;
       throw err;

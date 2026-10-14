@@ -12,16 +12,19 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const [{ logger }, { checkEnv }, { default: app }, { connectDB }] = await Promise.all([
+if (!process.env.NODE_ENV) process.env.NODE_ENV = 'production';
+
+const [{ logger }, { validateEnv }, { default: app }, { connectDB }, { bootstrapAdmin }] = await Promise.all([
   import('./utils/logger.js'),
-  import('./utils/envCheck.js'),
+  import('./config/env.js'),
   import('./app.js'),
   import('./config/db.js'),
+  import('./services/auth.service.js'),
 ]);
 
 // Fail fast on missing production secrets (names only, values never printed).
-// Must run AFTER dotenv load + NODE_ENV default above, BEFORE listen/connect.
-checkEnv();
+// Must run BEFORE listen/connect.
+validateEnv();
 
 const PORT = parseInt(process.env.PORT, 10) ||
   parseInt(process.env.BACKEND_PORT, 10) || 3000;
@@ -29,16 +32,12 @@ const PORT = parseInt(process.env.PORT, 10) ||
 // safe default. HOST stays overridable but never silently becomes 'localhost'
 // (a localhost-only bind would make the app unreachable from the proxy).
 const HOST = process.env.HOST || undefined;
-// Hostinger does not guarantee NODE_ENV=production in the Node runtime env.
-// The same-domain SPA layer and the production DB fail-safe both key off it,
-// so default it here (explicit values always win). Local dev sets
-// NODE_ENV=development in backend/.env; Vercel sets it to production itself.
-if (!process.env.NODE_ENV) process.env.NODE_ENV = 'production';
 
 // Establish the DB connection before accepting traffic. In production the app
 // has a fail-safe guard that returns 503 (never in-memory/fake data) if Atlas is
 // unreachable, so we still listen to let /health report the real state.
 await connectDB();
+await bootstrapAdmin();
 
 const server = app.listen(PORT, HOST, () => {
   logger.info(`[Sabr Studio] Production server listening on ${HOST ? HOST + ':' : ''}${PORT} (NODE_ENV=${process.env.NODE_ENV || 'development'})`);

@@ -144,7 +144,7 @@ export const Footer = () => {
 
               <div className="flex items-center space-x-3">
                 <LuMail className="w-4 h-4 text-white shrink-0" />
-                <a href="mailto:contact@sabrstudio.com" className="hover:text-white transition-colors">
+                <a href="mailto:sabrstudio.design@gmail.com" className="hover:text-white transition-colors">
                   sabrstudio.design@gmail.com
                 </a>
               </div>

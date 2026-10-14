@@ -87,7 +87,7 @@ export const AdminLogin = () => {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@sabrstudio.com"
+            placeholder="admin@sabrstudio.in"
             autoComplete="username"
           />
 

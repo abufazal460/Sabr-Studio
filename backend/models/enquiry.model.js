@@ -69,8 +69,8 @@ enquirySchema.index({ status: 1, createdAt: -1 });
 
 export const Enquiry = mongoose.models.Enquiry || mongoose.model('Enquiry', enquirySchema);
 
-// In-memory store for fallback / preview mode
-export const inMemoryEnquiries = [
+// In-memory store for fallback / preview mode (strictly empty in production)
+export const inMemoryEnquiries = process.env.NODE_ENV === 'production' ? [] : [
   {
     _id: 'enq-1',
     id: 'enq-1',
