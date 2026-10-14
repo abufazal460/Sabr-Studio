@@ -13,7 +13,8 @@ export const ProductCard = ({ product }) => {
   const reduce = useReducedMotion();
   const [justAdded, setJustAdded] = useState(false);
 
-  const imageUrl = buildCloudinaryUrl(product.image || product.images?.[0], {
+  const imageSource = product.image || product.images?.[0]?.url || product.images?.[0];
+  const imageUrl = buildCloudinaryUrl(imageSource, {
     width: 700,
     height: 700,
   });

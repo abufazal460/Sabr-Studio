@@ -41,6 +41,13 @@ const retailSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Cloudinary public_id of the primary product image (Work 04). Additive and
+    // optional: legacy documents that only have `image` stay fully readable.
+    imagePublicId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     price: {
       type: Number,
       required: [true, 'Price is required'],

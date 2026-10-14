@@ -8,7 +8,8 @@ import { Button } from '../../../shared/components/Button';
 export const CartLineItem = ({ item }) => {
   const { updateQuantity, removeFromCart } = useCart();
 
-  const imageUrl = buildCloudinaryUrl(item.image || item.images?.[0] || item.coverImage, {
+  const imageSource = item.image || item.images?.[0]?.url || item.images?.[0] || item.coverImage;
+  const imageUrl = buildCloudinaryUrl(imageSource, {
     width: 160,
     height: 160,
   });
@@ -17,12 +18,14 @@ export const CartLineItem = ({ item }) => {
     <div className="flex flex-col xs:flex-row items-start gap-3 sm:gap-4 py-4 border-b border-border">
       {/* Product Image */}
       <div className="w-full xs:w-20 sm:w-24 h-28 xs:h-20 sm:h-24 bg-cream rounded-sm border border-border/60 overflow-hidden shrink-0 p-1 flex items-center justify-center">
-        <img
-          src={imageUrl}
-          alt={item.name || item.title}
-          className="w-full h-full object-contain"
-          loading="lazy"
-        />
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={item.name || item.title}
+            className="w-full h-full object-contain"
+            loading="lazy"
+          />
+        ) : null}
       </div>
 
       {/* Product Info + Controls */}

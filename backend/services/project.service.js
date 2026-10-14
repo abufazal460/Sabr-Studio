@@ -1,4 +1,5 @@
 import { Project, inMemoryProjects } from '../models/project.model.js';
+import { collectPublicIds, deleteAssets } from './cloudinary.service.js';
 
 /**
  * Generate URL-safe slug from title
@@ -123,6 +124,7 @@ export const projectService = {
         data.coverImage ||
         (Array.isArray(data.images) && (data.images[0]?.url || data.images[0])) ||
         '',
+      coverImagePublicId: String(data.coverImagePublicId || '').trim(),
       gallery: Array.isArray(data.gallery)
         ? data.gallery
         : Array.isArray(data.images)
@@ -169,6 +171,9 @@ export const projectService = {
     if (updateData.published !== undefined) allowedUpdates.published = Boolean(updateData.published);
     if (updateData.featured !== undefined) allowedUpdates.featured = Boolean(updateData.featured);
     if (updateData.coverImage !== undefined) allowedUpdates.coverImage = String(updateData.coverImage).trim();
+    if (updateData.coverImagePublicId !== undefined) {
+      allowedUpdates.coverImagePublicId = String(updateData.coverImagePublicId || '').trim();
+    }
     if (Array.isArray(updateData.images)) {
       allowedUpdates.images = updateData.images.map((img) => ({
         url: typeof img === 'string' ? img.trim() : String(img?.url || '').trim(),
@@ -189,14 +194,29 @@ export const projectService = {
       }));
     }
 
+    const nextImageIds = Array.isArray(allowedUpdates.images)
+      ? allowedUpdates.images.map((img) => img.publicId).filter(Boolean)
+      : null;
+    const nextCoverId =
+      allowedUpdates.coverImagePublicId !== undefined
+        ? String(allowedUpdates.coverImagePublicId).trim()
+        : null;
+
     const isMongoConnected = Project.db?.readyState === 1;
     if (isMongoConnected) {
-      const updated = await Project.findOneAndUpdate(
-        { $or: [{ _id: cleanId.match(/^[0-9a-fA-F]{24}$/) ? cleanId : null }, { slug: cleanId }] },
-        { $set: allowedUpdates },
-        { new: true, runValidators: true }
-      ).lean();
+      const filter = {
+        $or: [{ _id: cleanId.match(/^[0-9a-fA-F]{24}$/) ? cleanId : null }, { slug: cleanId }],
+      };
+      // Read the previous document first so replaced images can be cleaned up.
+      const previous = await Project.findOne(filter).lean();
+      const updated = await Project.findOneAndUpdate(filter, { $set: allowedUpdates }, {
+        new: true,
+        runValidators: true,
+      }).lean();
       if (updated) {
+        // Best-effort: an asset that is no longer referenced anywhere is deleted.
+        // A cleanup failure must never fail the update (deleteAssets never throws).
+        await cleanupReplacedAssets(previous, nextImageIds, nextCoverId);
         return { ...updated, id: updated._id.toString() };
       }
       return null;
@@ -207,16 +227,18 @@ export const projectService = {
     );
     if (index === -1) return null;
 
+    const previous = inMemoryProjects[index];
     inMemoryProjects[index] = {
       ...inMemoryProjects[index],
       ...allowedUpdates,
       updatedAt: new Date(),
     };
+    await cleanupReplacedAssets(previous, nextImageIds, nextCoverId);
     return inMemoryProjects[index];
   },
 
   /**
-   * Delete project (admin only)
+   * Delete Cloudinary assets (admin only)
    */
   async deleteProject(id) {
     const cleanId = String(id || '').trim();
@@ -225,18 +247,53 @@ export const projectService = {
       const doc = await Project.findOneAndDelete({
         $or: [{ _id: cleanId.match(/^[0-9a-fA-F]{24}$/) ? cleanId : null }, { slug: cleanId }],
       }).lean();
-      return !!doc;
+      if (!doc) return false;
+      // Best-effort media cleanup after the record is already gone.
+      await deleteAssets(collectPublicIds(doc));
+      return true;
     }
 
     const initialLength = inMemoryProjects.length;
+    const removed = inMemoryProjects.filter(
+      (p) => p.id === cleanId || p._id === cleanId || p.slug === cleanId
+    );
     const filtered = inMemoryProjects.filter(
       (p) => p.id !== cleanId && p._id !== cleanId && p.slug !== cleanId
     );
     if (filtered.length < initialLength) {
       inMemoryProjects.length = 0;
       inMemoryProjects.push(...filtered);
+      for (const doc of removed) await deleteAssets(collectPublicIds(doc));
       return true;
     }
     return false;
   },
 };
+
+/**
+ * Delete the Cloudinary assets a project update dropped. Only public IDs that
+ * existed before AND are absent from the new image list / new cover are removed,
+ * so reordering or re-saving never destroys a live asset. Never throws.
+ */
+async function cleanupReplacedAssets(previous, nextImageIds, nextCoverId) {
+  if (!previous) return { deleted: 0, failed: 0 };
+  // Only run when this update actually carried image data. A publish/stock
+  // toggle sends no images, and must never delete the existing assets.
+  if (!nextImageIds && nextCoverId === null) return { deleted: 0, failed: 0 };
+
+  const previousIds = collectPublicIds(previous);
+  if (!previousIds.length) return { deleted: 0, failed: 0 };
+
+  const kept = new Set(
+    [
+      ...(nextImageIds || []),
+      ...(nextCoverId ? [nextCoverId] : []),
+    ]
+      .map((id) => String(id || '').trim())
+      .filter(Boolean)
+  );
+
+  const staleIds = previousIds.filter((id) => !kept.has(id));
+  if (!staleIds.length) return { deleted: 0, failed: 0 };
+  return deleteAssets(staleIds);
+}

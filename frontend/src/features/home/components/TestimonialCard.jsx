@@ -63,7 +63,7 @@ export const TestimonialsSection = () => {
   return (
     <section
       className="py-14 sm:py-20 lg:py-24 bg-white border-b border-border overflow-hidden overflow-x-clip"
-      aria-label="Client Testimonials"
+      aria-label="Testimonials"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={() => setIsPaused(true)}
@@ -72,7 +72,7 @@ export const TestimonialsSection = () => {
       <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
         <motion.div {...fadeUpProps(reduce, 0, 20, 0.3)} className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
           <SectionHeading
-            eyebrow="Client Testimonials"
+            eyebrow="Testimonials"
             title="What Our Customers Say About Us"
             align="center"
           />

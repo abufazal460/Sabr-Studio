@@ -54,17 +54,21 @@ const ProjectThumb = ({ proj, reduce }) => {
       to={`/projects/${proj.slug}`}
       className="relative block aspect-[3/4] overflow-hidden bg-surface group"
     >
-      {/* Project image — subtle zoom on hover (desktop enhancement only) */}
-      <img
-        src={imageUrl}
-        alt={proj.title}
-        loading="lazy"
-        className={`w-full h-full object-cover object-center will-change-transform ${
-          reduce
-            ? ''
-            : 'transition-transform duration-300 ease-out motion-reduce:transition-none group-hover:scale-[1.03] motion-reduce:group-hover:scale-100'
-        }`}
-      />
+      {/* Project image — subtle zoom on hover (desktop enhancement only).
+          No placeholder URL is faked: a project without a cover image renders
+          the empty surface block instead of a stock photo. */}
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={proj.title}
+          loading="lazy"
+          className={`w-full h-full object-cover object-center will-change-transform ${
+            reduce
+              ? ''
+              : 'transition-transform duration-300 ease-out motion-reduce:transition-none group-hover:scale-[1.03] motion-reduce:group-hover:scale-100'
+          }`}
+        />
+      ) : null}
 
       {/* Center-expanding black overlay — scales from center on hover.
           GPU-composited via transform + opacity; essential text sits above it. */}

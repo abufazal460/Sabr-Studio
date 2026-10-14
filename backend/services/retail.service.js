@@ -1,5 +1,6 @@
 import { Retail, RetailCategory, inMemoryRetail, inMemoryCategories } from '../models/retail.model.js';
 import { slugify } from './project.service.js';
+import { collectPublicIds, deleteAssets } from './cloudinary.service.js';
 
 export const retailService = {
   /**
@@ -134,6 +135,7 @@ export const retailService = {
         String(data.image || '').trim() ||
         (Array.isArray(data.images) && data.images[0]?.url) ||
         '',
+      imagePublicId: String(data.imagePublicId || '').trim(),
       dimensions: String(data.dimensions || '').trim(),
       materials: String(data.materials || '').trim(),
       availability:
@@ -200,6 +202,9 @@ export const retailService = {
     if (updateData.image !== undefined) {
       allowedUpdates.image = String(updateData.image).trim();
     }
+    if (updateData.imagePublicId !== undefined) {
+      allowedUpdates.imagePublicId = String(updateData.imagePublicId || '').trim();
+    }
     if (updateData.availability !== undefined) {
       allowedUpdates.availability = Boolean(updateData.availability);
     }
@@ -227,12 +232,16 @@ export const retailService = {
     if (isMongoConnected) {
       const isObjectId = /^[0-9a-fA-F]{24}$/.test(cleanId);
       const filter = isObjectId ? { _id: cleanId } : { slug: cleanId };
+      // Read the previous document so a replaced image can be cleaned up.
+      const previous = await Retail.findOne(filter).lean();
       const updated = await Retail.findOneAndUpdate(
         filter,
         { $set: allowedUpdates },
         { new: true, runValidators: true }
       ).lean();
       if (updated) {
+        // Best-effort: cleanup never breaks the update (deleteAssets never throws).
+        await cleanupReplacedAssets(previous, allowedUpdates);
         return { ...updated, id: updated._id.toString() };
       }
       return null;
@@ -243,11 +252,13 @@ export const retailService = {
     );
     if (index === -1) return null;
 
+    const previous = inMemoryRetail[index];
     inMemoryRetail[index] = {
       ...inMemoryRetail[index],
       ...allowedUpdates,
       updatedAt: new Date(),
     };
+    await cleanupReplacedAssets(previous, allowedUpdates);
     return { ...inMemoryRetail[index], id: inMemoryRetail[index]._id || inMemoryRetail[index].id };
   },
 
@@ -264,16 +275,23 @@ export const retailService = {
       const isObjectId = /^[0-9a-fA-F]{24}$/.test(cleanId);
       const filter = isObjectId ? { _id: cleanId } : { slug: cleanId };
       const doc = await Retail.findOneAndDelete(filter).lean();
-      return !!doc;
+      if (!doc) return false;
+      // Best-effort media cleanup after the record is already gone.
+      await deleteAssets(collectPublicIds(doc));
+      return true;
     }
 
     const initialLength = inMemoryRetail.length;
+    const removed = inMemoryRetail.filter(
+      (r) => r.id === cleanId || r._id === cleanId || r.slug === cleanId
+    );
     const filtered = inMemoryRetail.filter(
       (r) => r.id !== cleanId && r._id !== cleanId && r.slug !== cleanId
     );
     if (filtered.length < initialLength) {
       inMemoryRetail.length = 0;
       inMemoryRetail.push(...filtered);
+      for (const doc of removed) await deleteAssets(collectPublicIds(doc));
       return true;
     }
     return false;
@@ -418,3 +436,36 @@ export const retailService = {
     };
   },
 };
+
+/**
+ * Delete the Cloudinary assets a retail update dropped (Work 04). Only public
+ * IDs that existed before and are absent from the update are removed, so a
+ * plain re-save or a stock toggle never destroys a live asset. Never throws.
+ */
+async function cleanupReplacedAssets(previous, allowedUpdates) {
+  if (!previous) return { deleted: 0, failed: 0 };
+  // Only run when this update actually carried image data. A stock/publish
+  // toggle sends no images, and must never delete the existing assets.
+  const sentImages = Array.isArray(allowedUpdates.images);
+  const sentImagePublicId = allowedUpdates.imagePublicId !== undefined;
+  if (!sentImages && !sentImagePublicId) return { deleted: 0, failed: 0 };
+
+  const previousIds = collectPublicIds(previous);
+  if (!previousIds.length) return { deleted: 0, failed: 0 };
+
+  const kept = new Set();
+  if (sentImages) {
+    allowedUpdates.images.forEach((img) => {
+      const id = String(img?.publicId || '').trim();
+      if (id) kept.add(id);
+    });
+  }
+  if (sentImagePublicId) {
+    const id = String(allowedUpdates.imagePublicId || '').trim();
+    if (id) kept.add(id);
+  }
+
+  const staleIds = previousIds.filter((id) => !kept.has(id));
+  if (!staleIds.length) return { deleted: 0, failed: 0 };
+  return deleteAssets(staleIds);
+}

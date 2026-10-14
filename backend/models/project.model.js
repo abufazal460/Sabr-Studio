@@ -75,6 +75,14 @@ const projectSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Cloudinary public_id of the cover image (Work 04). Legacy documents keep
+    // `coverImage` only and read back fine — this field is additive and optional,
+    // so it lets replace/delete clean up the old Cloudinary asset.
+    coverImagePublicId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     gallery: {
       type: [String],
       default: [],
