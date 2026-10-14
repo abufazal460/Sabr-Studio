@@ -73,12 +73,10 @@ export const Contact = () => {
                         <span className="block text-xs font-medium uppercase tracking-wider text-muted">
                           {card.title}
                         </span>
-
-                        <div className="w-full min-w-0 break-words [overflow-wrap:anywhere] text-base font-medium leading-snug text-ink transition-colors group-hover:text-black sm:text-lg xl:text-xl 2xl:text-2xl">
+                        <div className="w-full min-w-0 break-words text-base font-medium leading-snug text-ink transition-colors group-hover:text-black sm:text-lg xl:text-xl 2xl:text-2xl">
                           {card.primaryText}
                         </div>
-
-                        <p className="break-words [overflow-wrap:anywhere] text-xs leading-relaxed text-muted sm:text-sm">
+                        <p className="break-words text-xs leading-relaxed text-muted sm:text-sm">
                           {card.secondaryText}
                         </p>
                       </div>
