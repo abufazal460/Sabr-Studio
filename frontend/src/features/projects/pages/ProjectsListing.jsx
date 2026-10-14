@@ -88,7 +88,7 @@ export const ProjectsListing = () => {
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12 2xl:px-16">
           <motion.h1
             {...headingEnter}
-            className="font-inter font-bold text-5xl sm:text-6xl lg:text-7xl 2xl:text-8xl text-black text-center tracking-tight mb-10 sm:mb-14 lg:mb-16"
+            className="font-inter font-bold text-5xl sm:text-6xl lg:text-7xl 2xl:text-8xl  text-black text-center tracking-tight py-4 mb-10 sm:mb-12 lg:mb-14"
           >
             Projects
           </motion.h1>
