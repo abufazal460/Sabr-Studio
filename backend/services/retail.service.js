@@ -175,7 +175,16 @@ export const retailService = {
       );
     }
 
-    return items.map((item) => this._withDerivedStock(item));
+    let mappedItems = items.map((item) => this._withDerivedStock(item));
+
+    if (filter?.limit) {
+      const page = Math.max(1, parseInt(filter.page, 10) || 1);
+      const limit = Math.max(1, parseInt(filter.limit, 10));
+      const skip = (page - 1) * limit;
+      return mappedItems.slice(skip, skip + limit);
+    }
+
+    return mappedItems;
   },
 
   /**

@@ -100,6 +100,23 @@ const projectSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    seo: {
+      title: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      description: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      ogImage: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+    },
   },
   {
     timestamps: true,

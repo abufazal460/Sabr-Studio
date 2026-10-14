@@ -3,6 +3,7 @@ import { BrowserRouter, useLocation } from 'react-router-dom';
 import { CartProvider } from '../shared/context/CartContext';
 import { AuthProvider } from '../shared/context/AuthContext';
 import { CustomerProvider } from '../shared/context/CustomerContext';
+import { SmoothScrollProvider } from '../shared/hooks/useLenisScroll';
 import AppRouter from './AppRouter';
 
 function ScrollToTop() {
@@ -21,8 +22,10 @@ export default function App() {
       <AuthProvider>
         <CustomerProvider>
           <CartProvider>
-            <ScrollToTop />
-            <AppRouter />
+            <SmoothScrollProvider>
+              <ScrollToTop />
+              <AppRouter />
+            </SmoothScrollProvider>
           </CartProvider>
         </CustomerProvider>
       </AuthProvider>

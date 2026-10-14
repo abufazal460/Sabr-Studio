@@ -109,9 +109,11 @@ export default defineConfig({
             'react-router-dom'
           ],
 
-          'vendor-animation': [
-            'framer-motion',
-            'gsap',
+          'vendor-framer': [
+            'framer-motion'
+          ],
+
+          'vendor-lenis': [
             'lenis'
           ],
 

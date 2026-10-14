@@ -75,6 +75,9 @@ export const AdminDashboard = () => {
     published: false,
     images: [],
     contentBlocks: [],
+    seoTitle: '',
+    seoDescription: '',
+    seoOgImage: '',
   };
 
   const [projectForm, setProjectForm] = useState(emptyProjectForm);
@@ -163,6 +166,11 @@ export const AdminDashboard = () => {
         url: block.url || '',
       })),
       published: Boolean(projectForm.published),
+      seo: {
+        title: projectForm.seoTitle?.trim() || '',
+        description: projectForm.seoDescription?.trim() || '',
+        ogImage: projectForm.seoOgImage?.trim() || '',
+      },
     };
 
     setSavingProject(true);
@@ -224,6 +232,9 @@ export const AdminDashboard = () => {
         contentBlocks: Array.isArray(project.contentBlocks)
           ? project.contentBlocks.map((block) => ({ ...block }))
           : [],
+        seoTitle: project.seo?.title || '',
+        seoDescription: project.seo?.description || '',
+        seoOgImage: project.seo?.ogImage || '',
       });
     } else {
       setEditingProjectId(null);
@@ -1224,6 +1235,35 @@ export const AdminDashboard = () => {
                     onClick={addImageContentBlock}
                   />
                 </div>
+              </div>
+
+              {/* SEO Settings */}
+              <div className="space-y-3 border-t border-border pt-4">
+                <span className="text-xs uppercase tracking-wider font-medium text-muted block">
+                  SEO & Social Sharing (Optional)
+                </span>
+                <TextInput
+                  id="proj-seo-title"
+                  label="SEO Title Tag"
+                  value={projectForm.seoTitle || ''}
+                  onChange={(e) => setProjectForm({ ...projectForm, seoTitle: e.target.value })}
+                  placeholder="e.g. Vasant Vihar Residence | Sabr Studio"
+                />
+                <TextArea
+                  id="proj-seo-desc"
+                  label="Meta Description"
+                  rows={2}
+                  value={projectForm.seoDescription || ''}
+                  onChange={(e) => setProjectForm({ ...projectForm, seoDescription: e.target.value })}
+                  placeholder="Summary for search results (approx 150-160 characters)..."
+                />
+                <TextInput
+                  id="proj-seo-og-image"
+                  label="Open Graph Image URL"
+                  value={projectForm.seoOgImage || ''}
+                  onChange={(e) => setProjectForm({ ...projectForm, seoOgImage: e.target.value })}
+                  placeholder="https://res.cloudinary.com/... or image URL"
+                />
               </div>
 
               <div className="pt-2 flex justify-end space-x-3">

@@ -164,6 +164,8 @@ export const RetailDetail = () => {
                     alt={product.title}
                     loading="eager"
                     fetchpriority="high"
+                    width="900"
+                    height="900"
                     className="max-h-full max-w-full object-contain"
                   />
                 ) : null}
@@ -193,6 +195,8 @@ export const RetailDetail = () => {
                           <img
                             src={thumbUrl}
                             alt={`${product.title} thumb ${idx + 1}`}
+                            width="160"
+                            height="160"
                             className="w-full h-full object-contain"
                             loading="lazy"
                           />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LuFolderGit2,
@@ -25,6 +25,46 @@ import Select from '../../../shared/components/Select';
 import Skeleton from '../../../shared/components/Skeleton';
 import EmptyState from '../../../shared/components/EmptyState';
 import Seo from '../../../shared/components/Seo';
+
+const EnquiryRow = React.memo(({ enq, id, isDeleting, onUpdateStatus, onViewDetails, onDelete }) => (
+  <tr className="hover:bg-surface/50">
+    <td className="py-3 px-4 font-medium text-ink">{enq.name}</td>
+    <td className="py-3 px-4 text-muted">{enq.email}</td>
+    <td className="py-3 px-4 font-mono text-muted">{enq.phone}</td>
+    <td className="py-3 px-4 text-muted max-w-xs truncate">{enq.message || '—'}</td>
+    <td className="py-3 px-4">
+      <select
+        value={enq.status || 'new'}
+        onChange={(e) => onUpdateStatus(id, e.target.value)}
+        className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink"
+      >
+        <option value="new">New</option>
+        <option value="contacted">Contacted</option>
+        <option value="pending">Pending</option>
+      </select>
+    </td>
+    <td className="py-3 px-4 text-right whitespace-nowrap">
+      <button
+        type="button"
+        onClick={() => onViewDetails(enq)}
+        className="p-1 text-muted hover:text-ink transition-colors"
+        title="View enquiry details"
+      >
+        <LuEye className="w-4 h-4 inline" />
+      </button>
+      <button
+        type="button"
+        onClick={() => onDelete(id)}
+        disabled={isDeleting}
+        className="p-1 ml-1 text-muted hover:text-error transition-colors disabled:opacity-40"
+        title="Delete this enquiry permanently"
+      >
+        <LuTrash2 className="w-4 h-4 inline" />
+      </button>
+    </td>
+  </tr>
+));
+EnquiryRow.displayName = 'EnquiryRow';
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -72,7 +112,7 @@ export const AdminDashboard = () => {
     inStock: true,
   });
 
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
       const [projRes, retRes, enqRes, ordRes] = await Promise.allSettled([
@@ -99,11 +139,11 @@ export const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadAllData();
-  }, []);
+  }, [loadAllData]);
 
   const handleCreateProject = async (e) => {
     e.preventDefault();
@@ -178,7 +218,7 @@ export const AdminDashboard = () => {
   const getRecordId = (record) =>
     record?.id || record?._id?.toString?.() || record?._id || record?.orderNumber;
 
-  const handleUpdateEnquiryStatus = (id, newStatus) => {
+  const handleUpdateEnquiryStatus = useCallback((id, newStatus) => {
     const recordId = String(id || '').trim();
     if (!recordId || recordId === 'undefined') return;
     setEnquiries((prev) =>
@@ -189,7 +229,13 @@ export const AdminDashboard = () => {
     adminApi.updateEnquiryStatus(recordId, newStatus).catch(() => {
       loadAllData();
     });
-  };
+  }, [loadAllData]);
+
+  // Stable identity so memoized <EnquiryRow> does not re-render while the admin
+  // types in the search box (PERF-006 / Work 09 §6).
+  const handleViewEnquiry = useCallback((enq) => {
+    setViewEnquiryModal(enq);
+  }, []);
 
   // Friendly labels reuse the existing backend status enum (new / contacted / pending).
   // The select must send these exact values or the backend validator/service rejects the update.
@@ -224,7 +270,7 @@ export const AdminDashboard = () => {
     waiting: 'pending',
   };
 
-  const filteredEnquiries = enquiries.filter((enq) => {
+  const filteredEnquiries = useMemo(() => enquiries.filter((enq) => {
     if (enquiryStatusFilter !== 'all' && (enq.status || 'new') !== enquiryStatusFilter) return false;
     const q = enquirySearch.trim().toLowerCase();
     if (!q) return true;
@@ -239,10 +285,10 @@ export const AdminDashboard = () => {
     const qDigits = normalizeDigits(q);
     if (qDigits && normalizeDigits(enq.phone).includes(qDigits)) return true;
     return false;
-  });
+  }), [enquiries, enquiryStatusFilter, enquirySearch]);
 
   // Delete ONLY the selected enquiry by its unique ID (existing window.confirm pattern).
-  const handleDeleteEnquiry = async (id) => {
+  const handleDeleteEnquiry = useCallback(async (id) => {
     const recordId = String(id || '').trim();
     if (!recordId || recordId === 'undefined' || deletingEnquiryId) return;
     if (!window.confirm('Delete this enquiry permanently? This cannot be undone.')) return;
@@ -258,7 +304,7 @@ export const AdminDashboard = () => {
     } finally {
       setDeletingEnquiryId(null);
     }
-  };
+  }, [enquiries, deletingEnquiryId, loadAllData]);
 
   return (
     <div className="space-y-8">
@@ -553,46 +599,20 @@ export const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredEnquiries.map((enq) => (
-                    <tr key={getRecordId(enq)} className="hover:bg-surface/50">
-                      <td className="py-3 px-4 font-medium text-ink">{enq.name}</td>
-                      <td className="py-3 px-4 text-muted">{enq.email}</td>
-                      <td className="py-3 px-4 font-mono text-muted">{enq.phone}</td>
-                      <td className="py-3 px-4 text-muted max-w-xs truncate">
-                        {enq.message || '—'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={enq.status || 'new'}
-                          onChange={(e) => handleUpdateEnquiryStatus(getRecordId(enq), e.target.value)}
-                          className="text-xs border border-border bg-white px-2 py-1 rounded-none text-ink"
-                        >
-                          <option value="new">New</option>
-                          <option value="contacted">Contacted</option>
-                          <option value="pending">Pending</option>
-                        </select>
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => setViewEnquiryModal(enq)}
-                          className="p-1 text-muted hover:text-ink transition-colors"
-                          title="View enquiry details"
-                        >
-                          <LuEye className="w-4 h-4 inline" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteEnquiry(getRecordId(enq))}
-                          disabled={deletingEnquiryId === getRecordId(enq)}
-                          className="p-1 ml-1 text-muted hover:text-error transition-colors disabled:opacity-40"
-                          title="Delete this enquiry permanently"
-                        >
-                          <LuTrash2 className="w-4 h-4 inline" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredEnquiries.map((enq) => {
+                    const id = getRecordId(enq);
+                    return (
+                      <EnquiryRow
+                        key={id}
+                        enq={enq}
+                        id={id}
+                        isDeleting={deletingEnquiryId === id}
+                        onUpdateStatus={handleUpdateEnquiryStatus}
+                        onViewDetails={handleViewEnquiry}
+                        onDelete={handleDeleteEnquiry}
+                      />
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

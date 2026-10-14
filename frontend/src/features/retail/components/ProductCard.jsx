@@ -41,6 +41,8 @@ export const ProductCard = ({ product }) => {
               src={imageUrl}
               alt={product.title}
               loading="lazy"
+              width="700"
+              height="700"
               whileHover={reduce ? undefined : { scale: 1.04 }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
               className="w-full h-full object-cover object-center will-change-transform motion-reduce:transform-none"

@@ -19,6 +19,7 @@ export const projectService = {
    */
   async getPublicProjects(filter = {}) {
     const isMongoConnected = Project.db?.readyState === 1;
+    let items = [];
     if (isMongoConnected) {
       const query = { published: true };
       if (filter.category && filter.category !== 'All') {
@@ -27,16 +28,26 @@ export const projectService = {
       const dbItems = await Project.find(query).sort({ createdAt: -1 }).lean();
       // Fallback to in‑memory data if DB collection is empty
       if (Array.isArray(dbItems) && dbItems.length) {
-        return dbItems;
+        items = dbItems;
       }
     }
 
-    let items = inMemoryProjects.filter((p) => p.published);
-    if (filter.category && filter.category !== 'All') {
-      items = items.filter(
-        (p) => p.category?.toLowerCase() === filter.category.toLowerCase()
-      );
+    if (!items.length) {
+      items = inMemoryProjects.filter((p) => p.published);
+      if (filter.category && filter.category !== 'All') {
+        items = items.filter(
+          (p) => p.category?.toLowerCase() === filter.category.toLowerCase()
+        );
+      }
     }
+
+    if (filter.limit) {
+      const page = Math.max(1, parseInt(filter.page, 10) || 1);
+      const limit = Math.max(1, parseInt(filter.limit, 10));
+      const skip = (page - 1) * limit;
+      return items.slice(skip, skip + limit);
+    }
+
     return items;
   },
 
@@ -133,6 +144,11 @@ export const projectService = {
       price: data.price !== undefined && data.price !== null ? Number(data.price) : null,
       published: data.published !== undefined ? Boolean(data.published) : false,
       featured: Boolean(data.featured),
+      seo: {
+        title: String(data.seo?.title || '').trim(),
+        description: String(data.seo?.description || '').trim(),
+        ogImage: String(data.seo?.ogImage || '').trim(),
+      },
     };
 
     const isMongoConnected = Project.db?.readyState === 1;
@@ -192,6 +208,13 @@ export const projectService = {
         text: block.text || '',
         url: block.url || '',
       }));
+    }
+    if (updateData.seo !== undefined) {
+      allowedUpdates.seo = {
+        title: String(updateData.seo?.title || '').trim(),
+        description: String(updateData.seo?.description || '').trim(),
+        ogImage: String(updateData.seo?.ogImage || '').trim(),
+      };
     }
 
     const nextImageIds = Array.isArray(allowedUpdates.images)

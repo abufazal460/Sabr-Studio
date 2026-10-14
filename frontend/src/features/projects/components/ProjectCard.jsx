@@ -21,6 +21,8 @@ export const ProjectCard = ({ project }) => {
               src={imageUrl}
               alt={project.title}
               loading="lazy"
+              width="1000"
+              height="750"
               whileHover={reduce ? undefined : { scale: 1.04 }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
               className="w-full h-full object-cover object-center"

@@ -27,6 +27,8 @@ export const TestimonialCard = ({ item }) => {
           src={avatarUrl}
           alt={item.author}
           loading="lazy"
+          width="40"
+          height="40"
           className="w-10 h-10 rounded-full object-cover border border-white/20 shrink-0"
         />
         <span className="font-inter text-sm font-semibold text-white">

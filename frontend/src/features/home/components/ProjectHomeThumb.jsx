@@ -62,6 +62,8 @@ const ProjectThumb = ({ proj, reduce }) => {
           src={imageUrl}
           alt={proj.title}
           loading="lazy"
+          width="800"
+          height="1060"
           className={`w-full h-full object-cover object-center will-change-transform ${
             reduce
               ? ''

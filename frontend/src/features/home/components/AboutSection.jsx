@@ -31,6 +31,8 @@ export const AboutSection = () => {
                 src={founderPhotoUrl}
                 alt={founder.name}
                 loading="lazy"
+                width="800"
+                height="1000"
                 className="w-full h-full object-cover object-center transition-transform duration-300 ease-out motion-safe:hover:scale-105 motion-reduce:transition-none motion-reduce:hover:scale-100 will-change-transform"
               />
             </div>

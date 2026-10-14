@@ -5,9 +5,10 @@ import PublicLayout from '../shared/layouts/PublicLayout';
 import ProtectedRoute from './ProtectedRoute';
 import Skeleton from '../shared/components/Skeleton';
 import NotFoundState from '../shared/components/NotFoundState';
+import ErrorBoundary from '../shared/components/ErrorBoundary';
 
-// Public pages (Home eager, others lazy-loaded per PERF-03)
-import Home from '../features/home/pages/Home';
+// Public pages (All routes lazy-loaded for minimal initial bundle)
+const Home = lazy(() => import('../features/home/pages/Home'));
 const ProjectsListing = lazy(() => import('../features/projects/pages/ProjectsListing'));
 const ProjectDetail = lazy(() => import('../features/projects/pages/ProjectDetail'));
 const RetailListing = lazy(() => import('../features/retail/pages/RetailListing'));
@@ -21,6 +22,8 @@ const OrderSuccess = lazy(() => import('../features/orders/pages/OrderSuccess'))
 const OrdersList = lazy(() => import('../features/orders/pages/OrdersList'));
 const OrderDetail = lazy(() => import('../features/orders/pages/OrderDetail'));
 const Profile = lazy(() => import('../features/customer/pages/Profile'));
+const CustomerAuthPage = lazy(() => import('../features/customer/pages/CustomerAuthPage'));
+const NotFoundPage = lazy(() => import('../shared/components/NotFoundPage'));
 
 // Admin features lazy loaded per 02-frontend.md §6 (FE-31, PERF-03)
 const AdminLayout = lazy(() => import('../shared/layouts/AdminLayout'));
@@ -43,10 +46,18 @@ const PageFallback = () => (
 
 export const AppRouter = () => {
   return (
-    <Routes>
+    <ErrorBoundary>
+      <Routes>
       {/* Public Layout Routes */}
       <Route element={<PublicLayout />}>
-        <Route path="/" element={<Home />} />
+        <Route
+          path="/"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <Home />
+            </Suspense>
+          }
+        />
         <Route
           path="/projects"
           element={
@@ -152,16 +163,27 @@ export const AppRouter = () => {
           }
         />
         <Route
+          path="/login"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <CustomerAuthPage defaultMode="login" />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <CustomerAuthPage defaultMode="register" />
+            </Suspense>
+          }
+        />
+        <Route
           path="*"
           element={
-            <div className="py-24 max-w-container mx-auto px-5 sm:px-8">
-              <NotFoundState
-                title="Page Not Found"
-                message="The page you requested does not exist or has been relocated."
-                backTo="/"
-                backLabel="Return to Homepage"
-              />
-            </div>
+            <Suspense fallback={<PageFallback />}>
+              <NotFoundPage />
+            </Suspense>
           }
         />
       </Route>
@@ -229,6 +251,7 @@ export const AppRouter = () => {
         />
       </Route>
     </Routes>
+    </ErrorBoundary>
   );
 };
 

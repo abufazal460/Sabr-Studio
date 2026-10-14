@@ -3,6 +3,7 @@ import { motion, useReducedMotion, useScroll, useTransform, useSpring } from 'fr
 import { processData } from '../data/process.data';
 import SectionHeading from '../../../shared/components/SectionHeading';
 import { fadeUpProps } from '../../../shared/animations/reveal';
+import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
 
 export const ProcessStepPill = ({ step, isLeft }) => {
   return (
@@ -32,6 +33,7 @@ export const ProcessSection = () => {
   const reduce = useReducedMotion();
   const sectionRef = useRef(null);
   const { eyebrow, title, description, centerImage, steps } = processData;
+  const optimizedCenterImage = buildCloudinaryUrl(centerImage, { width: 800, height: 1000 });
   const leftSteps = steps.slice(0, 3);
   const rightSteps = steps.slice(3, 6);
 
@@ -86,9 +88,11 @@ export const ProcessSection = () => {
           >
             <div className="aspect-[4/5] w-full max-h-[70vh] rounded-md overflow-hidden bg-white border border-border p-3 shadow-xs">
               <img
-                src={centerImage}
+                src={optimizedCenterImage}
                 alt="Sabr Studio architectural spatial plan & diagram"
                 loading="lazy"
+                width="800"
+                height="1000"
                 className="w-full h-full object-cover grayscale opacity-90 rounded-sm"
               />
             </div>
@@ -111,9 +115,11 @@ export const ProcessSection = () => {
             className="max-w-md mx-auto aspect-video w-full rounded-md overflow-hidden bg-white border border-border p-2"
           >
             <img
-              src={centerImage}
+              src={optimizedCenterImage}
               alt="Sabr Studio architectural spatial plan & diagram"
               loading="lazy"
+              width="600"
+              height="338"
               className="w-full h-full object-cover grayscale opacity-90 rounded-sm"
             />
           </motion.div>
