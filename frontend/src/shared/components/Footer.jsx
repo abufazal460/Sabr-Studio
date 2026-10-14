@@ -26,11 +26,10 @@ export const Footer = () => {
               Sabr Studio
             </motion.span>
             <p className="text-footer-muted text-sm leading-relaxed max-w-sm font-inter">
-              An architectural and interior design studio crafting deliberate, quiet environments.
-              We balance tactile wabi-sabi textures with brutalist spatial clarity across residential, commercial, and retail commissions.
+              A design studio blending natural textures, thoughtful layouts, and timeless furnishings to create meaningful spaces. From residential and commercial interiors to space planning, furniture layouts, 3D visualization, and material and colour consultation, every detail is shaped with purpose.
             </p>
             <div className="pt-2 text-xs text-footer-muted uppercase tracking-wider font-inter">
-              New Delhi · Established 2012
+              New Delhi · Established 2017
             </div>
 
             {/* Social Icons with Platform Hover Brand Colors (UI-UX §41 & ANIMATION §8) */}
