@@ -154,8 +154,8 @@ export const ProjectsListing = () => {
       <section className="py-20 sm:py-28 lg:py-32 bg-white" aria-label="Project Commission Inquiry">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <EnquiryForm
-            title="Commission an Architectural Project"
-            subtitle="Connect with our design office to discuss site potentials, masterplanning, or interior spatial transformations."
+            title="Enquire About Your Project"
+            subtitle="Inspired by our work? Tell us about your space, your vision, and your requirements. Let's explore how we can bring your ideas to life."
           />
         </div>
       </section>

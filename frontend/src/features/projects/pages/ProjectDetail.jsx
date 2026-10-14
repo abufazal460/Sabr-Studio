@@ -218,7 +218,7 @@ export const ProjectDetail = () => {
       <section className="py-20 sm:py-28 lg:py-32 bg-white" aria-label="Commission Inquiry">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <EnquiryForm
-            title="Inquire About Similar Architecture"
+            // title="Inquire About Similar Architecture"
             subtitle={`Discuss commissioning an architectural or interior work inspired by ${project.title}.`}
           />
 
