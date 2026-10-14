@@ -91,14 +91,16 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
-// Composite indexes for admin order listing and filtering.
+// Indexes for performance, idempotency protection, and admin listing
+orderSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
+orderSchema.index({ user: 1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 
 export const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 
-// In-memory store for fallback / preview mode
-export const inMemoryOrders = [
+// In-memory store for fallback / preview mode (strictly empty in production)
+export const inMemoryOrders = process.env.NODE_ENV === 'production' ? [] : [
   {
     _id: 'ord-101',
     id: 'ord-101',

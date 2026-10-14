@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin/
 Disallow: /api/
 
-Sitemap: https://sabrstudio.com/sitemap.xml
+Sitemap: https://sabrstudio.in/sitemap.xml

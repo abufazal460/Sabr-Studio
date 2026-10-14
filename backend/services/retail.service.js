@@ -177,40 +177,40 @@ export const retailService = {
     if (!cleanId || cleanId === 'undefined' || cleanId === 'null') {
       return null;
     }
-    const { slug, _id, id: rawId, createdAt, ...allowedUpdates } = updateData;
-
-    if (allowedUpdates.price !== undefined && allowedUpdates.price !== null) {
-      allowedUpdates.price = Number(allowedUpdates.price);
+    // Strict allow-list: client-sent role, amount, isPaid, paymentStatus, status, etc. are completely ignored
+    const allowedUpdates = {};
+    if (updateData.price !== undefined && updateData.price !== null) {
+      allowedUpdates.price = Number(updateData.price);
     }
-    if (allowedUpdates.title !== undefined) {
-      allowedUpdates.title = String(allowedUpdates.title).trim();
+    if (updateData.title !== undefined) {
+      allowedUpdates.title = String(updateData.title).trim();
     }
-    if (allowedUpdates.category !== undefined) {
-      allowedUpdates.category = String(allowedUpdates.category).trim();
+    if (updateData.category !== undefined) {
+      allowedUpdates.category = String(updateData.category).trim();
     }
-    if (allowedUpdates.description !== undefined) {
-      allowedUpdates.description = String(allowedUpdates.description).trim();
+    if (updateData.description !== undefined) {
+      allowedUpdates.description = String(updateData.description).trim();
     }
-    if (allowedUpdates.dimensions !== undefined) {
-      allowedUpdates.dimensions = String(allowedUpdates.dimensions).trim();
+    if (updateData.dimensions !== undefined) {
+      allowedUpdates.dimensions = String(updateData.dimensions).trim();
     }
-    if (allowedUpdates.materials !== undefined) {
-      allowedUpdates.materials = String(allowedUpdates.materials).trim();
+    if (updateData.materials !== undefined) {
+      allowedUpdates.materials = String(updateData.materials).trim();
     }
-    if (allowedUpdates.image !== undefined) {
-      allowedUpdates.image = String(allowedUpdates.image).trim();
+    if (updateData.image !== undefined) {
+      allowedUpdates.image = String(updateData.image).trim();
     }
-    if (allowedUpdates.availability !== undefined) {
-      allowedUpdates.availability = Boolean(allowedUpdates.availability);
+    if (updateData.availability !== undefined) {
+      allowedUpdates.availability = Boolean(updateData.availability);
     }
-    if (allowedUpdates.inStock !== undefined) {
-      allowedUpdates.inStock = Boolean(allowedUpdates.inStock);
+    if (updateData.inStock !== undefined) {
+      allowedUpdates.inStock = Boolean(updateData.inStock);
     }
-    if (allowedUpdates.published !== undefined) {
-      allowedUpdates.published = Boolean(allowedUpdates.published);
+    if (updateData.published !== undefined) {
+      allowedUpdates.published = Boolean(updateData.published);
     }
-    if (Array.isArray(allowedUpdates.images)) {
-      allowedUpdates.images = allowedUpdates.images.map((img) => ({
+    if (Array.isArray(updateData.images)) {
+      allowedUpdates.images = updateData.images.map((img) => ({
         url: typeof img === 'string' ? img.trim() : String(img?.url || '').trim(),
         publicId: typeof img === 'string' ? '' : String(img?.publicId || '').trim(),
       }));

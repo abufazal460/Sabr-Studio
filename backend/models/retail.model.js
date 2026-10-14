@@ -72,6 +72,7 @@ const retailSchema = new mongoose.Schema(
   }
 );
 
+retailSchema.index({ category: 1 });
 retailSchema.index({ published: 1, availability: 1, createdAt: -1 });
 retailSchema.index({ category: 1, createdAt: -1 });
 
@@ -97,7 +98,7 @@ const retailCategorySchema = new mongoose.Schema(
 export const RetailCategory =
   mongoose.models.RetailCategory || mongoose.model('RetailCategory', retailCategorySchema);
 
-export const inMemoryCategories = [
+export const inMemoryCategories = process.env.NODE_ENV === 'production' ? [] : [
   'Chair',
   'Table',
   'Lighting',
@@ -107,8 +108,8 @@ export const inMemoryCategories = [
   'Objects',
 ];
 
-// In-memory store for fallback / preview mode
-export const inMemoryRetail = [
+// In-memory store for fallback / preview mode (strictly empty in production)
+export const inMemoryRetail = process.env.NODE_ENV === 'production' ? [] : [
   {
     _id: 'prod-1',
     id: 'prod-1',

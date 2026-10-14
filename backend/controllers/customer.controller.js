@@ -1,13 +1,13 @@
 import { customerService } from '../services/customer.service.js';
 import { verifyGoogleIdToken } from '../services/google.service.js';
-import { COOKIE_NAME, getCookieOptions, getClearCookieOptions } from '../utils/cookieOptions.js';
+import { COOKIE_NAME, getCustomerCookieOptions, getClearCookieOptions } from '../utils/cookieOptions.js';
 
 export const CUSTOMER_COOKIE = 'sabr_customer';
 
 function setCustomerCookie(res, token) {
-  const opts = getCookieOptions();
+  const opts = getCustomerCookieOptions();
   if (typeof res.cookie === 'function') res.cookie(CUSTOMER_COOKIE, token, opts);
-  else res.setHeader('Set-Cookie', `${CUSTOMER_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=${opts.sameSite}`);
+  else res.setHeader('Set-Cookie', `${CUSTOMER_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=${opts.sameSite}${opts.secure ? '; Secure' : ''}`);
 }
 
 class CustomerController {

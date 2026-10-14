@@ -5,18 +5,76 @@ import { Admin, inMemoryAdmins } from '../models/admin.model.js';
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
-  if (secret) return secret;
-  // Fail-closed: never sign/verify admin sessions with a public fallback in
-  // production — the dev literal lives in the (public) repo, so using it would
-  // let anyone forge admin tokens.
-  if (process.env.NODE_ENV === 'production') {
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[FATAL] JWT_SECRET is missing in production. Process exiting.');
+      process.exit(1);
+    }
     throw new Error('JWT_SECRET is not configured');
   }
-  return 'sabr_studio_dev_jwt_secret_key_8f7b2c9d1e4a5f6e';
+  if (process.env.NODE_ENV === 'production' && secret.length < 32) {
+    console.error('[FATAL] JWT_SECRET must be at least 32 characters long in production. Process exiting.');
+    process.exit(1);
+  }
+  return secret;
 }
 
 function getJwtExpiresIn() {
   return process.env.JWT_EXPIRES_IN || '24h';
+}
+
+/**
+ * Idempotent first-run admin bootstrap from approved environment variables.
+ * Uses ADMIN_EMAIL, ADMIN_PASSWORD, and ADMIN_NAME.
+ */
+export async function bootstrapAdmin() {
+  const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminName = process.env.ADMIN_NAME || 'sabrstudio';
+
+  if (!adminEmail || !adminPassword) {
+    return null;
+  }
+
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    try {
+      const count = await Admin.countDocuments({});
+      if (count === 0) {
+        const created = await Admin.create({
+          name: adminName,
+          email: adminEmail,
+          password: adminPassword, // hashed by the schema pre-save hook
+          role: 'admin',
+          status: 'active',
+        });
+        console.log(`[AuthService] Idempotent bootstrap created initial admin: ${adminEmail}`);
+        return created;
+      }
+    } catch (err) {
+      console.error('[AuthService] Error during admin bootstrap:', err.message);
+    }
+  } else if (process.env.NODE_ENV !== 'production') {
+    // Non-production in-memory fallback when Mongo is not connected
+    if (inMemoryAdmins.length === 0) {
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash(adminPassword, salt);
+      const devAdmin = {
+        _id: 'admin-dev',
+        id: 'admin-dev',
+        name: adminName,
+        email: adminEmail,
+        password: hash,
+        role: 'admin',
+        status: 'active',
+        lastLoginAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      inMemoryAdmins.push(devAdmin);
+      return devAdmin;
+    }
+  }
+  return null;
 }
 
 /**
@@ -58,6 +116,9 @@ class AuthService {
    */
   async loginAdmin(email, password) {
     const normalizedEmail = (email || '').toLowerCase().trim();
+    if (!normalizedEmail || !/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      return null;
+    }
     const isProd = process.env.NODE_ENV === 'production';
     let admin = null;
     let passwordHash = null;
@@ -74,70 +135,36 @@ class AuthService {
       }
     }
 
-    // 2. Fall back to in-memory store — NON-PRODUCTION ONLY. The in-memory
-    // accounts ship in this public repo with a known bcrypt hash ('admin'), so
-    // honoring them in production would be a default-credential backdoor (§8).
+    // 2. Fall back to in-memory store — NON-PRODUCTION ONLY.
     if (!admin && !isProd) {
-      const memAdmin = inMemoryAdmins.find(
-        (a) =>
-          a.email.toLowerCase() === normalizedEmail ||
-          (normalizedEmail === 'admin' && a.email.startsWith('admin')) ||
-          (normalizedEmail.startsWith('admin@') && a.email === 'admin')
-      );
+      const memAdmin = inMemoryAdmins.find((a) => a.email.toLowerCase() === normalizedEmail);
       if (memAdmin) {
         admin = memAdmin;
         passwordHash = memAdmin.password;
       }
     }
 
-    // 3. Production first-run bootstrap. The live Atlas cluster has no admin
-    // document yet, so without this the operator would be locked out. We create
-    // a REAL hashed admin only when (a) we're in production, (b) Mongo is
-    // connected, (c) the admins collection is empty, and (d) the caller
-    // presents the operator-set ADMIN_PASSWORD (an env secret, never a
-    // hardcoded default). The created admin's password is the bcrypt hash of
-    // ADMIN_PASSWORD, so later logins match naturally without any literal
-    // password comparison.
-    if (!admin && isProd && process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) {
-      const bootstrapEmail = (process.env.ADMIN_EMAIL || normalizedEmail || '').toLowerCase().trim();
-      const looksLikeEmail = /^\S+@\S+\.\S+$/.test(bootstrapEmail);
-      if (looksLikeEmail && mongoose.connection && mongoose.connection.readyState === 1) {
-        try {
-          const existing = await Admin.countDocuments({});
-          if (existing === 0) {
-            admin = await Admin.create({
-              name: process.env.ADMIN_NAME || 'Sabr Admin',
-              email: bootstrapEmail,
-              password, // hashed by the schema's pre-save hook
-              role: 'admin',
-              status: 'active',
-            });
-            passwordHash = admin.password;
-          }
-        } catch (err) {
-          console.error('[AuthService] Bootstrap admin creation failed:', err.message);
-          admin = null;
-          passwordHash = null;
+    // 3. First-run bootstrap if collection is empty
+    if (!admin && process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) {
+      const bootstrapEmail = (process.env.ADMIN_EMAIL || normalizedEmail).toLowerCase().trim();
+      if (bootstrapEmail === normalizedEmail) {
+        const bootstrapped = await bootstrapAdmin();
+        if (bootstrapped) {
+          admin = bootstrapped;
+          passwordHash = bootstrapped.password;
         }
       }
     }
 
-    // If no admin found, fail with null (controller will send generic 401)
+    // If no admin found, fail with null (controller sends generic 401)
     if (!admin || !passwordHash) {
       // Execute a dummy bcrypt compare to prevent timing side-channels
       await bcrypt.compare(password, '$2a$10$LuUvjIDZM37R/uP02T1CF.JWHBdhC9HdSmx.KpZoYyNvMGIKx6nvu');
       return null;
     }
 
-    // Check password using bcrypt against the stored hash.
-    let isMatch = await bcrypt.compare(password, passwordHash);
-    // Operator-set ADMIN_PASSWORD as a literal match is a NON-PRODUCTION
-    // convenience only. Hardcoded literal passwords were removed: they are a
-    // backdoor, and this repo is public — anyone could read them and log in as
-    // admin (§8, §14). In production the only path is a real bcrypt hash.
-    if (!isMatch && !isProd && process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) {
-      isMatch = true;
-    }
+    // Check password using bcrypt against the stored hash only
+    const isMatch = await bcrypt.compare(password, passwordHash);
     if (!isMatch) {
       return null;
     }

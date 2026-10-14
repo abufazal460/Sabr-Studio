@@ -20,11 +20,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * In production this is always false — the DB middleware returns 503 instead.
  */
 export function isFallbackEnabled() {
-  return process.env.NODE_ENV !== 'production';
+  // In production, fallback storage is disabled by default.
+  // Can only be enabled via explicit flag ENABLE_FALLBACK_STORAGE=true.
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.ENABLE_FALLBACK_STORAGE === 'true';
+  }
+  return process.env.ENABLE_FALLBACK_STORAGE !== 'false';
 }
 
 function resolveFallbackDir() {
-  // Production: never resolve a fallback directory
+  // Production policy: NEVER resolve a fallback directory or write to /tmp in production
+  if (process.env.NODE_ENV === 'production') return null;
   if (!isFallbackEnabled()) return null;
 
   if (process.env.FALLBACK_DIR) return process.env.FALLBACK_DIR;
@@ -37,7 +43,7 @@ function resolveFallbackDir() {
   return path.join(__dirname, '../data/fallback');
 }
 
-let persistenceEnabled = isFallbackEnabled();
+let persistenceEnabled = process.env.NODE_ENV !== 'production' && isFallbackEnabled();
 const fallbackDir = resolveFallbackDir();
 
 if (fallbackDir && persistenceEnabled) {
@@ -61,7 +67,7 @@ class FallbackStorage {
   }
 
   _load() {
-    if (!persistenceEnabled || !this.filePath) return [];
+    if (!persistenceEnabled || !this.filePath || process.env.NODE_ENV === 'production') return [];
     try {
       if (fs.existsSync(this.filePath)) {
         return JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
@@ -73,7 +79,7 @@ class FallbackStorage {
   }
 
   _save() {
-    if (!persistenceEnabled || !this.filePath) return false; // in-memory only (serverless / read-only fs)
+    if (process.env.NODE_ENV === 'production' || !persistenceEnabled || !this.filePath) return false;
     try {
       fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
       return true;

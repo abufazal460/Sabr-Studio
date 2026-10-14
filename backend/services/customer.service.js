@@ -8,12 +8,18 @@ import { sendOtpSms, isOtpProviderConfigured } from './otp.service.js';
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
-  if (secret) return secret;
-  // Fail-closed: never sign/verify customer sessions with a public fallback in production.
-  if (process.env.NODE_ENV === 'production') {
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[FATAL] JWT_SECRET is missing in production. Process exiting.');
+      process.exit(1);
+    }
     throw new Error('JWT_SECRET is not configured');
   }
-  return 'sabr_studio_dev_jwt_secret_key_8f7b2c9d1e4a5f6e';
+  if (process.env.NODE_ENV === 'production' && secret.length < 32) {
+    console.error('[FATAL] JWT_SECRET must be at least 32 characters long in production. Process exiting.');
+    process.exit(1);
+  }
+  return secret;
 }
 function getJwtExpiresIn() {
   return process.env.JWT_EXPIRES_IN || '30d';

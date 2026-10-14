@@ -90,7 +90,7 @@ export async function sendEnquiryEmail({ name, phone, email, projectType, messag
     process.env.EMAILJS_ORIGIN ||
     process.env.APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-    'https://sabr-studio.vercel.app';
+    'https://sabrstudio.in';
 
   const cleanName = String(name || '').trim();
   const cleanProjectType = String(projectType || '').trim();

@@ -35,7 +35,15 @@ export async function connectDB() {
     return null;
   }
 
-  if (cached.conn) return cached.conn;
+  // Reuse existing active connection on warm instances
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  // Globally disable autoIndex in production to prevent background index builds
+  if (isProd()) {
+    mongoose.set('autoIndex', false);
+  }
 
   if (!cached.promise) {
     cached.promise = (async () => {
@@ -44,14 +52,16 @@ export async function connectDB() {
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
           const conn = await mongoose.connect(uri, {
-            bufferCommands: !isProd(), // In production, fail fast rather than buffering
-            autoIndex: !isProd(),      // Disable autoIndex in production
+            bufferCommands: false, // In production, fail fast rather than buffering queries
+            autoIndex: !isProd(),  // Disable autoIndex in production
+            serverSelectionTimeoutMS: 5000,
+            connectTimeoutMS: 10000,
           });
           console.log('[db] MongoDB connected.');
           return conn;
         } catch (err) {
           lastErr = err;
-          // Never log the URI or any part of it — only the error message
+          // Never log the URI or any credentials — only the sanitized error message
           console.error(`[db] MongoDB connection attempt ${attempt}/${MAX_RETRIES} failed:`, err.message);
           if (attempt < MAX_RETRIES) {
             await sleep(RETRY_DELAY_MS * attempt);

@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://sabrstudio.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://sabrstudio.com/projects</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://sabrstudio.com/retail</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://sabrstudio.com/services</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://sabrstudio.com/about</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://sabrstudio.com/contact</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <!-- Core Public Routes -->
+  <url><loc>https://sabrstudio.in/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://sabrstudio.in/projects</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sabrstudio.in/retail</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sabrstudio.in/services</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sabrstudio.in/about</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sabrstudio.in/contact</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Project Slugs -->
+  <url><loc>https://sabrstudio.in/projects/the-vasant-vihar-residence</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://sabrstudio.in/projects/studio-pavilion</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://sabrstudio.in/projects/aura-wellness-haven</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://sabrstudio.in/projects/minimalist-penthouse</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+
+  <!-- Retail Product Slugs -->
+  <url><loc>https://sabrstudio.in/retail/komorebi-lounge-chair</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://sabrstudio.in/retail/sora-oak-coffee-table</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://sabrstudio.in/retail/zenith-linen-pendant</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://sabrstudio.in/retail/mori-sculptural-credenza</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://sabrstudio.in/retail/nami-ceramic-vessel</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://sabrstudio.in/retail/wabi-daybed</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
 </urlset>
