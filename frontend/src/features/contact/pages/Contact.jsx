@@ -39,7 +39,7 @@ export const Contact = () => {
       {/* Header & 3 Contact Info Cards (UI-UX §40 & §67) */}
       <section className="py-20 sm:py-28 lg:py-32 border-b border-border" aria-label="Contact Channels">
         <div className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
-          <motion.div {...reveal(0.3)} className="max-w-2xl mb-16">
+          <motion.div {...reveal(0.3)} className="max-w-4xl mb-16 ">
             <SectionHeading
               eyebrow={header.eyebrow}
               title={header.title}

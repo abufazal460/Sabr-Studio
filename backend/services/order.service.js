@@ -71,31 +71,67 @@ export const orderService = {
     }
     if (subtotal <= 0) { const e = new Error('Order total must be greater than zero'); e.statusCode = 400; throw e; }
 
-    // Legacy unauthenticated entry (kept for admin-compat): still validates server-side
-    const ownerId = customerCtx?.id || null;
-    const ownerEmail = customerCtx?.email || body?.customer?.email || '';
-    let orderNumber = genOrderNumber();
-    // Fail-closed in production: never silently fall back to mock orders when
-    // real payment credentials are missing (would create unpayable orders).
+    // Razorpay: production never uses the mock. Fail fast with 503 before
+    // reserving stock or creating any order so no inventory is held for an
+    // unpayable order (Work 05 / requirement §9).
     if (process.env.NODE_ENV === 'production' && !isRazorpayConfigured()) {
       const e = new Error('Payments are not configured on the server. Please try again later.');
       e.statusCode = 503;
       throw e;
     }
-    const rzp = await createRazorpayOrder({ amountPaise: toPaise(subtotal), currency: 'INR', receipt: orderNumber });
-    // collision-safe regenerate if receipt already used
-    const orderRecord = {
-      orderNumber, user: ownerId, userEmail: String(ownerEmail || '').toLowerCase(),
-      customer: { name: snapshot.fullName || customerCtx?.name || 'Client', email: String(ownerEmail || customerCtx?.email || ''), phone: snapshot.phone || customerCtx?.phone || '', address: snapshot.line || '' },
-      deliveryAddress: snapshot,
-      items: orderItems, subtotal, shipping: 0, amount: subtotal, totalAmount: subtotal, currency: 'INR',
-      payment: { provider: 'razorpay', razorpayOrderId: rzp.id, razorpayPaymentId: null, razorpaySignature: null, verified: false, method: '', failureReason: '' },
-      paymentStatus: 'pending', orderStatus: 'pending', trackingId: null,
-      idempotencyKey: idempotencyKey || null,
-      statusHistory: [{ kind: 'order', from: '', to: 'pending', at: new Date(), by: 'system', note: 'Order created, awaiting payment' }],
-    };
-    const saved = await this._persist(orderRecord, orderNumber);
-    return { ...this._checkoutResponse(saved), priceChanges };
+
+    // Atomic stock reservation BEFORE creating the order (Work 05). Two
+    // concurrent checkouts for the last unit: one succeeds, the other gets a
+    // clean 409. On any later failure we release the reservation so stock is
+    // never lost.
+    const reservation = await retailService.reserveStock(orderItems);
+    if (!reservation.ok) {
+      const fi = reservation.failedItem || {};
+      const e = new Error(
+        fi.reason === 'out_of_stock'
+          ? `"${fi.name}" is out of stock (only ${fi.available} left).`
+          : `"${fi.name || 'An item'}" is unavailable.`
+      );
+      e.statusCode = 409;
+      throw e;
+    }
+
+    try {
+      // Legacy unauthenticated entry (kept for admin-compat): still validates server-side
+      const ownerId = customerCtx?.id || null;
+      const ownerEmail = customerCtx?.email || body?.customer?.email || '';
+      const orderNumber = genOrderNumber();
+      const rzp = await createRazorpayOrder({ amountPaise: toPaise(subtotal), currency: 'INR', receipt: orderNumber });
+      // collision-safe regenerate if receipt already used
+      const orderRecord = {
+        orderNumber, user: ownerId, userEmail: String(ownerEmail || '').toLowerCase(),
+        customer: { name: snapshot.fullName || customerCtx?.name || 'Client', email: String(ownerEmail || customerCtx?.email || ''), phone: snapshot.phone || customerCtx?.phone || '', address: snapshot.line || '' },
+        deliveryAddress: snapshot,
+        items: orderItems, subtotal, shipping: 0, amount: subtotal, totalAmount: subtotal, currency: 'INR',
+        payment: { provider: 'razorpay', razorpayOrderId: rzp.id, razorpayPaymentId: null, razorpaySignature: null, verified: false, method: '', failureReason: '' },
+        paymentStatus: 'pending', orderStatus: 'pending', trackingId: null,
+        idempotencyKey: idempotencyKey || null,
+        // Work 05: remember the reservation so a failed/cancelled order can
+        // return stock. Empty for project-only or untracked (legacy) carts.
+        stockReservations: reservation.reserved,
+        statusHistory: [{ kind: 'order', from: '', to: 'pending', at: new Date(), by: 'system', note: 'Order created, awaiting payment' }],
+      };
+      let saved;
+      try {
+        saved = await this._persist(orderRecord, orderNumber);
+      } catch (persistErr) {
+        // Persistence failed after stock was reserved — release it so inventory
+        // is not lost, then re-throw.
+        await retailService.releaseStock(reservation.reserved).catch(() => {});
+        throw persistErr;
+      }
+      return { ...this._checkoutResponse(saved), priceChanges };
+    } catch (err) {
+      // Any failure after reservation (Razorpay error, validation, persistence)
+      // must release the reserved stock before propagating.
+      await retailService.releaseStock(reservation.reserved).catch(() => {});
+      throw err;
+    }
   },
 
   // Legacy public wrapper (no auth) — delegates with null customer
@@ -217,7 +253,9 @@ export const orderService = {
       catch (err) {
         if (err.code === 11000 && record.idempotencyKey) {
           const dup = await Order.findOne({ idempotencyKey: record.idempotencyKey }).lean();
-          if (dup) return dup;
+          // A concurrent retry with the same Idempotency-Key won the insert.
+          // Signal the caller so it can release the stock this retry reserved.
+          if (dup) { const e = new Error('This checkout was already processed with the same Idempotency-Key.'); e.statusCode = 409; e.idempotentDuplicate = true; e.existingOrder = dup; throw e; }
         }
         if (err.code === 11000) {
           record.orderNumber = genOrderNumber();
@@ -225,6 +263,13 @@ export const orderService = {
         }
         throw err;
       }
+    }
+    // Fallback / in-memory path: enforce the unique idempotency key here too
+    // (no DB index available).
+    if (record.idempotencyKey) {
+      const dup = fallbackOrders.findAll().find((o) => o.idempotencyKey === record.idempotencyKey)
+        || inMemoryOrders.find((o) => o.idempotencyKey === record.idempotencyKey);
+      if (dup) { const e = new Error('This checkout was already processed with the same Idempotency-Key.'); e.statusCode = 409; e.idempotentDuplicate = true; e.existingOrder = dup; throw e; }
     }
     return fallbackOrders.add(record);
   },

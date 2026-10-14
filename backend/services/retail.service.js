@@ -231,12 +231,11 @@ export const retailService = {
       const query = isObjectId ? { _id: cleanId } : { slug: cleanId };
       const item = await Retail.findOne(query).lean();
       if (item) {
-        return { ...item, id: item._id.toString() };
+        return this._withDerivedStock({ ...item, id: item._id.toString() });
       }
     }
-    return (
-      inMemoryRetail.find((r) => r.id === cleanId || r._id === cleanId || r.slug === cleanId) || null
-    );
+    const mem = inMemoryRetail.find((r) => r.id === cleanId || r._id === cleanId || r.slug === cleanId);
+    return mem ? this._withDerivedStock(mem) : null;
   },
 
   /**
