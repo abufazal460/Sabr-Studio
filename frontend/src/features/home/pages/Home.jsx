@@ -47,8 +47,8 @@ export const Home = () => {
       <section className="py-14 sm:py-20 lg:py-24 bg-white border-b border-border" aria-label="Consultation Enquiry">
         <motion.div {...fadeUpProps(reduce, 0, 20, 0.15)} className="max-w-container-wide mx-auto px-5 sm:px-8 lg:px-12">
           <EnquiryForm
-            title="Initiate a Commission"
-            subtitle="Connect with our principal design studio to discuss your residential architecture, interior transformation, or bespoke furniture brief."
+            title="Every Space Begins with an Idea"
+            subtitle="Thinking about changing your space or starting something new? We'd love to hear your ideas and help you figure out where to begin."
           />
         </motion.div>
       </section>
