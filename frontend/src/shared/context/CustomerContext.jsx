@@ -57,7 +57,7 @@ export const CustomerProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    try { await axiosClient.post('/customer/logout'); } catch {}
+    try { await axiosClient.post('/customer/logout'); } catch { /* session already gone */ }
     finally { setCustomer(null); }
   };
 

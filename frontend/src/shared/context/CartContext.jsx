@@ -4,12 +4,6 @@ export const CartContext = createContext(null);
 
 const STORAGE_KEY = 'sabr_cart_v1';
 
-// Canonical product identity: Mongo docs expose `_id` only via .lean()
-// (no virtual `id`), while in-memory/seed items expose `id`/`_id`/`slug`
-// interchangeably. Compare all three as strings (ObjectId vs string safe)
-const getProductKey = (product) =>
-  String(product?.id ?? product?._id ?? product?.slug ?? '');
-
 function loadPersistedCart() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -25,7 +19,7 @@ export const CartProvider = ({ children }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cartItems)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cartItems)); } catch { /* storage unavailable (private mode) */ }
   }, [cartItems ]);
 
   const openDrawer = () => setIsDrawerOpen(true);

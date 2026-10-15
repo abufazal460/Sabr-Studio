@@ -1,4 +1,5 @@
 import http from 'http';
+import https from 'https';
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,7 +7,18 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const rootDir = path.dirname(path.dirname(__filename));
 
-const BACKEND_BASE = 'http://127.0.0.1:3000';
+// Target base URL. Local default is the dev backend; set BASE_URL (or pass
+// --base=<url>) to run the same harness against a deployed environment:
+//   BASE_URL=https://sabrstudio.in npm run test:prod
+//   npm run test:prod -- --base=https://sabrstudio.in
+// Remote runs skip local server spawning and the local Vite proxy section.
+const baseArg = process.argv.find((a) => a.startsWith('--base='));
+const REMOTE_BASE = (
+  process.env.BASE_URL ||
+  (baseArg ? baseArg.slice('--base='.length) : '')
+).replace(/\/+$/, '');
+const isRemote = Boolean(REMOTE_BASE);
+const BACKEND_BASE = REMOTE_BASE || 'http://127.0.0.1:3000';
 const FRONTEND_BASE = 'http://127.0.0.1:5173';
 const agent = new http.Agent({ keepAlive: true, maxSockets: 10 });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -33,13 +45,15 @@ function req(method, pathStr, body = null, headers = {}, baseUrl = BACKEND_BASE)
         requestHeaders['Content-Length'] = Buffer.byteLength(payload);
       }
 
-      const request = http.request(
+      const isHttps = url.protocol === 'https:';
+      const transport = isHttps ? https : http;
+      const request = transport.request(
         {
           host: url.hostname,
-          port: url.port,
+          port: url.port || (isHttps ? 443 : 80),
           path: url.pathname + url.search,
           method,
-          agent,
+          ...(isHttps ? {} : { agent }),
           headers: requestHeaders,
           timeout: 8000,
         },
@@ -103,6 +117,18 @@ async function ensureServersRunning(spawnedProcesses) {
   };
 
   const isBackendUp = await check(BACKEND_BASE);
+
+  // Remote (BASE_URL/--base) runs must never spawn local servers; only verify
+  // the deployed target is reachable before running the audit against it.
+  if (isRemote) {
+    if (isBackendUp) {
+      console.log(`[+] Remote backend confirmed reachable at ${BACKEND_BASE}`);
+      return;
+    }
+    console.error(`[!] Remote backend at ${BACKEND_BASE} is not responding to GET /api/health — aborting.`);
+    process.exit(1);
+  }
+
   if (!isBackendUp) {
     console.log(`[!] Backend not responding on ${BACKEND_BASE}. Starting automatically...`);
     const proc = spawn('node', ['backend/dev.js'], {
@@ -794,6 +820,10 @@ async function runAudit() {
       useCookie: false,
     });
 
+    if (isRemote) {
+      console.log('\n--- SECTION 14 SKIPPED (remote BASE_URL): no local Vite proxy to audit ---');
+    } else {
+
     console.log('\n--- SECTION 14: FRONTEND-TO-BACKEND PROXY (PORT 5173 -> 3000) ---');
     await testRoute({
       id: 'FE-1',
@@ -852,6 +882,8 @@ async function runAudit() {
       headers: { Cookie: feCookie },
       baseUrl: FRONTEND_BASE,
     });
+
+    } // end non-remote (local Vite proxy section)
 
     console.log('\n' + '='.repeat(80));
     const passed = results.filter((r) => r.matched).length;
