@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import HeroSlider from '../components/HeroSlider';
 import AboutSection from '../components/AboutSection';

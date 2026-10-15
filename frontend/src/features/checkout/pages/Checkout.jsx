@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useCustomer from '../../../shared/hooks/useCustomer';
 import { useCart } from '../../../shared/hooks/useCart';

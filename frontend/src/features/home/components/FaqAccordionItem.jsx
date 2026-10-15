@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { faqData } from '../data/faq.data';
 import { LuPlus, LuMinus } from 'react-icons/lu';

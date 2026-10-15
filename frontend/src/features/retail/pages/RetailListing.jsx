@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { getRetailProducts } from '../api/retail.api';
 import ProductCard from '../components/ProductCard';

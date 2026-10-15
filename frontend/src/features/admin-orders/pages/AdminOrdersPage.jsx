@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LuFolderGit2,
@@ -22,8 +22,6 @@ import Badge from '../../../shared/components/Badge';
 import TextInput from '../../../shared/components/TextInput';
 import TextArea from '../../../shared/components/TextArea';
 import Select from '../../../shared/components/Select';
-import Skeleton from '../../../shared/components/Skeleton';
-import EmptyState from '../../../shared/components/EmptyState';
 import Seo from '../../../shared/components/Seo';
 
 const ORDER_STATUS_OPTIONS = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'completed', 'cancelled'];

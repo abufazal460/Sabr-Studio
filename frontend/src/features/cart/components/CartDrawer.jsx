@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LuX, LuShoppingBag, LuPackage } from 'react-icons/lu';
 import { useCart } from '../../../shared/hooks/useCart';

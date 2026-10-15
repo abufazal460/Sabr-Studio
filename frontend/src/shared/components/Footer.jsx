@@ -1,9 +1,6 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { LuInstagram, LuMail, LuPhone, LuMapPin } from 'react-icons/lu';
 import { FaWhatsapp, FaFacebookF, FaYoutube } from 'react-icons/fa';
-import { FaXTwitter } from 'react-icons/fa6';
 import footerLogo from "../../assets/icons/brand-logo-navbar.svg"
 
 export const Footer = () => {

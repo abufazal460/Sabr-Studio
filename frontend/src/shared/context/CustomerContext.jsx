@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useState, useEffect, useCallback } from 'react';
 import axiosClient from '../api/axiosClient';
 
 export const CustomerContext = createContext(null);

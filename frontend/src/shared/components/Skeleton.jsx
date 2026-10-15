@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * Skeleton loading placeholder (UI-UX §49 & 02-frontend.md §15)

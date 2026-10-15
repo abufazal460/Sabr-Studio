@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * SectionHeading shell (UI-UX §30)

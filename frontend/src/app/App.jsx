@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, useLocation } from 'react-router-dom';
 import { CartProvider } from '../shared/context/CartContext';
 import { AuthProvider } from '../shared/context/AuthContext';

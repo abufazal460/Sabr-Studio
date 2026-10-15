@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { LuChevronDown } from 'react-icons/lu';
 import FormLabel from './FormLabel';
 import FormError from './FormError';

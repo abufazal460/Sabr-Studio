@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Button } from '../../../shared/components/Button';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';

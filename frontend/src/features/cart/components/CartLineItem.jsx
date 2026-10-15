@@ -1,9 +1,7 @@
-import React from 'react';
 import { LuTrash2, LuMinus, LuPlus } from 'react-icons/lu';
 import { useCart } from '../../../shared/hooks/useCart';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
-import { Button } from '../../../shared/components/Button';
 
 export const CartLineItem = ({ item }) => {
   const { updateQuantity, removeFromCart } = useCart();

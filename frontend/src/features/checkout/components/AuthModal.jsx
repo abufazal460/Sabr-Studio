@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import TextInput from '../../../shared/components/TextInput';
 import { Button } from '../../../shared/components/Button';
 import useCustomer from '../../../shared/hooks/useCustomer';
