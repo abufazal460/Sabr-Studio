@@ -13,7 +13,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "cloudinary": "^2.5.0",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.6",
@@ -27,14 +27,14 @@
     "mongoose": "^8.6.2",
     "multer": "1.4.5-lts.1",
     "razorpay": "^2.9.4",
-    "sabr-studio": "file:.."
+    "sabr-studio": "file:..",
+    "pino": "^9.14.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "eslint": "^9.0.0",
     "globals": "^16.0.0",
-    "nodemon": "^3.1.4",
-    "pino": "^9.14.0",
+    "nodemon": "^1.14.10",
     "supertest": "^7.0.0"
   }
 }

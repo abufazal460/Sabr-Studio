@@ -9,7 +9,6 @@ import {
   LuTrash2,
   LuPencil,
   LuRefreshCw,
-  LuCheck,
   LuX,
   LuEye,
   LuEyeOff,
@@ -20,7 +19,6 @@ import { getProjects } from '../../projects/api/projects.api';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import {
   ACCEPTED_IMAGE_TYPES,
-  describeUploadError,
   uploadImagesSequentially,
 } from '../../../shared/utils/uploadImage';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';

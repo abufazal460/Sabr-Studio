@@ -7,7 +7,6 @@ import {
   LuShoppingBag,
   LuPlus,
   LuTrash2,
-  LuPencil,
   LuRefreshCw,
   LuCheck,
   LuX,
