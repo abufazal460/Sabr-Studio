@@ -46,13 +46,8 @@ export const enquiryService = {
     const isMongoConnected = Enquiry.db?.readyState === 1;
 
     if (isMongoConnected) {
-      try {
-        const doc = await Enquiry.create(enquiryData);
-        createdRecord = doc.toObject();
-      } catch (err) {
-        // Database failure → propagate (controller returns success:false).
-        throw err;
-      }
+      const doc = await Enquiry.create(enquiryData);
+      createdRecord = doc.toObject();
     } else {
       // Use persistent fallback storage
       storage = 'fallback';

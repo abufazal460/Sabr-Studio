@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { OperationalError, NotFoundError, ValidationError, UnauthorizedError, ForbiddenError, ExternalServiceError, ServiceUnavailableError, TimeoutError } from '../utils/errors.js';
 
-export const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, _next) => {
   // Log the error with context
   const logContext = {
     method: req.method,
@@ -11,6 +11,7 @@ export const errorHandler = (err, req, res, next) => {
     message: err.message,
     ip: req.ip,
     adminId: req.admin?.id || null,
+    reqId: req.id || null,
   };
   
   logger.error(`${logContext.method} ${logContext.url} - ${logContext.statusCode} - ${logContext.errorName || 'Error'}`, logContext);

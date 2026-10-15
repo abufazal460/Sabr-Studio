@@ -106,7 +106,7 @@ export const orderController = {
     try {
       const orders = await orderService.getCustomerOrders(req.customer);
       return res.status(200).json({ success: true, data: orders });
-    } catch (err) {
+    } catch {
       return res.status(500).json({ success: false, message: 'Failed to load orders' });
     }
   },

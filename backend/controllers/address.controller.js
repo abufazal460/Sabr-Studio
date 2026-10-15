@@ -7,7 +7,7 @@ function validateAddress(a) {
   if (clean(a.street).length < 3) errors.push('Street/locality is required.');
   if (clean(a.city).length < 2) errors.push('City is required.');
   if (clean(a.state).length < 2) errors.push('State is required.');
-  if (!/^[A-Za-z0-9][A-Za-z0-9 \-]{3,11}$/.test(clean(a.pincode))) errors.push('Valid PIN/postal code is required.');
+  if (!/^[A-Za-z0-9][A-Za-z0-9 -]{3,11}$/.test(clean(a.pincode))) errors.push('Valid PIN/postal code is required.');
   return errors;
 }
 function orderAddresses(doc) {

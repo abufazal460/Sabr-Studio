@@ -17,7 +17,7 @@
  * Never prints connection strings or credentials.
  */
 
-import mongoose from 'mongoose';
+import mongoose from '../backend/node_modules/mongoose/index.js';
 
 // Import all models so their schemas (and index definitions) are registered.
 import '../backend/models/order.model.js';

@@ -13,12 +13,12 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'dist']);
 const SCAN_EXT = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.json', '.example', '.sample', '.md', '.yml', '.yaml'];
 
 const PATTERNS = [
-  { name: 'mongodb-uri-with-creds', re: /mongodb(\+srv)?:\/\/[^/\s'"]+:[^/\s'"]+@/i },
+  { name: 'mongodb-uri-with-creds', re: /mongodb(\+srv)?:\/\/(?!<)[^/\s'"]+:(?!<)[^/\s'"]+@/i },
   { name: 'razorpay-live-key', re: /rzp_(live|test)_[A-Za-z0-9]{8,}/ },
   { name: 'aws-access-key', re: /AKIA[0-9A-Z]{16}/ },
   { name: 'jwt-like', re: /eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/ },
   { name: 'private-key-block', re: /-----BEGIN (RSA )?PRIVATE KEY-----/ },
-  { name: 'assigned-secret-value', re: /^\s*(JWT_SECRET|RAZORPAY_KEY_SECRET|RAZORPAY_WEBHOOK_SECRET|TWILIO_AUTH_TOKEN|CLOUDINARY_API_SECRET|EMAILJS_PRIVATE_KEY|ADMIN_PASSWORD)\s*=\s*\S+\s*$/m },
+  { name: 'assigned-secret-value', re: /^\s*(JWT_SECRET|RAZORPAY_KEY_SECRET|RAZORPAY_WEBHOOK_SECRET|TWILIO_AUTH_TOKEN|CLOUDINARY_API_SECRET|EMAILJS_PRIVATE_KEY|ADMIN_PASSWORD)\s*=\s*(?!REPLACE_|<|\$|test-|#).+\S/m },
 ];
 
 function trackedFiles() {

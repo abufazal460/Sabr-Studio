@@ -1,13 +1,11 @@
 import {
   LuPhone,
   LuMail,
-  LuMapPin,
 } from 'react-icons/lu';
 import {
   FaWhatsapp,
   FaFacebookF,
   FaInstagram,
-  FaXTwitter,
   FaYoutube,
 } from 'react-icons/fa6';
 

@@ -16,7 +16,7 @@ export async function seedDevelopmentData() {
       if (count === 0 && Array.isArray(items) && items.length) {
         // Remove any existing inMemory IDs that might conflict with Mongo's ObjectId generation
         const docs = items.map((it) => {
-          const { _id, id, ...rest } = it; // discard fake ids
+          const { _id, id: _idAlias, ...rest } = it; // discard fake ids
           return rest;
         });
         await Model.insertMany(docs);

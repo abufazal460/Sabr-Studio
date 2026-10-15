@@ -19,8 +19,9 @@ import { apiHandler } from './apiHandler.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { connectDB } from './config/db.js';
 import { createRequestTimeout } from './middlewares/timeout.middleware.js';
-import { logger } from './utils/logger.js';
-import { clearAllFallbackData, syncFallbackToMongoose, fallbackOrders, fallbackEnquiries } from './utils/fallbackStorage.js';
+import { attachRequestId, requestLogger } from './middlewares/requestLogger.middleware.js';
+
+import { fallbackOrders, fallbackEnquiries } from './utils/fallbackStorage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -92,12 +93,12 @@ app.use(
       if (!origin) return cb(null, true); // same-origin / non-browser clients
       if (allowedOrigins.includes(origin)) return cb(null, true);
       
-      // Allow localhost on any port, 127.0.0.1, and cloud dev/preview domains
-      const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-      const isCloudPreview = /^https:\/\/[a-z0-9-]+\.(run\.app|web\.app|firebaseapp\.com|vercel\.app)$/i.test(origin);
-
-      if (process.env.NODE_ENV !== 'production' || isLocalhost || isCloudPreview) {
-        return cb(null, true);
+      if (process.env.NODE_ENV !== 'production') {
+        const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+        const isCloudPreview = /^https:\/\/[a-z0-9-]+\.(run\.app|web\.app|firebaseapp\.com|vercel\.app)$/i.test(origin);
+        if (isLocalhost || isCloudPreview) {
+          return cb(null, true);
+        }
       }
       return cb(null, false);
     },
@@ -121,6 +122,8 @@ app.use(cookieParser());
 app.use(compression());
 
 // --- Request timeout (30 seconds default) ---------------------------------
+app.use(attachRequestId);
+app.use(requestLogger);
 app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 
 

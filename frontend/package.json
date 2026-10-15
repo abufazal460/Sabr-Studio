@@ -20,11 +20,21 @@
     "sabr-studio": "file:.."
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.6.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.0.0",
+    "jsdom": "^26.0.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
-    "vite": "^5.4.21"
+    "vite": "^5.4.21",
+    "vitest": "^3.0.0"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.64.6"
