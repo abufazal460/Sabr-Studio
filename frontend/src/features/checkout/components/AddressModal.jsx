@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import TextInput from '../../../shared/components/TextInput';
 import Select from '../../../shared/components/Select';
 import { Button } from '../../../shared/components/Button';

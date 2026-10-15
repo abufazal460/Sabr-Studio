@@ -36,12 +36,27 @@ export default [
   },
   {
     files: ['**/*.{js,jsx}'],
+    ...react.configs.flat['jsx-runtime'],
+  },
+  {
+    files: ['**/*.{js,jsx}'],
     plugins: {
       'react-hooks': reactHooks,
     },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react/prop-types': 'off',
+      // forwardRef/anonymous render helpers are used inline; display names add
+      // nothing in production bundles.
+      'react/display-name': 'off',
+      'no-unused-vars': [
+        'error',
+        {
+          args: 'none',
+          ignoreRestSiblings: true,
+          argsIgnorePattern: '^_',
+        },
+      ],
     },
   },
 ];

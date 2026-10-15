@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { getMyOrder } from '../../cart/api/checkout.api';

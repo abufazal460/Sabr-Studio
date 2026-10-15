@@ -1,10 +1,9 @@
-import React, { lazy, Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 import PublicLayout from '../shared/layouts/PublicLayout';
 import ProtectedRoute from './ProtectedRoute';
 import Skeleton from '../shared/components/Skeleton';
-import NotFoundState from '../shared/components/NotFoundState';
 import ErrorBoundary from '../shared/components/ErrorBoundary';
 
 // Public pages (All routes lazy-loaded for minimal initial bundle)

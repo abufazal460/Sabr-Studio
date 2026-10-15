@@ -1,4 +1,3 @@
-import React from 'react';
 import { LuCircleAlert } from 'react-icons/lu';
 import { Button } from './Button';
 

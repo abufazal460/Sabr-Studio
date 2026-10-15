@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * Badge component (02-frontend.md §8)

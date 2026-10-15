@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { contactData } from '../data/contact.data';
 import SectionHeading from '../../../shared/components/SectionHeading';

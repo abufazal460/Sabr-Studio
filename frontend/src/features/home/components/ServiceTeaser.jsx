@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { LuBuilding2, LuArmchair, LuTrees } from 'react-icons/lu';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';

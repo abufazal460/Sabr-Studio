@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LuFolderGit2,
@@ -15,15 +15,12 @@ import {
 } from 'react-icons/lu';
 import adminApi from '../api/dashboard.api';
 import { getProjects } from '../../projects/api/projects.api';
-import { getRetailProducts } from '../../retail/api/retail.api';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { Button } from '../../../shared/components/Button';
 import Badge from '../../../shared/components/Badge';
 import TextInput from '../../../shared/components/TextInput';
 import TextArea from '../../../shared/components/TextArea';
 import Select from '../../../shared/components/Select';
-import Skeleton from '../../../shared/components/Skeleton';
-import EmptyState from '../../../shared/components/EmptyState';
 import Seo from '../../../shared/components/Seo';
 
 export const AdminDashboard = () => {

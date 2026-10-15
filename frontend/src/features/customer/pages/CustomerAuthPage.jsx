@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import useCustomer from '../../../shared/hooks/useCustomer';
 import TextInput from '../../../shared/components/TextInput';
 import { Button } from '../../../shared/components/Button';
 import Seo from '../../../shared/components/Seo';
-import { LuUser, LuSmartphone, LuRefreshCw } from 'react-icons/lu';
 
 export const CustomerAuthPage = ({ defaultMode = 'login' }) => {
   const navigate = useNavigate();

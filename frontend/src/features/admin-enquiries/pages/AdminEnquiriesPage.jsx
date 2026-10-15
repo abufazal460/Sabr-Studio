@@ -22,8 +22,6 @@ import Badge from '../../../shared/components/Badge';
 import TextInput from '../../../shared/components/TextInput';
 import TextArea from '../../../shared/components/TextArea';
 import Select from '../../../shared/components/Select';
-import Skeleton from '../../../shared/components/Skeleton';
-import EmptyState from '../../../shared/components/EmptyState';
 import Seo from '../../../shared/components/Seo';
 
 const EnquiryRow = React.memo(({ enq, id, isDeleting, onUpdateStatus, onViewDetails, onDelete }) => (
