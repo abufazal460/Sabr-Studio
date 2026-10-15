@@ -9,7 +9,6 @@ import {
   LuTrash2,
   LuPencil,
   LuRefreshCw,
-  LuCheck,
   LuX,
   LuEye,
   LuEyeOff,
@@ -21,7 +20,6 @@ import adminApi from '../api/adminProjects.api';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import {
   ACCEPTED_IMAGE_TYPES,
-  describeUploadError,
   uploadImagesSequentially,
 } from '../../../shared/utils/uploadImage';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
@@ -249,7 +247,7 @@ export const AdminDashboard = () => {
     );
     try {
       await adminApi.updateProject(id, { published: next });
-    } catch (err) {
+    } catch {
       setProjects((prev) =>
         prev.map((p) => (String(p._id || p.id) === String(id) ? { ...p, published: !next } : p))
       );

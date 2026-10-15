@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
+import { LuInstagram, LuMail, LuPhone } from 'react-icons/lu';
 import { FaWhatsapp, FaFacebookF, FaYoutube } from 'react-icons/fa';
 import footerLogo from "../../assets/icons/brand-logo-navbar.svg"
 

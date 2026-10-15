@@ -7,9 +7,7 @@ import {
   LuShoppingBag,
   LuPlus,
   LuTrash2,
-  LuPencil,
   LuRefreshCw,
-  LuCheck,
   LuX,
   LuEye,
 } from 'react-icons/lu';

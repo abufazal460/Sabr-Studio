@@ -4,11 +4,12 @@ import useCustomer from '../../../shared/hooks/useCustomer';
 import TextInput from '../../../shared/components/TextInput';
 import { Button } from '../../../shared/components/Button';
 import Seo from '../../../shared/components/Seo';
+import { LuUser, LuSmartphone } from 'react-icons/lu';
 
 export const CustomerAuthPage = ({ defaultMode = 'login' }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { customer, isAuthenticated, login, register, loginWithOtp } = useCustomer();
+  const { isAuthenticated, login, register, loginWithOtp } = useCustomer();
 
   const [mode, setMode] = useState(defaultMode); // 'login' | 'register' | 'otp'
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' });

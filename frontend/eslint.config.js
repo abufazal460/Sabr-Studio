@@ -49,6 +49,10 @@ export default [
       // forwardRef/anonymous render helpers are used inline; display names add
       // nothing in production bundles.
       'react/display-name': 'off',
+      // React 18 (pinned here) passes the lowercase `fetchpriority` attribute
+      // straight through to the DOM; the camelCase `fetchPriority` prop it
+      // suggests is only recognised from React 19 and would be dropped.
+      'react/no-unknown-property': ['error', { ignore: ['fetchpriority'] }],
       'no-unused-vars': [
         'error',
         {

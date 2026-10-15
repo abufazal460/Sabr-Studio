@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { Button } from '../../../shared/components/Button';
 import Seo from '../../../shared/components/Seo';

@@ -135,7 +135,7 @@ export const Cart = () => {
                       className="mt-0.5 w-4 h-4 shrink-0 rounded-none accent-black border-border cursor-pointer"
                     />
                     <span>
-                      I acknowledge that bespoke pieces are handcrafted upon order and accept the studio's dispatch timelines and return policy.
+                      I acknowledge that bespoke pieces are handcrafted upon order and accept the studio&apos;s dispatch timelines and return policy.
                     </span>
                   </label>
                 </div>
