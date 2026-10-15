@@ -114,7 +114,7 @@ export class TimeoutError extends OperationalError {
 /**
  * Create an error from unknown/throwable for safe error handling
  */
-export function normalizeError(error, context = {}) {
+export function normalizeError(error, _context = {}) {
   if (error instanceof OperationalError) {
     return error;
   }

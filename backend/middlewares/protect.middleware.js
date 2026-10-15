@@ -61,7 +61,7 @@ export async function protect(req, res, next) {
   let decoded;
   try {
     decoded = authService.verifyToken(token);
-  } catch (err) {
+  } catch {
     // Distinguish expired / invalid signature without leaking internal details
     return res.status(401).json({
       success: false,

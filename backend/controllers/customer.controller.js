@@ -1,6 +1,6 @@
 import { customerService } from '../services/customer.service.js';
 import { verifyGoogleIdToken } from '../services/google.service.js';
-import { COOKIE_NAME, getCustomerCookieOptions, getClearCookieOptions } from '../utils/cookieOptions.js';
+import { getCustomerCookieOptions, getClearCookieOptions } from '../utils/cookieOptions.js';
 
 export const CUSTOMER_COOKIE = 'sabr_customer';
 

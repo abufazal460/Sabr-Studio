@@ -3,8 +3,7 @@ import { Order, inMemoryOrders } from '../models/order.model.js';
 import { retailService } from './retail.service.js';
 import { projectService } from './project.service.js';
 import { fallbackOrders } from '../utils/fallbackStorage.js';
-import { createRazorpayOrder, verifyCheckoutSignature, verifyWebhookSignature, isRazorpayConfigured } from './razorpay.service.js';
-import { ORDER_STATUS_LIST, ORDER_TRANSITIONS } from '../constants/orderStatus.js';
+import { createRazorpayOrder, verifyWebhookSignature, isRazorpayConfigured } from './razorpay.service.js';
 
 function genOrderNumber() {
   const y = new Date().getFullYear();
@@ -12,7 +11,6 @@ function genOrderNumber() {
   return `SABR-ORD-${y}-${rand}`;
 }
 function normId(v) { return String(v ?? '').trim(); }
-function asId(doc) { return String(doc._id || doc.id); }
 function toPaise(inr) { return Math.round(Number(inr) * 100); }
 
 export const orderService = {
@@ -242,11 +240,11 @@ export const orderService = {
     if (c(a.street).length < 3) errs.push('Street/locality is required.');
     if (c(a.city).length < 2) errs.push('City is required.');
     if (c(a.state).length < 2) errs.push('State is required.');
-    if (!/^[A-Za-z0-9][A-Za-z0-9 \-]{3,11}$/.test(c(a.pincode))) errs.push('Valid PIN/postal code is required.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9 -]{3,11}$/.test(c(a.pincode))) errs.push('Valid PIN/postal code is required.');
     if (errs.length) { const e = new Error(errs[0]); e.statusCode = 400; throw e; }
     return { fullName: c(a.fullName || customerCtx?.name), phone: c(a.phone || customerCtx?.phone), email: c(a.email || customerCtx?.email), house: c(a.house), street: c(a.street), landmark: c(a.landmark), city: c(a.city), state: c(a.state), pincode: c(a.pincode), country: c(a.country) || 'India', line: [c(a.house), c(a.street), c(a.landmark), c(a.city), c(a.state), c(a.pincode)].filter(Boolean).join(', ') };
   },
-  async _persist(record, orderNumber) {
+  async _persist(record, _orderNumber) {
     const isMongoConnected = Order.db?.readyState === 1;
     if (isMongoConnected) {
       try { const doc = await Order.create(record); return doc.toObject(); }

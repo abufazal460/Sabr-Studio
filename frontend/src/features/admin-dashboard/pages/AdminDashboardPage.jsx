@@ -45,27 +45,11 @@ export const AdminDashboard = () => {
   const [retailModalOpen, setRetailModalOpen] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
 
-  // Form states
-  const [projectForm, setProjectForm] = useState({
-    title: '',
-    category: 'Residential',
-    location: 'New Delhi, India',
-    year: '2024',
-    area: '4,500 sq.ft.',
-    coverImage: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80',
-    description: '',
-  });
+  // Form states - intentionally empty until the user fills them in; draft
+  // defaults belong to a removed dashboard experiment and must not ship.
+  const [projectForm, setProjectForm] = useState({});
 
-  const [retailForm, setRetailForm] = useState({
-    title: '',
-    category: 'Chairs',
-    price: 45000,
-    image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&w=700&q=80',
-    description: '',
-    dimensions: '600mm W × 580mm D × 740mm H',
-    materials: 'Solid Ash timber, natural beeswax, Belgian linen',
-    inStock: true,
-  });
+  const [retailForm, setRetailForm] = useState({});
 
   const getItemId = (item) => String(item?._id || item?.id || '').trim();
 
@@ -118,15 +102,7 @@ export const AdminDashboard = () => {
     }
     setProjects((prev) => [newProject, ...prev]);
     setProjectModalOpen(false);
-    setProjectForm({
-      title: '',
-      category: 'Residential',
-      location: 'New Delhi, India',
-      year: '2024',
-      area: '4,500 sq.ft.',
-      coverImage: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80',
-      description: '',
-    });
+    setProjectForm({});
   };
 
   const handleCreateRetail = async (e) => {
@@ -146,16 +122,7 @@ export const AdminDashboard = () => {
       window.alert(err?.response?.data?.message || err?.message || 'Failed to create retail item.');
     }
     setRetailModalOpen(false);
-    setRetailForm({
-      title: '',
-      category: 'Chairs',
-      price: 45000,
-      image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&w=700&q=80',
-      description: '',
-      dimensions: '600mm W × 580mm D × 740mm H',
-      materials: 'Solid Ash timber, natural beeswax, Belgian linen',
-      inStock: true,
-    });
+    setRetailForm({});
   };
 
   const handleDeleteProject = (id) => {

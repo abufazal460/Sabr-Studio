@@ -57,7 +57,7 @@ export const retailService = {
             { $inc: { stock: -qty } },
             { new: true }
           ).lean();
-        } catch (e) {
+        } catch {
           doc = null;
         }
         if (!doc) {
@@ -126,7 +126,7 @@ export const retailService = {
             rec.updatedAt = new Date();
           }
         }
-      } catch (e) {
+      } catch {
         // Best-effort: cleanup must never break the caller.
       }
     }

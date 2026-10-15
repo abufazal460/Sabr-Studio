@@ -74,7 +74,9 @@ class CustomerService {
       try {
         const doc = await Customer.findById(id);
         if (doc) return doc;
-      } catch {}
+      } catch {
+        /* ignore lookup errors */
+      }
     }
     return inMemoryCustomers.find((c) => String(c.id) === String(id) || String(c._id) === String(id)) || null;
   }
@@ -104,7 +106,7 @@ class CustomerService {
     const cleanEmail = String(email || '').toLowerCase().trim();
     let doc = null; let hash = null;
     if (mongoose.connection?.readyState === 1) {
-      try { doc = await Customer.findOne({ email: cleanEmail }).select('+password'); if (doc) hash = doc.password; } catch {}
+      try { doc = await Customer.findOne({ email: cleanEmail }).select('+password'); if (doc) hash = doc.password; } catch { /* ignore */ }
     }
     if (!doc) {
       const mem = inMemoryCustomers.find((c) => memKey(c) === cleanEmail);
@@ -118,7 +120,7 @@ class CustomerService {
     if (!ok) return null;
     if (doc.status === 'disabled') { const e = new Error('Account is disabled'); e.statusCode = 403; throw e; }
     doc.lastLoginAt = new Date();
-    if (typeof doc.save === 'function') { try { await doc.save(); } catch {} }
+    if (typeof doc.save === 'function') { try { await doc.save(); } catch { /* ignore */ } }
     const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
     return { customer: sanitize(plain), token: this.generateToken(doc) };
   }
@@ -195,7 +197,7 @@ class CustomerService {
     };
     if (mongoose.connection?.readyState === 1 && typeof doc.save === 'function') {
       doc.passwordReset = patch.passwordReset;
-      try { await doc.save(); } catch {}
+      try { await doc.save(); } catch { /* ignore */ }
     } else {
       doc.passwordReset = patch.passwordReset;
     }
@@ -217,7 +219,7 @@ class CustomerService {
     if ((pr.attempts || 0) >= RESET_MAX_ATTEMPTS) invalid();
     if (hashResetToken(raw) !== pr.tokenHash) {
       pr.attempts = (pr.attempts || 0) + 1;
-      if (typeof doc.save === 'function') { try { await doc.save(); } catch {} }
+      if (typeof doc.save === 'function') { try { await doc.save(); } catch { /* ignore */ } }
       invalid();
     }
     // Valid: rotate password, invalidate token (single-use).
@@ -295,7 +297,7 @@ class CustomerService {
   }
 
   async _deleteOtp(phone) {
-    if (mongoose.connection?.readyState === 1) { try { await OtpCode.deleteMany({ phone }); } catch {} return; }
+    if (mongoose.connection?.readyState === 1) { try { await OtpCode.deleteMany({ phone }); } catch { /* ignore */ } return; }
     for (let i = inMemoryOtps.length - 1; i >= 0; i--) if (inMemoryOtps[i].phone === phone) inMemoryOtps.splice(i, 1);
   }
 
@@ -343,7 +345,7 @@ class CustomerService {
     if ((rec.attempts || 0) >= OTP_MAX_ATTEMPTS) invalid('Too many incorrect attempts. Request a new code.');
     if (hashOtp(code) !== rec.otpHash) {
       rec.attempts = (rec.attempts || 0) + 1;
-      if (typeof rec.save === 'function') { try { await rec.save(); } catch {} }
+      if (typeof rec.save === 'function') { try { await rec.save(); } catch { /* ignore */ } }
       invalid();
     }
     // Valid: consume the code (single-use). Delete rather than null-out otpHash —
@@ -366,7 +368,7 @@ class CustomerService {
     }
     if (doc.status === 'disabled') { const e = new Error('Account is disabled'); e.statusCode = 403; throw e; }
     doc.lastLoginAt = new Date();
-    if (typeof doc.save === 'function') { try { await doc.save(); } catch {} }
+    if (typeof doc.save === 'function') { try { await doc.save(); } catch { /* ignore */ } }
     const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
     return { customer: sanitize(plain), token: this.generateToken(doc) };
   }

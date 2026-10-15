@@ -29,7 +29,7 @@ const orderSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null, index: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
     customer: {
       name: { type: String, default: 'Client' },
       email: { type: String, default: '' },
@@ -84,7 +84,7 @@ const orderSchema = new mongoose.Schema(
       default: 'pending',
     },
     trackingId: { type: String, default: null, trim: true },
-    idempotencyKey: { type: String, default: null, sparse: true, unique: true },
+    idempotencyKey: { type: String, default: null },
   },
   {
     timestamps: true,
