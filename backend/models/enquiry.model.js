@@ -67,7 +67,9 @@ const enquirySchema = new mongoose.Schema(
 
 enquirySchema.index({ status: 1, createdAt: -1 });
 
-export const Enquiry = mongoose.models.Enquiry || mongoose.model('Enquiry', enquirySchema);
+// Source DB uses `enquiries`; destination uses manually-created `enquires`.
+// Pin the model to the destination collection so app queries hit migrated data.
+export const Enquiry = mongoose.models.Enquiry || mongoose.model('Enquiry', enquirySchema, 'enquires');
 
 // In-memory store for fallback / preview mode (strictly empty in production)
 export const inMemoryEnquiries = process.env.NODE_ENV === 'production' ? [] : [

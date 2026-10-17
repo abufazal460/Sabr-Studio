@@ -99,7 +99,9 @@ retailSchema.index({ category: 1, createdAt: -1 });
 // Supports low-stock / out-of-stock admin filters (Work 05).
 retailSchema.index({ stock: 1 });
 
-export const Retail = mongoose.models.Retail || mongoose.model('Retail', retailSchema);
+// Source DB uses `retails`; destination uses manually-created `reatils`.
+// Pin the model to the destination collection so app queries hit migrated data.
+export const Retail = mongoose.models.Retail || mongoose.model('Retail', retailSchema, 'reatils');
 
 const retailCategorySchema = new mongoose.Schema(
   {
