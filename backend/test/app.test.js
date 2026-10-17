@@ -257,3 +257,119 @@ describe('upload validation', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// 8. Project Category Management & Project CRUD Integration
+// ---------------------------------------------------------------------------
+describe('project category management & persistence', () => {
+  it('retrieves project categories via public and admin endpoints', async () => {
+    const publicRes = await request.get('/api/projects/categories');
+    assert.equal(publicRes.status, 200);
+    assert.equal(publicRes.body.success, true);
+    assert.ok(Array.isArray(publicRes.body.data));
+    assert.ok(publicRes.body.data.includes('Residential'));
+    assert.ok(publicRes.body.data.includes('Commercial'));
+    assert.ok(publicRes.body.data.includes('Hospitality'));
+
+    // Admin endpoint rejects unauthenticated
+    const unauthAdmin = await request.get('/api/admin/projects/categories');
+    assert.equal(unauthAdmin.status, 401);
+
+    // Admin endpoint succeeds with cookie
+    const cookie = await adminToken();
+    const authAdmin = await request
+      .get('/api/admin/projects/categories')
+      .set('Cookie', cookie);
+    assert.equal(authAdmin.status, 200);
+    assert.equal(authAdmin.body.success, true);
+    assert.ok(Array.isArray(authAdmin.body.data));
+  });
+
+  it('rejects unauthenticated project category creation', async () => {
+    const res = await request
+      .post('/api/admin/projects/categories')
+      .send({ name: 'Urban Landscape' });
+    assert.equal(res.status, 401);
+  });
+
+  it('validates project category name (rejects empty or excessively long names)', async () => {
+    const cookie = await adminToken();
+
+    const emptyRes = await request
+      .post('/api/admin/projects/categories')
+      .set('Cookie', cookie)
+      .send({ name: '   ' });
+    assert.equal(emptyRes.status, 400);
+
+    const longRes = await request
+      .post('/api/admin/projects/categories')
+      .set('Cookie', cookie)
+      .send({ name: 'A'.repeat(51) });
+    assert.equal(longRes.status, 400);
+  });
+
+  it('creates custom project category and handles case-insensitive duplicates gracefully', async () => {
+    const cookie = await adminToken();
+
+    // 1. Create a custom category
+    const createRes = await request
+      .post('/api/admin/projects/categories')
+      .set('Cookie', cookie)
+      .send({ name: 'Landscape Architecture' });
+    assert.equal(createRes.status, 201);
+    assert.equal(createRes.body.success, true);
+    assert.equal(createRes.body.data.name, 'Landscape Architecture');
+
+    // 2. Duplicate with different casing returns existing category without error
+    const duplicateRes = await request
+      .post('/api/admin/projects/categories')
+      .set('Cookie', cookie)
+      .send({ name: '  landscape architecture  ' });
+    assert.ok(duplicateRes.status === 200 || duplicateRes.status === 201);
+    assert.equal(duplicateRes.body.data.name, 'Landscape Architecture');
+
+    // 3. New category is now in available categories list
+    const listRes = await request.get('/api/projects/categories');
+    assert.ok(listRes.body.data.includes('Landscape Architecture'));
+  });
+
+  it('persists custom category on project create and preserves it on edit', async () => {
+    const cookie = await adminToken();
+
+    // Create project with a custom category
+    const createRes = await request
+      .post('/api/admin/projects')
+      .set('Cookie', cookie)
+      .send({
+        title: 'Boutique Heritage Villa',
+        description: 'Conservation and interior design of historic estate.',
+        category: 'Heritage Restoration',
+        location: 'Jaipur, Rajasthan',
+        year: 2024,
+      });
+    assert.equal(createRes.status, 201);
+    assert.equal(createRes.body.success, true);
+    assert.equal(createRes.body.data.category, 'Heritage Restoration');
+
+    const projectId = createRes.body.data._id || createRes.body.data.id;
+
+    // Verify fetched project maintains the custom category
+    const fetchRes = await request
+      .get(`/api/admin/projects/${projectId}`)
+      .set('Cookie', cookie);
+    assert.equal(fetchRes.status, 200);
+    assert.equal(fetchRes.body.data.category, 'Heritage Restoration');
+
+    // Update project category to another category (e.g. Commercial) and ensure no fallback to Residential
+    const updateRes = await request
+      .put(`/api/admin/projects/${projectId}`)
+      .set('Cookie', cookie)
+      .send({
+        category: 'Commercial',
+      });
+    assert.equal(updateRes.status, 200);
+    assert.equal(updateRes.body.data.category, 'Commercial');
+    assert.equal(updateRes.body.data.title, 'Boutique Heritage Villa'); // other fields preserved
+  });
+});
+
+

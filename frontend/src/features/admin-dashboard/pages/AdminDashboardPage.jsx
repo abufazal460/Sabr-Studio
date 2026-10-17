@@ -21,6 +21,7 @@ import TextArea from '../../../shared/components/TextArea';
 import Select from '../../../shared/components/Select';
 import Seo from '../../../shared/components/Seo';
 import { useScrollLock } from '../../../shared/hooks/useScrollLock';
+import ProjectCategorySelect from '../../projects/components/ProjectCategorySelect';
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -32,6 +33,11 @@ export const AdminDashboard = () => {
 
   // Data states
   const [projects, setProjects] = useState([]);
+  const [projectCategories, setProjectCategories] = useState([
+    'Residential',
+    'Commercial',
+    'Hospitality',
+  ]);
   const [retailItems, setRetailItems] = useState([]);
   const [enquiries, setEnquiries] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -71,18 +77,38 @@ export const AdminDashboard = () => {
 
   const getItemId = (item) => String(item?._id || item?.id || '').trim();
 
+  const loadProjectCategories = async () => {
+    try {
+      const res = await adminApi.getProjectCategories();
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      if (list.length) {
+        setProjectCategories(list);
+      }
+    } catch {
+      // Non-fatal fallback
+    }
+  };
+
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [projRes, retRes, enqRes, ordRes] = await Promise.allSettled([
+      const [projRes, retRes, enqRes, ordRes, catRes] = await Promise.allSettled([
         getProjects(),
         adminApi.getRetailItems(),
         adminApi.getEnquiries(),
         adminApi.getOrders(),
+        adminApi.getProjectCategories(),
       ]);
 
       if (projRes.status === 'fulfilled' && projRes.value?.data) {
         setProjects(Array.isArray(projRes.value.data) ? projRes.value.data : []);
+      }
+      if (catRes.status === 'fulfilled') {
+        const val = catRes.value;
+        const list = Array.isArray(val?.data) ? val.data : (Array.isArray(val) ? val : []);
+        if (list.length) {
+          setProjectCategories(list);
+        }
       }
       if (retRes.status === 'fulfilled') {
         const val = retRes.value;
@@ -108,10 +134,12 @@ export const AdminDashboard = () => {
 
   const handleCreateProject = async (e) => {
     e.preventDefault();
+    const cleanCategory = String(projectForm.category || 'Residential').trim();
     const newProject = {
       ...projectForm,
+      category: cleanCategory,
       id: `proj-${Date.now()}`,
-      slug: projectForm.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      slug: (projectForm.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
     };
     try {
       await adminApi.createProject(newProject);
@@ -121,6 +149,7 @@ export const AdminDashboard = () => {
     setProjects((prev) => [newProject, ...prev]);
     setProjectModalOpen(false);
     setProjectForm({});
+    loadProjectCategories();
   };
 
   const handleCreateRetail = async (e) => {
@@ -585,16 +614,18 @@ export const AdminDashboard = () => {
               />
 
               <div className="grid grid-cols-2 gap-4">
-                <Select
+                <ProjectCategorySelect
                   id="proj-category"
                   label="Category"
                   value={projectForm.category}
-                  onChange={(e) => setProjectForm({ ...projectForm, category: e.target.value })}
-                  options={[
-                    { value: 'Residential', label: 'Residential' },
-                    { value: 'Commercial', label: 'Commercial' },
-                    { value: 'Hospitality', label: 'Hospitality' },
-                  ]}
+                  onChange={(cat) => setProjectForm((prev) => ({ ...prev, category: cat }))}
+                  categories={projectCategories}
+                  createCategoryApi={adminApi.createProjectCategory}
+                  onCategoryCreated={(newCat) => {
+                    setProjectCategories((prev) =>
+                      prev.some((c) => c.toLowerCase() === newCat.toLowerCase()) ? prev : [...prev, newCat]
+                    );
+                  }}
                 />
                 <TextInput
                   id="proj-year"

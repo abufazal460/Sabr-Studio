@@ -27,7 +27,7 @@ export const createProjectValidator = [
     .notEmpty()
     .withMessage('Project description is required'),
   body('shortDescription').optional().trim().isString(),
-  body('category').optional().trim().isString(),
+  body('category').optional().trim().isString().isLength({ max: 50 }).withMessage('Category cannot exceed 50 characters'),
   body('location').optional({ nullable: true }).trim().isString(),
   body('area').optional({ nullable: true }).trim().isString(),
   body('coverImage').optional({ nullable: true }).trim().isString(),
@@ -65,7 +65,7 @@ export const updateProjectValidator = [
     .notEmpty()
     .withMessage('Description cannot be empty'),
   body('shortDescription').optional().trim().isString(),
-  body('category').optional().trim().isString(),
+  body('category').optional().trim().isString().isLength({ max: 50 }).withMessage('Category cannot exceed 50 characters'),
   body('location').optional({ nullable: true }).trim().isString(),
   body('area').optional({ nullable: true }).trim().isString(),
   body('coverImage').optional({ nullable: true }).trim().isString(),
@@ -86,3 +86,14 @@ export const updateProjectValidator = [
     .isBoolean(),
   handleValidationErrors,
 ];
+
+export const createProjectCategoryValidator = [
+  body('name')
+    .trim()
+    .notEmpty()
+    .withMessage('Category name is required')
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Category name cannot exceed 50 characters'),
+  handleValidationErrors,
+];
+

@@ -72,7 +72,9 @@ export function useScrollLock({ onEscape } = {}) {
       const y = savedScrollY.current;
       try {
         window.scrollTo(0, y);
-      } catch {}
+      } catch {
+        /* ignore scroll restoration error in test / jsdom */
+      }
       startLenis();
     }
   }, [startLenis]);
@@ -87,7 +89,9 @@ export function useScrollLock({ onEscape } = {}) {
     const y = savedScrollY.current;
     try {
       window.scrollTo(0, y);
-    } catch {}
+    } catch {
+      /* ignore scroll restoration error in test / jsdom */
+    }
     startLenis();
   }, [startLenis]);
 

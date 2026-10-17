@@ -10,6 +10,8 @@ export const adminApi = {
   createProject: (data) => axiosClient.post('/admin/projects', data),
   updateProject: (id, data) => axiosClient.put(`/admin/projects/${id}`, data),
   deleteProject: (id) => axiosClient.delete(`/admin/projects/${id}`),
+  getProjectCategories: () => axiosClient.get('/admin/projects/categories'),
+  createProjectCategory: (name) => axiosClient.post('/admin/projects/categories', { name }),
 
   /**
    * Upload one image as multipart/form-data (Work 04).

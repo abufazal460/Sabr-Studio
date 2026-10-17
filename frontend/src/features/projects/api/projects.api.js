@@ -8,3 +8,8 @@ export const getProjects = async (params = {}) => {
 export const getProjectBySlug = async (slug) => {
   return axiosClient.get(`/projects/${slug}`);
 };
+
+export const getProjectCategories = async () => {
+  return axiosClient.get('/projects/categories');
+};
+

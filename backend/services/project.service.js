@@ -1,4 +1,4 @@
-import { Project, inMemoryProjects } from '../models/project.model.js';
+import { Project, inMemoryProjects, ProjectCategory, inMemoryProjectCategories } from '../models/project.model.js';
 import { collectPublicIds, deleteAssets } from './cloudinary.service.js';
 
 /**
@@ -112,7 +112,7 @@ export const projectService = {
     const projectData = {
       title: String(data.title || '').trim(),
       slug: generatedSlug,
-      category: String(data.category || 'Residential').trim(),
+      category: (data.category && String(data.category).trim()) || 'Residential',
       location: data.location ? String(data.location).trim() : null,
       year: data.year ? Number(data.year) : null,
       area: data.area ? String(data.area).trim() : null,
@@ -290,6 +290,93 @@ export const projectService = {
       return true;
     }
     return false;
+  },
+
+  /**
+   * Get all available project categories (standard + custom registry + distinct project categories)
+   */
+  async getCategories() {
+    const isMongoConnected = Project.db?.readyState === 1;
+    let projectCats = [];
+    let customCats = [];
+
+    if (isMongoConnected) {
+      const [storedCategories, distinctCats] = await Promise.all([
+        ProjectCategory.find().lean(),
+        Project.distinct('category'),
+      ]);
+      customCats = (storedCategories || []).map((c) => c.name);
+      projectCats = distinctCats || [];
+    } else {
+      projectCats = inMemoryProjects.map((p) => p.category).filter(Boolean);
+      customCats = [...inMemoryProjectCategories];
+    }
+
+    const standardCats = ['Residential', 'Commercial', 'Hospitality'];
+    const map = new Map();
+    [...standardCats, ...customCats, ...projectCats]
+      .map((c) => String(c || '').trim())
+      .filter(Boolean)
+      .forEach((cat) => {
+        const lower = cat.toLowerCase();
+        if (!map.has(lower)) {
+          map.set(lower, cat);
+        }
+      });
+
+    return Array.from(map.values());
+  },
+
+  /**
+   * Create a new project category (persisted in ProjectCategory registry)
+   */
+  async createCategory(name) {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) {
+      const error = new Error('Category name is required');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (cleanName.length > 50) {
+      const error = new Error('Category name cannot exceed 50 characters');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const standardCats = ['Residential', 'Commercial', 'Hospitality'];
+    const stdMatch = standardCats.find((c) => c.toLowerCase() === cleanName.toLowerCase());
+    if (stdMatch) {
+      return { name: stdMatch, slug: slugify(stdMatch) };
+    }
+
+    const isMongoConnected = Project.db?.readyState === 1;
+    if (isMongoConnected) {
+      const escaped = cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const existing = await ProjectCategory.findOne({
+        name: new RegExp(`^${escaped}$`, 'i'),
+      }).lean();
+      if (existing) return existing;
+
+      const distinctMatch = (await Project.distinct('category')).find(
+        (c) => c && c.toLowerCase() === cleanName.toLowerCase()
+      );
+      const nameToStore = distinctMatch || cleanName;
+
+      const created = await ProjectCategory.create({
+        name: nameToStore,
+        slug: slugify(nameToStore),
+      });
+      return created.toObject();
+    }
+
+    const exists = inMemoryProjectCategories.find(
+      (c) => c.toLowerCase() === cleanName.toLowerCase()
+    );
+    if (exists) {
+      return { name: exists, slug: slugify(exists) };
+    }
+    inMemoryProjectCategories.push(cleanName);
+    return { name: cleanName, slug: slugify(cleanName) };
   },
 };
 
