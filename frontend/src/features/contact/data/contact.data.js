@@ -48,7 +48,7 @@ export const contactData = {
       name: 'WhatsApp',
       handle: 'Chat with studio',
       icon: FaWhatsapp,
-      href: 'https://wa.me/9958402801',
+      href: 'https://wa.me/8700655802',
       hoverColorClass: 'hover:text-social-whatsapp hover:border-social-whatsapp',
     },
     {
@@ -64,7 +64,7 @@ export const contactData = {
       name: 'Facebook',
       handle: 'Sabr Studio',
       icon: FaFacebookF,
-      href: 'https://facebook.com',
+      href: 'https://www.facebook.com/people/Sabr-studio/61595038752053/?mibextid=wwXIfr',
       hoverColorClass: 'hover:text-social-facebook hover:border-social-facebook',
     },
     // {
@@ -80,7 +80,7 @@ export const contactData = {
       name: 'YouTube',
       handle: 'Sabr Studio Craft',
       icon: FaYoutube,
-      href: 'https://youtube.com',
+      href: 'https://www.youtube.com/@sabrstudio-r',
       hoverColorClass: 'hover:text-social-youtube hover:border-social-youtube',
     },
   ],
