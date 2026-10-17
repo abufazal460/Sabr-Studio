@@ -127,6 +127,32 @@ projectSchema.index({ published: 1, category: 1, createdAt: -1 });
 
 export const Project = mongoose.models.Project || mongoose.model('Project', projectSchema);
 
+const projectCategorySchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+    slug: {
+      type: String,
+      lowercase: true,
+      trim: true,
+    },
+  },
+  { timestamps: true }
+);
+
+export const ProjectCategory =
+  mongoose.models.ProjectCategory || mongoose.model('ProjectCategory', projectCategorySchema);
+
+export const inMemoryProjectCategories = process.env.NODE_ENV === 'production' ? [] : [
+  'Residential',
+  'Commercial',
+  'Hospitality',
+];
+
 // In-memory store for fallback / preview mode
 export const inMemoryProjects = [
   {

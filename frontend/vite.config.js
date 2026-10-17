@@ -36,6 +36,12 @@ export default defineConfig({
     react()
   ],
 
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/setupTests.js'],
+  },
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')

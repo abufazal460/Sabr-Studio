@@ -134,4 +134,35 @@ export const projectController = {
       });
     }
   },
+
+  async getCategories(req, res) {
+    try {
+      const categories = await projectService.getCategories();
+      return res.status(200).json({
+        success: true,
+        data: categories,
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to retrieve project categories',
+      });
+    }
+  },
+
+  async createCategory(req, res) {
+    try {
+      const { name } = req.body || {};
+      const category = await projectService.createCategory(name);
+      return res.status(201).json({
+        success: true,
+        data: category,
+      });
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({
+        success: false,
+        message: err.message || 'Failed to create category',
+      });
+    }
+  },
 };

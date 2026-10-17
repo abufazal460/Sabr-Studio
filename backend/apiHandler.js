@@ -25,6 +25,7 @@ import { loginValidator } from './validators/auth.validator.js';
 import {
   createProjectValidator,
   updateProjectValidator,
+  createProjectCategoryValidator,
 } from './validators/project.validator.js';
 import {
   createRetailValidator,
@@ -278,7 +279,11 @@ export default async function handleApiRequest(req, res) {
       return projectController.getPublicProjects(req, res);
     }
 
-    if (path.startsWith('/api/projects/') && method === 'GET') {
+    if (path === '/api/projects/categories' && method === 'GET') {
+      return projectController.getCategories(req, res);
+    }
+
+    if (path.startsWith('/api/projects/') && !path.startsWith('/api/projects/categories') && method === 'GET') {
       const slug = path.replace('/api/projects/', '');
       req.params = { slug };
       return projectController.getPublicProjectBySlug(req, res);
@@ -438,13 +443,34 @@ export default async function handleApiRequest(req, res) {
             });
           }
 
-          if (path.startsWith('/api/admin/projects/') && method === 'GET') {
+          // 6.2.1 Admin Projects Categories
+          if (path === '/api/admin/projects/categories' && method === 'GET') {
+            return projectController.getCategories(req, res);
+          }
+
+          if (path === '/api/admin/projects/categories' && method === 'POST') {
+            return parseBody(() => {
+              return runMiddlewareChain([...createProjectCategoryValidator], () => {
+                projectController.createCategory(req, res);
+              });
+            });
+          }
+
+          if (
+            path.startsWith('/api/admin/projects/') &&
+            !path.startsWith('/api/admin/projects/categories') &&
+            method === 'GET'
+          ) {
             const id = path.replace('/api/admin/projects/', '');
             req.params = { id };
             return projectController.getAdminProjectById(req, res);
           }
 
-          if (path.startsWith('/api/admin/projects/') && (method === 'PUT' || method === 'PATCH')) {
+          if (
+            path.startsWith('/api/admin/projects/') &&
+            !path.startsWith('/api/admin/projects/categories') &&
+            (method === 'PUT' || method === 'PATCH')
+          ) {
             const id = path.replace('/api/admin/projects/', '');
             req.params = { id };
             return parseBody(() => {
@@ -454,7 +480,11 @@ export default async function handleApiRequest(req, res) {
             });
           }
 
-          if (path.startsWith('/api/admin/projects/') && method === 'DELETE') {
+          if (
+            path.startsWith('/api/admin/projects/') &&
+            !path.startsWith('/api/admin/projects/categories') &&
+            method === 'DELETE'
+          ) {
             const id = path.replace('/api/admin/projects/', '');
             req.params = { id };
             return projectController.deleteProject(req, res);

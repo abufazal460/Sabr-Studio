@@ -30,6 +30,7 @@ import TextInput from '../../../shared/components/TextInput';
 import TextArea from '../../../shared/components/TextArea';
 import Select from '../../../shared/components/Select';
 import Seo from '../../../shared/components/Seo';
+import ProjectCategorySelect from '../../projects/components/ProjectCategorySelect';
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -41,6 +42,11 @@ export const AdminDashboard = () => {
 
   // Data states
   const [projects, setProjects] = useState([]);
+  const [projectCategories, setProjectCategories] = useState([
+    'Residential',
+    'Commercial',
+    'Hospitality',
+  ]);
   const [retailItems, setRetailItems] = useState([]);
   const [enquiries, setEnquiries] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -111,20 +117,40 @@ export const AdminDashboard = () => {
     inStock: true,
   });
 
+  const loadProjectCategories = async () => {
+    try {
+      const res = await adminApi.getProjectCategories();
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      if (list.length) {
+        setProjectCategories(list);
+      }
+    } catch {
+      // Non-fatal fallback
+    }
+  };
+
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [projRes, retRes, enqRes, ordRes] = await Promise.allSettled([
+      const [projRes, retRes, enqRes, ordRes, catRes] = await Promise.allSettled([
         adminApi.getProjects(),
         adminApi.getRetailItems(),
         adminApi.getEnquiries(),
         adminApi.getOrders(),
+        adminApi.getProjectCategories(),
       ]);
 
       if (projRes.status === 'fulfilled') {
         const val = projRes.value;
         const items = Array.isArray(val?.data) ? val.data : (Array.isArray(val) ? val : []);
         setProjects(items);
+      }
+      if (catRes.status === 'fulfilled') {
+        const val = catRes.value;
+        const list = Array.isArray(val?.data) ? val.data : (Array.isArray(val) ? val : []);
+        if (list.length) {
+          setProjectCategories(list);
+        }
       }
       if (retRes.status === 'fulfilled') {
         const val = retRes.value;
@@ -214,6 +240,7 @@ export const AdminDashboard = () => {
       setProjectModalOpen(false);
       setEditingProjectId(null);
       setProjectForm(emptyProjectForm);
+      loadProjectCategories();
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Failed to save project.';
       window.alert(msg);
@@ -940,12 +967,18 @@ export const AdminDashboard = () => {
               />
 
               <div className="grid grid-cols-2 gap-4">
-                <TextInput
-                  id="proj-location"
-                  label="Location"
-                  value={projectForm.location}
-                  onChange={(e) => setProjectForm({ ...projectForm, location: e.target.value })}
-                  placeholder="New Delhi, India"
+                <ProjectCategorySelect
+                  id="proj-category"
+                  label="Category"
+                  value={projectForm.category}
+                  onChange={(cat) => setProjectForm((prev) => ({ ...prev, category: cat }))}
+                  categories={projectCategories}
+                  createCategoryApi={adminApi.createProjectCategory}
+                  onCategoryCreated={(newCat) => {
+                    setProjectCategories((prev) =>
+                      prev.some((c) => c.toLowerCase() === newCat.toLowerCase()) ? prev : [...prev, newCat]
+                    );
+                  }}
                 />
                 <TextInput
                   id="proj-year"
@@ -956,13 +989,22 @@ export const AdminDashboard = () => {
                 />
               </div>
 
-              <TextInput
-                id="proj-area"
-                label="Built Area"
-                value={projectForm.area}
-                onChange={(e) => setProjectForm({ ...projectForm, area: e.target.value })}
-                placeholder="5,200 sq.ft."
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <TextInput
+                  id="proj-location"
+                  label="Location"
+                  value={projectForm.location}
+                  onChange={(e) => setProjectForm({ ...projectForm, location: e.target.value })}
+                  placeholder="New Delhi, India"
+                />
+                <TextInput
+                  id="proj-area"
+                  label="Built Area"
+                  value={projectForm.area}
+                  onChange={(e) => setProjectForm({ ...projectForm, area: e.target.value })}
+                  placeholder="5,200 sq.ft."
+                />
+              </div>
 
               <TextArea
                 id="proj-short-desc"
