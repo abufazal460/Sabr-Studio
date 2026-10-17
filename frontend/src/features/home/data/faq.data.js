@@ -19,7 +19,7 @@ export const faqData = [
   },
   {
     id: 4,
-    question: '. What interior design services do you offer?',
+    question: 'What interior design services do you offer?',
     answer:
       'SabrStudio offers interior design services that may include consultation, site measurement, concept development, mood boards, 2D space planning, 3D visualisation, and material selection. Share your requirements, lifestyle needs, and preferred design style with us so we can discuss suitable design solutions for your space.',
   },
