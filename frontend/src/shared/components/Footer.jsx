@@ -51,7 +51,7 @@ export const Footer = () => {
             {/* Social Icons with Platform Hover Brand Colors (UI-UX §41 & ANIMATION §8) */}
             <div className="pt-2 flex items-center space-x-3" aria-label="Social media links">
               <a
-                href="https://wa.me/9958402801"
+                href="https://wa.me/8700655802"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="WhatsApp"
@@ -69,7 +69,7 @@ export const Footer = () => {
                 <LuInstagram className="w-4 h-4" />
               </a>
               <a
-                href="https://facebook.com"
+                href="https://www.facebook.com/people/Sabr-studio/61595038752053/?mibextid=wwXIfr"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Facebook"
@@ -78,7 +78,7 @@ export const Footer = () => {
                 <FaFacebookF className="w-3.5 h-3.5" />
               </a>
               <a
-                href="https://youtube.com"
+                href="https://www.youtube.com/@sabrstudio-r"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="YouTube"

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useScrollLock } from '../../../shared/hooks/useScrollLock';
 import {
   LuFolderGit2,
   LuPackage,
@@ -46,6 +47,33 @@ export const AdminDashboard = () => {
   const [retailModalOpen, setRetailModalOpen] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
   const [viewOrderModal, setViewOrderModal] = useState(null);
+
+  // Scroll lock + Escape-to-close for modals (ref-counted across multiple open modals)
+  const { lock, unlock } = useScrollLock({
+    onEscape: () => {
+      setProjectModalOpen(false);
+      setRetailModalOpen(false);
+      setViewEnquiryModal(null);
+      setViewOrderModal(null);
+    },
+  });
+
+  const isAnyModalOpen =
+    projectModalOpen ||
+    retailModalOpen ||
+    viewEnquiryModal != null ||
+    viewOrderModal != null;
+  const prevIsModalOpen = useRef(false);
+
+  useEffect(() => {
+    // StrictMode-safe: only lock/unlock on real open/close transitions
+    if (isAnyModalOpen && !prevIsModalOpen.current) {
+      lock();
+    } else if (!isAnyModalOpen && prevIsModalOpen.current) {
+      unlock();
+    }
+    prevIsModalOpen.current = isAnyModalOpen;
+  }, [isAnyModalOpen, lock, unlock]);
 
   // Form states
   const [projectForm, setProjectForm] = useState({
@@ -642,7 +670,7 @@ export const AdminDashboard = () => {
       {/* Modal: Add Project */}
       {projectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto overscroll-contain" data-lenis-prevent>
             <div className="flex justify-between items-center">
               <h3 className="font-abhaya text-2xl font-medium text-ink">
                 Add Architectural Project
@@ -737,7 +765,7 @@ export const AdminDashboard = () => {
       {/* Modal: Add Retail Item */}
       {retailModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto overscroll-contain" data-lenis-prevent>
             <div className="flex justify-between items-center">
               <h3 className="font-abhaya text-2xl font-medium text-ink">
                 Add Bespoke Retail Edition
@@ -825,7 +853,7 @@ export const AdminDashboard = () => {
       {/* Modal: View Enquiry Details */}
       {viewEnquiryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6">
+          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto overscroll-contain" data-lenis-prevent>
             <div className="flex justify-between items-center">
               <h3 className="font-abhaya text-2xl font-medium text-ink">
                 Enquiry Details
@@ -884,7 +912,7 @@ export const AdminDashboard = () => {
       {/* Modal: View Order Payment & Fulfillment Details */}
       {viewOrderModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white border border-border rounded-md p-6 sm:p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto overscroll-contain" data-lenis-prevent>
             <div className="flex justify-between items-center">
               <h3 className="font-abhaya text-2xl font-medium text-ink">
                 Order Details
