@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { useLenisScroll } from './useLenisScroll';
 
 /**
  * Reference-counted body scroll lock for admin modals.
  *
  * When the first modal opens:
  *   - Saves the previous <html>/<body> overflow values and the current scroll position.
+ *   - Suspends Lenis smooth-scroll (lenis.stop()) so its wheel handler cannot keep
+ *     animating the background. overflow:hidden alone does NOT stop Lenis.
  *   - Sets overflow: hidden on <html> and <body> so the background page cannot move.
  *
  * When the last modal closes:
  *   - Restores the previous overflow values.
  *   - Restores the exact scroll position (window.scrollTo), so the background page
  *     is exactly where the user left it.
+ *   - Resumes Lenis (lenis.start()) so smooth scrolling works again.
+ *
+ * Modal content scrolls natively because its scroll container carries the real
+ * `data-lenis-prevent` attribute, which Lenis checks before its isStopped guard,
+ * so wheel/touch over the modal is never swallowed while Lenis is suspended.
  *
  * A global Escape keydown listener (active only while a modal is open) invokes
  * onEscape so consumers can close all open modals with the keyboard.
@@ -29,6 +37,17 @@ export function useScrollLock({ onEscape } = {}) {
   const savedScrollY = useRef(0);
   const onEscapeRef = useRef(onEscape);
   onEscapeRef.current = onEscape;
+  const lenisRef = useLenisScroll();
+
+  const stopLenis = useCallback(() => {
+    const lenis = lenisRef?.current;
+    if (lenis && typeof lenis.stop === 'function') lenis.stop();
+  }, [lenisRef]);
+
+  const startLenis = useCallback(() => {
+    const lenis = lenisRef?.current;
+    if (lenis && typeof lenis.start === 'function') lenis.start();
+  }, [lenisRef]);
 
   const lock = useCallback(() => {
     count.current += 1;
@@ -36,10 +55,11 @@ export function useScrollLock({ onEscape } = {}) {
       savedHtmlOverflow.current = document.documentElement.style.overflow;
       savedBodyOverflow.current = document.body.style.overflow;
       savedScrollY.current = typeof window.scrollY === 'number' ? window.scrollY : 0;
+      stopLenis();
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
     }
-  }, []);
+  }, [stopLenis]);
 
   const unlock = useCallback(() => {
     if (count.current <= 0) return;
@@ -53,8 +73,9 @@ export function useScrollLock({ onEscape } = {}) {
       try {
         window.scrollTo(0, y);
       } catch {}
+      startLenis();
     }
-  }, []);
+  }, [startLenis]);
 
   const forceUnlock = useCallback(() => {
     if (count.current <= 0) return;
@@ -67,7 +88,8 @@ export function useScrollLock({ onEscape } = {}) {
     try {
       window.scrollTo(0, y);
     } catch {}
-  }, []);
+    startLenis();
+  }, [startLenis]);
 
   useEffect(() => {
     const onKeydown = (event) => {

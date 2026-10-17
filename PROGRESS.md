@@ -59,3 +59,34 @@ The public-facing content production (Works 1–12) is complete. The in-progress
   confirmed off disk. **Fixed:** `DEPLOY.md` had a scrambled half-finished edit (§1.4 and two
   sentence fragments orphaned below §5) — reordered so §1.1–§1.4 flow correctly and §5 ends clean.
   Work 10 remains uncommitted (per no-commit-without-instruction rule).
+
+## Admin modal scroll-lock fix (critical bug)
+
+- **Root cause (proven in browser, not assumed):** two compounding defects.
+  1. `data-lenis-prevent` was written *inside* the modal `className` string (a Tailwind token)
+     instead of as a real HTML attribute on all 16 admin modal containers — so Lenis 1.3.26's
+     `node.hasAttribute("data-lenis-prevent")` check (lenis.mjs:609) never matched and Lenis kept
+     capturing wheel over the modal.
+  2. `overscroll-behavior-contain` is not a valid Tailwind utility (correct token is
+     `overscroll-contain`), so no `overscroll-behavior: contain` CSS was emitted.
+  Additionally `useScrollLock` only set `overflow:hidden` on html/body and never suspended Lenis;
+  measured proof: with `overflow:hidden` applied, wheeling the backdrop still drove `window.scrollY`
+  396→1842 and the modal `scrollTop` stayed 0. Lenis `onWheel` also `preventDefault()`s while
+  `isStopped` (lenis.mjs:613-615), so `stop()` alone would freeze the background *and* block modal
+  scroll — both the attribute and the stop are required (attribute check precedes the isStopped guard).
+- **Fix:** `useScrollLock` now consumes the Lenis context and calls `lenis.stop()` on first lock and
+  `lenis.start()` on final unlock/forceUnlock (only the 5 admin pages use this hook — cart/checkout/
+  navbar are unaffected). All 16 modal containers: `data-lenis-prevent` moved to a real attribute and
+  `overscroll-behavior-contain` → `overscroll-contain`.
+- **Files:** `frontend/src/shared/hooks/useScrollLock.jsx` + the 5 admin pages (Dashboard, Projects,
+  Retail, Orders, Enquiries). Diff: 6 files, +41/−19. No unrelated code touched.
+- **Verified in real browser** (local in-memory fallback backend, throwaway creds): across Projects
+  add + edit (long/overflowing), Retail add-item (long), Orders payment-details (long), Enquiries view
+  (short/non-overflowing) — background scroll delta = 0 when wheeling over modal *and* backdrop;
+  Lenis releases the modal wheel (`defaultPrevented=false`) while blocking the backdrop
+  (`defaultPrevented=true`); containers reach their scroll bottom; `html` carries `lenis-stopped`
+  while open and returns to `lenis` + `overflow:visible` + exact original `scrollY` on close. 5×
+  rapid open/close cycles: no lock/unlock leak. Final `vite build`: 554 modules, 0 warnings.
+  *Limitation:* automation dispatches synthetic wheel events (which never trigger native scrolling),
+  so "modal scrolls" is proven via `defaultPrevented=false` + real container scrollability rather than
+  a trusted-wheel delta; touch input could not be injected. Uncommitted per no-commit rule.
