@@ -1,12 +1,3 @@
-fetch("https://api.ipify.org?format=json")
-  .then(async (response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const { ip } = await response.json();
-    console.error(`[outbound-ip-check] ${ip}`);
-  })
-  .catch((error) => {
-    console.error("[outbound-ip-check] failed:", error.message);
-  });
 // Production entry point (Hostinger managed Node.js / any long-lived Node host).
 // Local development keeps using dev.js (nodemon + dev seed). This file is what
 // `npm start` and the Hostinger "Entry file" should point at.

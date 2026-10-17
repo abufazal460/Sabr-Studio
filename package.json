@@ -11,6 +11,7 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "test": "node scripts/test-all-routes.mjs",
     "test:routes": "node scripts/test-all-routes.mjs",
+    "test:prod": "node scripts/test-all-routes.mjs --base=https://sabrstudio.in",
 
     "build": "npm --prefix backend ci && node scripts/build.mjs",
     "build:frontend": "npm --prefix frontend run build",

@@ -25,7 +25,7 @@ export const Navbar = () => {
 
   const goAccount = (path) => { setUserMenuOpen(false); setMobileMenuOpen(false); navigate(path); };
   const openCustomerAuth = () => { setUserMenuOpen(false); setMobileMenuOpen(false); setAuthOpen(true); };
-  const handleCustomerLogout = async () => { setUserMenuOpen(false); setMobileMenuOpen(false); try { await logout(); } catch { } navigate('/'); };
+  const handleCustomerLogout = async () => { setUserMenuOpen(false); setMobileMenuOpen(false); try { await logout(); } catch { /* logout is best-effort */ } navigate('/'); };
   // Logged-out -> open login modal. Logged-in (customer or admin) -> account menu.
   const handleUserIcon = () => {
     if (customerAuthed || isAuthenticated) setUserMenuOpen((v) => !v);
