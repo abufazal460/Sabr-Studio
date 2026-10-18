@@ -58,7 +58,7 @@ export const AdminLayout = () => {
       <aside
         className={`${
           sidebarOpen ? 'block' : 'hidden'
-        } md:block w-full md:w-64 bg-footer-bg text-footer-text border-r border-border shrink-0 z-40`}
+        } md:block md:sticky md:top-0 md:h-screen md:overflow-y-auto w-full md:w-64 bg-footer-bg text-footer-text border-r border-border shrink-0 z-40`}
       >
         <div className="p-6 border-b border-white/10 hidden md:flex items-center justify-between">
           <div>
