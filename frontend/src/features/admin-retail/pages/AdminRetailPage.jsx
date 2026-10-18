@@ -705,7 +705,7 @@ export const AdminDashboard = () => {
                 <span className="text-[11px] uppercase tracking-wider text-muted font-medium">
                   Manage Categories
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
                   <input
                     type="text"
                     value={newCategoryName}
@@ -717,7 +717,7 @@ export const AdminDashboard = () => {
                       }
                     }}
                     placeholder="New category name"
-                    className="text-xs border border-border bg-white px-2.5 py-4 text-ink focus:border-black outline-none min-w-[180px]"
+                    className="text-xs border border-border bg-white px-2.5 py-4 text-ink focus:border-black outline-none w-full min-w-0"
                   />
                   <Button
                     type="button"
@@ -874,15 +874,15 @@ export const AdminDashboard = () => {
                               title="Click to toggle Published / Draft"
                             >
                               {isPublished ? (
-                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 text-[11px] font-medium bg-black text-white rounded-xs">
-                                  <LuEye className="w-3 h-3" />
+                                <Badge variant="success" className="space-x-1">
+                                  <LuEye className="w-3 h-3 shrink-0" />
                                   <span>{isTogglingPublish ? '...' : 'Published'}</span>
-                                </span>
+                                </Badge>
                               ) : (
-                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 text-[11px] font-medium border border-border text-muted bg-white rounded-xs">
-                                  <LuEyeOff className="w-3 h-3" />
+                                <Badge variant="error" className="space-x-1">
+                                  <LuEyeOff className="w-3 h-3 shrink-0" />
                                   <span>{isTogglingPublish ? '...' : 'Draft'}</span>
-                                </span>
+                                </Badge>
                               )}
                             </button>
                           </td>
