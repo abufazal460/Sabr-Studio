@@ -36,7 +36,7 @@ jobs:
         run: npm install --prefix frontend --include=dev --no-audit --no-fund
 
       - name: Lint frontend
-        run: npm exec --prefix frontend eslint .
+        run: npm exec --prefix frontend -- eslint --config frontend/eslint.config.js frontend
 
       - name: Build frontend
         run: npm run build --prefix frontend
