@@ -62,7 +62,7 @@ jobs:
         run: npm install --prefix backend --include=dev --no-audit --no-fund
 
       - name: Lint backend
-        run: npm exec --prefix backend eslint .
+        run: npm exec --prefix backend -- eslint --config backend/eslint.config.js backend
 
       - name: Run backend tests (supertest)
         run: npm test --prefix backend
