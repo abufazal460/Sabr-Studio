@@ -681,8 +681,7 @@ export const AdminDashboard = () => {
                 <tr>
                   <th className="py-3 px-4">Title</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Location</th>
-                  <th className="py-3 px-4">Year</th>
+                  <th className="py-3 px-4">Category</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -701,8 +700,7 @@ export const AdminDashboard = () => {
                           <Badge variant="error">Draft</Badge>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-muted">{proj.location}</td>
-                      <td className="py-3 px-4 text-muted font-mono">{proj.year}</td>
+                      <td className="py-3 px-4 text-muted">{proj.category || '—'}</td>
                       <td className="py-3 px-4 text-right space-x-2">
                         <button
                           type="button"
