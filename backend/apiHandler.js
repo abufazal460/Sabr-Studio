@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 
 import { authController } from './controllers/auth.controller.js';
 import { customerController } from './controllers/customer.controller.js';
+import { configController } from './controllers/config.controller.js';
 import { addressController } from './controllers/address.controller.js';
 import { projectController } from './controllers/project.controller.js';
 import { retailController } from './controllers/retail.controller.js';
@@ -19,7 +20,7 @@ import { orderService } from './services/order.service.js';
 import { protect } from './middlewares/protect.middleware.js';
 import { protectCustomer } from './middlewares/protectCustomer.middleware.js';
 import { uploadImage } from './middlewares/upload.middleware.js';
-import { authLimiter, adminLimiter, generalLimiter, enquiryLimiter, customerRegisterLimiter, resetLimiter, checkoutLimiter, otpLimiter } from './middlewares/rateLimit.middleware.js';
+import { authLimiter, adminLimiter, generalLimiter, enquiryLimiter, checkoutLimiter } from './middlewares/rateLimit.middleware.js';
 
 import { loginValidator } from './validators/auth.validator.js';
 import {
@@ -274,6 +275,13 @@ export default async function handleApiRequest(req, res) {
       return authController.logout(req, res);
     }
 
+    // 1b. Public runtime configuration (Google client id for the GIS button).
+    // Deliberately unauthenticated and rate-limit exempt: it exposes nothing
+    // secret and must work before the customer has a session.
+    if (path === '/api/config/public' && method === 'GET') {
+      return configController.getPublicConfig(req, res);
+    }
+
     // 2. Public Projects Endpoints (06-features.md §4.2)
     if (path === '/api/projects' && method === 'GET') {
       return projectController.getPublicProjects(req, res);
@@ -310,24 +318,7 @@ export default async function handleApiRequest(req, res) {
     }
 
     // 5. Customer auth (shoppers) + addresses + authenticated checkout
-    if (path === '/api/customer/register' && method === 'POST') {
-      return parseBody(() => { return runMiddlewareChain([customerRegisterLimiter], () => customerController.register(req, res)); });
-    }
-    if (path === '/api/customer/login' && method === 'POST') {
-      return parseBody(() => { return runMiddlewareChain([authLimiter], () => customerController.login(req, res)); });
-    }
-    if (path === '/api/customer/forgot-password' && method === 'POST') {
-      return parseBody(() => { return runMiddlewareChain([resetLimiter], () => customerController.forgotPassword(req, res)); });
-    }
-    if (path === '/api/customer/reset-password' && method === 'POST') {
-      return parseBody(() => { return runMiddlewareChain([resetLimiter], () => customerController.resetPassword(req, res)); });
-    }
-    if (path === '/api/customer/request-otp' && method === 'POST') {
-      return parseBody(() => { return runMiddlewareChain([otpLimiter], () => customerController.requestOtp(req, res)); });
-    }
-    if (path === '/api/customer/verify-otp' && method === 'POST') {
-      return parseBody(() => { return runMiddlewareChain([otpLimiter], () => customerController.verifyOtp(req, res)); });
-    }
+    // Google Sign-In is the ONLY customer sign-in method.
     if (path === '/api/customer/google' && method === 'POST') {
       return parseBody(() => { return runMiddlewareChain([authLimiter], () => customerController.google(req, res)); });
     }
@@ -645,6 +636,7 @@ export default async function handleApiRequest(req, res) {
     path === '/api/' ||
     path === '/health' ||
     path === '/api/health' ||
+    path === '/api/config/public' ||
     path.startsWith('/api/auth') ||
     path.startsWith('/api/customer') ||
     path.startsWith('/api/orders') ||

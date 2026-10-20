@@ -29,7 +29,7 @@ This report audits the entire SabrStudio codebase from a production perspective 
 | 🟩 **Core flows** | **Verified** | Enquiry DB+Email gating, server-side pricing, JWT cookie auth, webhook signature verify |
 
 ### 🟢 What is working well
-- Passwords hashed with **bcrypt** (10 rounds) for admin + customer.
+- Passwords hashed with **bcrypt** (10 rounds) for admin. Customers authenticate with **Google Sign-In only** (no password, no OTP).
 - JWT stored in **HttpOnly** cookies (not `localStorage`); `protect`/`protectCustomer` verify identity server-side.
 - Enquiry submission has a **strict success gate**: DB save + EmailJS delivery must both succeed; partial failure keeps the record and returns `success: false`.
 - Checkout resolves prices **server-side** from the catalog (never trusts the browser).
@@ -145,7 +145,7 @@ The project is currently **under active development** and **not yet safe for pro
 
 ### 2.1 What was inspected
 - Full repository tree: `backend/`, `frontend/`, `scripts/`, root configs, `.env`/`.env.example` (names only), `vercel.json`, `package.json`, `README.md`, `CONNECTIVITY_AUDIT.md`.
-- Git state: branch `fazal`, commits from v1.0 skeleton through active feature work, staged/unstaged changes, and 3 untracked backend files (`backend/models/otp.model.js`, `backend/services/google.service.js`, `backend/services/otp.service.js`).
+- Git state: branch `fazal`, commits from v1.0 skeleton through active feature work, staged/unstaged changes, and untracked backend files (`backend/services/google.service.js`).
 - All backend route registrations in `backend/apiHandler.js` (~34 endpoints), controllers, services, models, middlewares, validators, constants, and utilities.
 - Key frontend files: `main.jsx`, `App.jsx`, `AppRouter.jsx`, `ProtectedRoute.jsx`, `AdminLayout.jsx`, contexts, `axiosClient.js`, shared + admin + public feature pages.
 - Database schemas (mongoose) + in-memory fallback seeds + `seedDevelopmentData.js`.
@@ -181,7 +181,7 @@ Sabr Studio has a **reasonably clean architecture and good intentions**, but is 
 | **SEC-005: No CSRF tokens on admin routes** | 🟨 **Warning** | Cross-site state mutation risk |
 
 ### 3.2 What is working well
-- Passwords hashed with **bcrypt** (10 rounds) for admin + customer.
+- Passwords hashed with **bcrypt** (10 rounds) for admin. Customer accounts are Google-only (no stored password, no OTP).
 - JWT stored in **HttpOnly** cookies; `protect`/`protectCustomer` verify identity server-side.
 - Enquiry submission has **strict success gate**: DB save + EmailJS delivery must BOTH succeed.
 - Checkout resolves prices **server-side** from catalog (never trusts browser).
@@ -223,7 +223,7 @@ Sabr Studio has a **reasonably clean architecture and good intentions**, but is 
 | UI primitives | Custom Button/Select/Skeleton/EmptyState/Badge + CustomButtons demo kits |
 | State | React Context (AuthProvider, CustomerProvider, CartProvider) |
 | Backend | Express 4, Mongoose 8, MongoDB Atlas SRV, dotenv, cors, helmet, compression, express-validator, express-rate-limit, jsonwebtoken, bcrypt, razorpay, cloudinary, multer |
-| Auth | JWT (24h admin, 30d customer) in **HttpOnly** cookies + phone OTP (6-digit, hashed, TTL 5 min) |
+| Auth | JWT (24h admin, 30d customer) in **HttpOnly** cookies; customers authenticate via **Google Sign-In** (server-verified ID token) |
 | Payments | Razorpay (mocked when not configured) + webhook HMAC verification |
 | Email | EmailJS REST from backend (env vars) with strict success gating |
 | Media | Cloudinary configured on backend (optional) |
@@ -271,7 +271,7 @@ Sabr-Studio/
 |---|---|---|
 | Public: Home, Projects, Retail, Services, About, Contact | `frontend/src/features/*/pages` | 🟩 VERIFIED |
 | Public: Cart + Checkout + Order success + Orders list | `cart*, checkout, orders` | 🟩 VERIFIED |
-| Public: Customer login/register/OTP/Google/profile | `customer` feature + CustomerContext + customer.api | 🟩 VERIFIED |
+| Public: Customer Google sign-in / editable profile | `customer` feature + CustomerContext + customer.api | 🟩 VERIFIED |
 | Admin: Login, Dashboard, Projects, Retail, Enquiries, Orders | `admin-*` feature + AdminLayout + ProtectedRoute | 🟩 VERIFIED (core) |
 | Public: Enquiry form → DB + EmailJS | `enquiries/components/EnquiryForm` + `enquiry.controller.createEnquiry` | 🟩 VERIFIED |
 | Product CRUD (admin) | `retail.controller.js` + `admin-retail` page | 🟩 VERIFIED (core) |
@@ -447,18 +447,18 @@ flowchart LR
 **Notes:** Public stores only `published: true`. If a product is unpublished, it disappears (correct). No cache-busting (Vite dev server + Vercel static cache could stale). **Status:** Verified statically.
 
 
-### 9.4 Customer registration/login → authentication → protected API
+### 9.4 Customer Google sign-in → authentication → protected API
 ```mermaid
 flowchart LR
-  A[Browser] --> B[Customer login/register]
-  B --> C[POST /api/customer/login OR /api/customer/register]
-  C --> D[protectCustomer middleware]
-  D --> E[bcrypt / JWT verify / find customer]
+  A[Browser] --> B[Google Sign-In button (GIS)]
+  B --> C[POST /api/customer/google (opaque ID token)]
+  C --> D[Backend verifies token against Google JWKS (RS256)]
+  D --> E[find/create customer by verified sub]
   E --> F[sabr_customer cookie (HttpOnly)]
   F --> G[protected /api/customer/* calls]
   G --> D
 ```
-**Notes:** Customer JWT lives in cookie `sabr_customer` (30d). `protectCustomer` rejects non-`kind === 'customer'` payloads. No CSRF token on customer calls. **Status:** Verified statically. CSRF on customer state-changing endpoints unverified.
+**Notes:** Customer JWT lives in cookie `sabr_customer` (30d). `protectCustomer` rejects non-`kind === 'customer'` payloads. The client id comes from `GET /api/config/public`; no client secret is used or exposed. Profile edits are restricted to `name` and `phone` — the email is owned by Google. No CSRF token on customer calls. **Status:** Verified statically. CSRF on customer state-changing endpoints unverified.
 
 ### 9.5 Cart → checkout → order creation → payment → verification
 ```mermaid
@@ -578,12 +578,13 @@ flowchart LR
 ### 11.2 Customer authentication
 | Item | Evidence | Assessment |
 |---|---|---|
-| Password hashing | Customer pre-save bcrypt 10 rounds | 🟩 Good |
+| Password hashing | Not applicable — customers have no password | 🟩 N/A (Google-only) |
 | JWT | `sabr_customer` cookie, 30d, `kind: 'customer'` | 🟩 Good |
-| OTP | 6-digit, SHA-256 hashed, TTL 5 min, attempt limit 5 | 🟩 Good |
-| Google login | Server-side ID token verification in `google.service` | 🟩 Good |
-| Enumeration safety | `forgotPassword`/`requestOtp` identical responses | 🟩 Good |
-| Lockout | OTP attempt limit only | 🟥 P1 |
+| Identity provider | Google Sign-In only; server-side ID token verification (JWKS, RS256) in `google.service` | 🟩 Good |
+| Account key | Verified Google `sub` claim — accounts are never linked by unverified email | 🟩 Good |
+| Profile editing | Allowlist (`name`, `phone`); email is Google-owned and immutable | 🟩 Good |
+| Client secret | Not used, not exposed to the frontend | 🟩 Good |
+| Lockout | `authLimiter` per-IP on `POST /api/customer/google` | 🟨 P2 |
 
 ### 11.3 Authorization
 - **Admin endpoints:** `apiHandler.js` mounts `adminLimiter` + `protect` on `/api/admin/**`. No per-role checks (single role).
@@ -613,13 +614,13 @@ flowchart LR
 | SEC-011 | `adminLimiter` max 50 per 15 min (admin) is per-IP only | `rateLimit.middleware.js` lines 29-44 | 🟨 Medium | IP-sharing (corporate NAT) → everyone is limited together | Denial to legitimate IPs | Rate-limit by user/session where possible; add account-based checks | P2 |
 
 ### Existing controls that appear correctly implemented
-- 🟩 **bcrypt password hashing** — both admin and customer models use bcrypt (10 rounds) in `pre('save')` hooks.
+- 🟩 **bcrypt password hashing** — the admin model uses bcrypt (10 rounds) in a `pre('save')` hook. Customers no longer store a password.
 - 🟩 **HttpOnly cookies** — `token` (admin) and `sabr_customer` (customer) cookies are `HttpOnly`, with `Secure` flag in production.
 - 🟩 **Server-side price calculation** — `orderService.createCheckoutSession` resolves prices from catalog, never trusts client-submitted prices.
 - 🟩 **Razorpay webhook signature verification** — `verifyWebhookSignature` uses `crypto.timingSafeEqual` for constant-time comparison.
 - 🟩 **Enquiry success gating** — `enquiryService.createEnquiry` returns `success:false` (never false success) if email fails, but preserves DB record.
-- 🟩 **Enumeration-safe login** — Generic `401 "Invalid email or password"` for both missing account and wrong password.
-- 🟩 **Generic forgot-password response** — `customerController.forgotPassword` returns identical response whether or not account exists.
+- 🟩 **Server-side Google token verification** — the backend verifies the Google ID token against Google's JWKS (RS256, `aud` = client id, `iss` = `accounts.google.com`, `email_verified` required) before creating a session. The client id is published by `GET /api/config/public`; no client secret is used.
+- 🟩 **Enumeration-safe login** — Generic `401 "Invalid email or password"` for both missing account and wrong password (admin).
 
 ## 13. Rate Limiting and Abuse Protection
 
@@ -630,15 +631,12 @@ flowchart LR
 | `adminLimiter` | 15 min | 50 | 1000 | `/api/admin/**` |
 | `generalLimiter` | 15 min | 100 | 1000 | Everything else |
 | `enquiryLimiter` | 15 min | 5 | 100 | `/api/enquiries` POST |
-| `customerRegisterLimiter` | 15 min | 5 | 100 | `/api/customer/register` |
-| `resetLimiter` | 15 min | 5 | 100 | forgot/reset |
 | `checkoutLimiter` | 15 min | 30 | 500 | checkout/verify |
-| `otpLimiter` | 15 min | 8 | 200 | OTP send/verify |
 
 ### 13.2 Assessment
 **Confirmations:**
 - 🟩 `keyGenerator` uses `req.ip || x-forwarded-for || socket.remoteAddress`, with safe default.
-- 🟩 Login, register, reset, OTP, enquiry, and admin all have per-IP caps that tighten in production.
+- 🟩 Login, Google sign-in, enquiry, and admin all have per-IP caps that tighten in production.
 - 🟩 `generalLimiter` catches everything else (100/15 min prod).
 
 **Limitations (likely risk, needs runtime verification):**
@@ -648,7 +646,7 @@ flowchart LR
 
 ### 13.3 Recommendations
 1. **Replace in-memory store with `rate-limit-redis`** (or Memcached/Upstash) so multi-instance limits are shared. Add feature flag to keep dev-friendly.
-2. **Rate-limit by account** on login, register, and OTP in addition to IP where tokens/email are available.
+2. **Rate-limit by account** on admin login and customer Google sign-in in addition to IP where identifiers are available.
 3. **Add per-user limiters** for admin actions with a session/user identifier.
 4. **Add `Retry-After` header** on 429 responses for browser throttling.
 5. Consider per-account tracking (where identifiers exist) alongside IP limits for enquiry and checkout.
@@ -663,13 +661,12 @@ flowchart LR
 ### 14.1 Schema summary
 | Collection/Model | Key fields | Indexes | Notes |
 |---|---|---|---|
-| `Customer` | email unique, password, googleId, status, lastLoginAt, addresses[] | email unique | No email-verification field |
+| `Customer` | email unique, googleId (unique), name, phone, emailVerified, status, lastLoginAt, addresses[] | email unique, googleId unique (partial) | No password field — Google-only identity |
 | `Order` | orderNumber unique, user ref, idempotencyKey, payment, paymentStatus/orderStatus, trackingId | orderNumber unique, paymentStatus+orderStatus+createdAt | No unique index on idempotencyKey |
 | `Retail` | slug unique, category, price, availability, inStock, published | published+availability+createdAt | No index on category for search |
 | `RetailCategory` | name unique | — | Loosely used |
 | `Project` | slug unique, category, published, price | published+category+createdAt | — |
 | `Enquiry` | phone, status, emailStatus | status+createdAt | — |
-| `OtpCode` | phone, expiresAt + TTL 3600s | expiresAt TTL | 🟩 Good |
 | `Admin` | email unique | — | — |
 
 ### 14.2 Known issues
@@ -779,18 +776,18 @@ flowchart LR
 ## 17. Customers/Users Section Recommendation
 
 **Yes, add a Customers/Users section.** Rationale:
-- Registered customers exist (email/password, Google login, OTP login). Orders link to `Customer`.
+- Registered customers exist (Google Sign-In). Orders link to `Customer`.
 - Business value: active-customer counts for marketing, re-engagement, and support.
 - It is low complexity (read-only list + detail + order history) and high value.
 
 ### 17.1 Suggested fields (user-visible only)
 - Customer ID, name, email, phone, avatar, status (active/disabled), role (`customer`), lastLoginAt, order count, lifetime orders (count), lifetime spend (sum of paid orders).
-- **Do not** store passwords, OTPs, session secrets, or payment details in the admin UI.
+- **Do not** store session secrets or payment details in the admin UI.
 
 ### 17.2 Metrics
 - Total registered customers.
 - New registrations in period.
-- Verified vs unverified: `email` is not flagged "verified" currently. Add an `emailVerified` boolean or use Google/OTP identity presence.
+- Verified vs unverified: `emailVerified` is now set from the verified Google token, so it is always true for Google accounts.
 - Order count and lifetime spend (computed from `Order` collection).
 - Search, filter (status, signup date), pagination, customer detail with order history.
 
@@ -827,7 +824,7 @@ Build an **Export Center** (new admin section) exposing filtered, period-scoped 
 
 ### 18.3 Security & safety
 - **Authentication + role authorization** on every export endpoint.
-- **Field selection:** No passwords, tokens, OTPs, card details, or full PII.
+- **Field selection:** No tokens, session secrets, card details, or full PII.
 - **Formula injection prevention:** When writing CSV/XLSX, prefix `=`/+`-`/`@` with a quote or use a library that safely escapes cells.
 - **Large exports:** Stream to a temp file or queue (BullMQ) rather than loading all records into memory.
 - **Timezone:** Use a single app timezone (e.g., `Asia/Kolkata`) consistently for boundaries; document it. `new Date().toISOString()` is UTC — convert to the app timezone before splitting days/months.
@@ -842,7 +839,7 @@ Export a **Deletion/Audit History sheet** with record type, record ID, display n
 ## 19. Audit History, Trash, and Recovery
 
 ### 19.1 Centralized History/Audit section — YES
-Record for each event: **Actor** (admin id or customer id), **Action** (create/update/delete/status-change), **Record type + id**, **Timestamp**, **Before/after summary**, **Reason** for destructive actions, **Correlation/request ID**. **Never log:** passwords, OTPs, tokens, card secrets, or full payment payloads.
+Record for each event: **Actor** (admin id or customer id), **Action** (create/update/delete/status-change), **Record type + id**, **Timestamp**, **Before/after summary**, **Reason** for destructive actions, **Correlation/request ID**. **Never log:** tokens, session secrets, card secrets, or full payment payloads.
 
 ### 19.2 Audit event list
 - Product/Project create, edit, publish/unpublish, stock update, archive, delete.
@@ -954,9 +951,9 @@ Yeh features **partially kaam karte hain** ya **incorrectly behave** karte hain.
 | **BRK-008** | Cloudinary cleanup | **Not implemented** | Product/category replace ya delete hone par purana `publicId` delete nahi hota (Section 9.8 evidence) | 🟨 P2 |
 | **BRK-009** | Project slug validation | **Backend present, UI feedback missing** | Section 7.6 — admin form mein slug duplicate validation UI nahi | 🟨 P3 |
 | **BRK-010** | Frontend dev auto-start plugin | **Works locally, risk in deploy/CI** | `vite.config.js` 10-59 `autoStartBackendPlugin` backend spawn karta hai → EADDRINUSE race; Section 10 | 🟨 P2 |
-| **BRK-011** | OTP / Google / probe files | **Code verified, commit status unverified** | `backend/models/otp.model.js`, `backend/services/google.service.js`, `backend/services/otp.service.js`, `backend/probe_master2.mjs` — git status mein `??` (untracked) | 🟨 **VERIFY** |
+| **BRK-011** | Google sign-in files | **Code verified, commit status unverified** | `backend/services/google.service.js`, `backend/controllers/config.controller.js` — git status mein `??` (untracked) | 🟨 **VERIFY** |
 
-**BRK-011 clarification:** Code padhne se OTP (6-digit, SHA-256 hashed, TTL 5 min, attempt limit 5) aur Google ID-token verification **sahi likhe hue hain** — Section 11.2 inhe 🟩 mark karta hai. Lekin yeh files **untracked** hain, isliye "production mein yeh feature available hai" **claim nahi kiya ja sakta**. Yeh P1 **verification** item hai, confirmed vulnerability nahi.
+**BRK-011 clarification:** Code padhne se Google ID-token verification **sahi likha hua hai** — Section 11.2 use 🟩 mark karta hai. Lekin yeh files **untracked** hain, isliye "production mein yeh feature available hai" **claim nahi kiya ja sakta**. Yeh P1 **verification** item hai, confirmed vulnerability nahi. OTP support hata diya gaya hai, isliye is finding ka scope sirf Google sign-in hai.
 
 ---
 
@@ -1165,11 +1162,11 @@ Yeh **master register** hai. Baaki sections inhi IDs ko reference karte hain taa
 | **BRK-008** | Cloudinary `publicId` cleanup on replace/delete |
 | **BRK-009** | Slug duplicate validation UI |
 | **BRK-010** | `autoStartBackendPlugin` hatayo, documented 2-command boot |
-| **BRK-011** | Untracked OTP/Google/probe files **commit karo** (verification) |
+| **BRK-011** | Untracked Google sign-in files **commit karo** (verification) |
 | **UX-004** / **UX-005** / **UX-006** | Pending actions panel + loading/empty/error states + confirm dialogs |
 | **PERF-004** / **PROD-014** | Cloudinary transforms (`f_auto,q_auto,w_800`) |
 | **PERF-007** / **PROD-020** | React Error Boundary + error reporting |
-| **DB-005** / **DB-003** | `razorpaySignature` long-term store mat karo; OTP TTL index verify |
+| **DB-005** / **DB-003** | `razorpaySignature` long-term store mat karo; `Customer.googleId` unique index verify |
 | **TEST-002** / **TEST-004** / **TEST-006** / **TEST-007** | Component tests, ESLint, CI, staging config |
 | **SEC-005** | CSRF token ya Authorization header + `SameSite=strict` |
 | **PROD-005** / **PROD-006** / **PROD-012** / **PROD-013** | `COOKIE_SECURE` enforce, version header, EmailJS/Razorpay production verify |
@@ -1422,7 +1419,7 @@ Launch se pehle **har item tick** hona chahiye. Jo verify nahi ho saka, usme ⚠
 
 ### 30.7 Code hygiene (🟨)
 
-- [ ] **BRK-011** — Untracked OTP/Google/probe files committed
+- [ ] **BRK-011** — Untracked Google sign-in files committed
 - [ ] **BRK-010** — Dev auto-start plugin removed
 - [ ] **TEST-001/003** — Unit + E2E tests green in CI
 - [ ] Dependency audit (`npm audit`) reviewed
@@ -1485,7 +1482,7 @@ flowchart LR
 | Enquiries | Retain N months, phir anonymize | Business need khatam = PII hatao |
 | Customer accounts | Soft-delete + anonymize on request | Consent/DPDP |
 | `razorpaySignature` | **Long-term store mat karo** | DB-005 — verify ke baad zaroorat nahi |
-| OTP records | TTL 5 min (🟩 verified in code) | Short-lived by design |
+| Google identity records | Retain `googleId` (sub) as the account key | Needed to resolve sign-ins reliably |
 | Deleted products/projects | Trash window (e.g. 30 din), phir purge | FEAT-006 |
 
 ---
@@ -1513,14 +1510,13 @@ flowchart LR
 | `CLOUDINARY_API_KEY` | Image host key | 🟨 Same | 🟨 Same |
 | `CLOUDINARY_API_SECRET` | Image host secret | 🟨 Same | 🟨 Same |
 | `FALLBACK_DIR` | Fallback JSON dir | ⚪ Optional | ⚪ Dev convenience only |
-| `GOOGLE_CLIENT_ID` | Google OAuth verify | 🟨 Agar OTP/Google ship ho | 🟨 BRK-011 — untracked, pehle verify |
+| `GOOGLE_CLIENT_ID` | Google Sign-In verify (public client id, no secret) | ✅ Yes — customer sign-in ka only path hai | 🟥 Sign-in fail / button render nahi hoga |
 
 ### 32.2 Frontend environment variables (by name)
 
 | Variable | Purpose | Notes |
 |---|---|---|
 | `VITE_API_BASE_URL` | API base — abhi `/api` (relative) | 🟩 Relative sahi hai same-domain Vercel deploy ke liye |
-| `VITE_RAZORPAY_KEY_ID` | Checkout widget public key | 🟩 **Public hona OK hai** — secret kabhi nahi |
 
 > ⚠️ **Rule:** `VITE_` prefix wale variables **browser bundle mein jaate hain**. Inhe kabhi `SECRET`, `KEY_SECRET` ya `PASSWORD` mat do. Vite har `VITE_*` var ko build output mein inline kar deta hai.
 
@@ -1618,7 +1614,7 @@ Ek P0/P1 item **tabhi "closed"** hogi jab:
 | EmailJS live delivery (PROD-012) | Live send nahi hua | Ek real enquiry submit |
 | Multi-instance rate-limit sharing (PROD-010) | Multi-instance env nahi | 2+ instances + shared store test |
 | Performance / load profiling | Static audit tha, profiling nahi | k6/Artillery/Lighthouse |
-| OTP / Google OAuth production readiness (BRK-011) | Files **untracked** (`??`) — deploy nahi ho sakte | Pehle `git add` + commit, phir test |
+| Google Sign-In production readiness (BRK-011) | Files **untracked** (`??`) — deploy nahi ho sakte | Pehle `git add` + commit, phir live Google credentials ke saath test |
 | `seedDevelopmentData` production behaviour | Code padha, runtime nahi dekha | Prod startup log check |
 
 ### 34.3 Jo claims is document mein NAHI kiye gaye
@@ -1654,7 +1650,7 @@ Branch: **`fazal`**. Kuch bhi modify/stage/discard **nahi** kiya gaya.
 
 **Modified (unstaged, preserved as-is):** `backend/apiHandler.js`, `backend/controllers/customer.controller.js`, `backend/middlewares/rateLimit.middleware.js`, `backend/services/customer.service.js`, `backend/services/order.service.js`, `frontend/src/features/cart/**`, `frontend/src/features/checkout/**`, `frontend/src/features/customer/api/customer.api.js`, `frontend/src/shared/components/Navbar.jsx`, `frontend/src/shared/context/CustomerContext.jsx`, `frontend/tailwind.config.js`
 
-**Untracked:** `backend/models/otp.model.js`, `backend/services/google.service.js`, `backend/services/otp.service.js`, `backend/probe_master2.mjs`, `requirement.md`
+**Untracked:** `backend/services/google.service.js`, `backend/controllers/config.controller.js`, `frontend/src/shared/components/GoogleSignInButton.jsx`, `frontend/src/shared/hooks/usePublicConfig.js`, `backend/probe_master2.mjs`, `requirement.md`
 
 **Cleaned-up temp artefacts:** `fix-encoding.js`, `fix-encoding.ps1` is audit ke dauraan encoding repair ke liye bane the (application code nahi). Kaam poora hone par **delete kar diye gaye** — repo root ab saaf hai.
 

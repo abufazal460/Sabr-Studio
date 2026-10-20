@@ -101,26 +101,8 @@ function makeLimiter({ windowMs, prodMax, devMax, message }) {
   });
 }
 
-// Customer account creation (RATE: strict per-IP)
-export const customerRegisterLimiter = makeLimiter({
-  windowMs: 15 * 60 * 1000, prodMax: 5, devMax: 100,
-  message: 'Too many accounts created from this network. Please try again later.',
-});
-
-// Password reset request + confirmation (very strict; brute-force/enumeration guard)
-export const resetLimiter = makeLimiter({
-  windowMs: 15 * 60 * 1000, prodMax: 5, devMax: 100,
-  message: 'Too many password-reset attempts. Please try again later.',
-});
-
 // Checkout session creation + payment verification (moderate; normal shopping unaffected)
 export const checkoutLimiter = makeLimiter({
   windowMs: 15 * 60 * 1000, prodMax: 30, devMax: 500,
   message: 'Too many checkout attempts. Please try again shortly.',
-});
-
-// Phone OTP request + verify (strict; brute-force / SMS-pumping guard)
-export const otpLimiter = makeLimiter({
-  windowMs: 15 * 60 * 1000, prodMax: 8, devMax: 200,
-  message: 'Too many login-code attempts. Please try again later.',
 });

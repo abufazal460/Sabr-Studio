@@ -19,24 +19,6 @@ export const CustomerProvider = ({ children }) => {
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
 
-  const login = async (email, password) => {
-    try {
-      const res = await axiosClient.post('/customer/login', { email, password });
-      const data = res?.data?.customer || null;
-      if (res?.success && data) { setCustomer(data); return { success: true }; }
-      return { success: false, message: res?.message || 'Login failed' };
-    } catch (err) { return { success: false, message: err?.message || 'Invalid credentials' }; }
-  };
-
-  const register = async (payload) => {
-    try {
-      const res = await axiosClient.post('/customer/register', payload);
-      const data = res?.data?.customer || null;
-      if (res?.success && data) { setCustomer(data); return { success: true }; }
-      return { success: false, message: res?.message || 'Registration failed' };
-    } catch (err) { return { success: false, message: err?.message || 'Registration failed' }; }
-  };
-
   const googleLogin = async (credential) => {
     try {
       // Send ONLY the opaque Google ID token; the backend verifies it server-side.
@@ -45,15 +27,6 @@ export const CustomerProvider = ({ children }) => {
       if (res?.success && data) { setCustomer(data); return { success: true }; }
       return { success: false, message: res?.message || 'Google login failed' };
     } catch (err) { return { success: false, message: err?.message || 'Google login failed' }; }
-  };
-
-  const loginWithOtp = async (phone, code) => {
-    try {
-      const res = await axiosClient.post('/customer/verify-otp', { phone, code });
-      const data = res?.data?.customer || null;
-      if (res?.success && data) { setCustomer(data); return { success: true }; }
-      return { success: false, message: res?.message || 'OTP verification failed' };
-    } catch (err) { return { success: false, message: err?.message || 'OTP verification failed' }; }
   };
 
   const logout = async () => {
@@ -71,7 +44,7 @@ export const CustomerProvider = ({ children }) => {
   };
 
   return (
-    <CustomerContext.Provider value={{ customer, setCustomer, loading, isAuthenticated: Boolean(customer), login, register, googleLogin, loginWithOtp, logout, updateProfile, checkAuth }}>
+    <CustomerContext.Provider value={{ customer, setCustomer, loading, isAuthenticated: Boolean(customer), googleLogin, logout, updateProfile, checkAuth }}>
       {children}
     </CustomerContext.Provider>
   );

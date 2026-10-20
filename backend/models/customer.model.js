@@ -1,10 +1,11 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcrypt';
 
 /**
  * Customer (store shopper) account — separate from Admin.
- * Email/password + optional Google identity. Phone + addresses saved to profile.
- * Phone alone is NEVER proof of identity (JWT required for all order writes).
+ * Google Sign-In is the ONLY identity provider: there is no password, no OTP
+ * and no email/password login. The Google `sub` claim is the account key.
+ * Name and phone stay editable by the customer; the email comes from the
+ * server-verified Google token and is therefore immutable here.
  */
 const addressSchema = new mongoose.Schema(
   {
@@ -34,42 +35,27 @@ const customerSchema = new mongoose.Schema(
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Valid email is required'],
     },
-    password: { type: String, select: false, default: null },
-    googleId: { type: String, default: null, index: true, sparse: true },
+    // Unique per Google account. The partial filter keeps legacy records that
+    // have no googleId yet out of the unique index (a plain unique index would
+    // collide on the repeated null values). Not `required` so that legacy
+    // password-era records stay valid; the service rejects a missing `sub`.
+    googleId: {
+      type: String,
+      trim: true,
+      index: true,
+      unique: true,
+      partialFilterExpression: { googleId: { $type: 'string' } },
+    },
+    emailVerified: { type: Boolean, default: true },
     avatar: { type: String, default: '' },
     phone: { type: String, default: '', trim: true },
     addresses: { type: [addressSchema], default: [] },
     role: { type: String, enum: ['customer'], default: 'customer' },
     status: { type: String, enum: ['active', 'disabled'], default: 'active' },
     lastLoginAt: { type: Date, default: null },
-    // Password-reset state. Only a SHA-256 hash of the token is ever stored;
-    // the raw token exists solely in the customer's email. Single-use + short TTL.
-    passwordReset: {
-      tokenHash: { type: String, default: null },
-      expiresAt: { type: Date, default: null },
-      attempts: { type: Number, default: 0 },
-      lastSentAt: { type: Date, default: null },
-      usedAt: { type: Date, default: null },
-    },
   },
   { timestamps: true }
 );
-
-customerSchema.pre('save', async function (next) {
-  if (!this.isModified('password') || !this.password) return next();
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
-
-customerSchema.methods.comparePassword = async function (candidate) {
-  if (!this.password || !candidate) return false;
-  return bcrypt.compare(candidate, this.password);
-};
 
 export const Customer =
   mongoose.models.Customer || mongoose.model('Customer', customerSchema);
