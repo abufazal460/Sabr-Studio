@@ -44,9 +44,9 @@ describe('Customer profile page', () => {
     const emailInput = screen.getByLabelText(/^Email/);
     expect(emailInput).toHaveValue(CUSTOMER.email);
     expect(emailInput).toHaveAttribute('readonly');
-    // Required fields render a visual '*' (aria-hidden) — match by prefix.
-    expect(screen.getByLabelText(/^Full Name/)).toHaveValue(CUSTOMER.name);
-    expect(screen.getByLabelText(/^Phone/)).toHaveValue(CUSTOMER.phone);
+    // Form fields hydrate from the loaded customer on a subsequent commit.
+    expect(await screen.findByDisplayValue(CUSTOMER.name)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(CUSTOMER.phone)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Changes' })).toBeInTheDocument();
   });
 

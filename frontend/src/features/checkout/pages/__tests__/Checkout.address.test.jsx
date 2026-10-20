@@ -86,8 +86,8 @@ describe('Checkout single-address UI', () => {
 
     expect(await screen.findByRole('button', { name: 'Edit Address' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add Address' })).not.toBeInTheDocument();
-    // The saved address itself is displayed.
-    expect(screen.getByText(/Defence Colony/)).toBeInTheDocument();
+    // The saved address itself is displayed (card + order-summary "Deliver to").
+    expect(screen.getAllByText(/Defence Colony/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows no address button while the session check is pending', async () => {
@@ -97,7 +97,8 @@ describe('Checkout single-address UI', () => {
     });
     renderCheckout();
 
-    expect(await screen.findByText('Checking your session…')).toBeInTheDocument();
+    // Shown in BOTH the account and the address section while the check runs.
+    expect((await screen.findAllByText(/Checking your session/)).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByRole('button', { name: 'Add Address' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit Address' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Log In' })).not.toBeInTheDocument();
