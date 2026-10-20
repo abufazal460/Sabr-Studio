@@ -2,11 +2,11 @@
 
 > **Configuration policy:** Fixed environment variable inventory for local development and production.
 >
-> **Backend:** Exactly 30 application-configured variables.
+> **Backend:** Exactly 26 application-configured variables.
 >
 > **Frontend:** Exactly 1 environment variable.
 >
-> **Total:** 31 explicitly configured application environment variables.
+> **Total:** 27 explicitly configured application environment variables.
 >
 > **Frontend variable:** `VITE_API_BASE_URL=/api` only.
 >
@@ -24,7 +24,7 @@ The configuration must follow these rules:
 2. The frontend `.env` file must contain only `VITE_API_BASE_URL=/api`.
 3. No additional frontend environment variables are permitted.
 4. No additional manually configured backend environment variables are permitted.
-5. Backend and frontend code, API integrations, authentication, database connections, payments, uploads, email notifications, and OTP functionality must follow this configuration.
+5. Backend and frontend code, API integrations, authentication, database connections, payments, uploads, email notifications, and Google Sign-In must follow this configuration.
 6. Existing environment variable references must be checked before being renamed or removed.
 7. Local and production configurations must use the same variable names, but environment-specific values may differ.
 8. Real secrets must be supplied through local environment files or the hosting provider's environment settings. They must never be committed to Git.
@@ -35,7 +35,7 @@ This document defines the intended configuration contract. Actual code complianc
 
 The backend `.env` file is the single application-level configuration source for the backend.
 
-Exactly the following 30 variables are approved.
+Exactly the following 26 variables are approved.
 
 ### 2.1 Server and Hosting
 
@@ -119,30 +119,32 @@ Payment creation, signature verification, webhook verification, and order status
 
 Production payment verification must fail closed when the required secret or signature is missing or invalid.
 
-### 2.7 Google Login
+### 2.7 Google Sign-In (customer authentication)
 
 | Variable | Required value |
 |---|---|
-| `GOOGLE_CLIENT_ID` | Actual Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Actual Google OAuth client secret, if required by the implemented OAuth flow |
+| `GOOGLE_CLIENT_ID` | Actual Google OAuth client ID (Web application) |
 
-Google OAuth configuration must be consistent with the existing login implementation and the authorized origins and redirect URIs configured in Google Cloud Console.
+Google Sign-In is the **only** customer authentication method: there is no customer password,
+no SMS OTP and no email/password login. The browser renders the official Google Identity
+Services button using the client id published by `GET /api/config/public`, sends the resulting
+opaque ID token to `POST /api/customer/google`, and the backend verifies it against Google's
+published JWKS (RS256, audience = `GOOGLE_CLIENT_ID`, issuer = `accounts.google.com`,
+`email_verified` must be true).
 
-The client secret must never be exposed to the frontend.
+The client secret must never be exposed to the frontend and is not used by this flow.
 
-**Important:** This fixed configuration intentionally does not include `VITE_GOOGLE_CLIENT_ID`. If the current frontend implementation reads that variable, it must be refactored to obtain the public client ID through an explicitly supported configuration mechanism or the approved backend flow. Google login must not be broken by simply deleting the variable.
+The client's authorised JavaScript origins and redirect URIs in the Google Cloud Console must
+match the deployed origins (e.g. `https://sabrstudio.in`, `http://localhost:5173`).
+
+**Important:** This fixed configuration intentionally does not include `VITE_GOOGLE_CLIENT_ID`.
+The frontend obtains the public client ID from the backend instead, so the built bundle contains
+no environment-specific credential and can be re-pointed server-side without a rebuild.
 
 ### 2.8 Twilio OTP
 
-| Variable | Required value |
-|---|---|
-| `TWILIO_ACCOUNT_SID` | Actual Twilio Account SID |
-| `TWILIO_AUTH_TOKEN` | Actual Twilio Auth Token |
-| `TWILIO_FROM_NUMBER` | Actual Twilio sender number authorized for the account |
-
-OTP generation, expiry, attempt limits, verification, and SMS delivery must continue to follow the existing authentication and security implementation.
-
-Twilio credentials must remain server-side.
+**Removed.** Phone OTP is no longer an authentication method; the Twilio variables are not part
+of the approved backend configuration and no route consumes them.
 
 ## 3. Complete Backend `.env` Template
 
@@ -185,19 +187,13 @@ RAZORPAY_KEY_ID=REPLACE_WITH_RAZORPAY_KEY_ID
 RAZORPAY_KEY_SECRET=REPLACE_WITH_RAZORPAY_KEY_SECRET
 RAZORPAY_WEBHOOK_SECRET=REPLACE_WITH_RAZORPAY_WEBHOOK_SECRET
 
-# Google Login
+# Google Sign-In (customer authentication - client id only)
 GOOGLE_CLIENT_ID=REPLACE_WITH_GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET=REPLACE_WITH_GOOGLE_CLIENT_SECRET
-
-# Twilio OTP
-TWILIO_ACCOUNT_SID=REPLACE_WITH_TWILIO_ACCOUNT_SID
-TWILIO_AUTH_TOKEN=REPLACE_WITH_TWILIO_AUTH_TOKEN
-TWILIO_FROM_NUMBER=REPLACE_WITH_TWILIO_FROM_NUMBER
 ```
 
 **Note:** This is a local-development template, not a file to copy unchanged into production. Placeholder strings are not real credentials. Local cookie and domain values are suitable only when consistent with the actual local setup.
 
-For production, configure the same 30 variable names with production values in Hostinger's environment settings.
+For production, configure the same 26 variable names with production values in Hostinger's environment settings.
 
 The production configuration must use:
 
@@ -216,7 +212,7 @@ APP_URL=https://sabrstudio.in
 EMAILJS_ORIGIN=https://sabrstudio.in
 ```
 
-The remaining production variables must be populated with actual database, authentication, administrator, Cloudinary, EmailJS, Razorpay, Google, and Twilio values.
+The remaining production variables must be populated with actual database, authentication, administrator, Cloudinary, EmailJS, Razorpay, and Google values.
 
 Do not use the local placeholder credentials or development cookie settings in production.
 
@@ -236,7 +232,7 @@ In particular, the frontend must not define or require:
 - `VITE_RAZORPAY_KEY_ID`
 - `VITE_MONGODB_URI`
 - `VITE_JWT_SECRET`
-- Any Cloudinary, EmailJS private, Twilio, Razorpay secret, or Google client secret variable
+- Any Cloudinary, EmailJS private, Razorpay secret, or Google client secret variable
 
 The application must not expose backend credentials through Vite environment variables.
 
@@ -328,17 +324,18 @@ All application code must remain compatible with the approved configuration.
 - Do not trust frontend payment-success indicators without server-side verification.
 - Do not create a separate `VITE_RAZORPAY_KEY_ID` dependency.
 
-### 6.6 Google Login
+### 6.6 Google Sign-In
 
-- Use the approved Google OAuth configuration.
-- Remove the frontend dependency on `VITE_GOOGLE_CLIENT_ID` only after providing a compatible configuration path.
-- Keep OAuth validation and any client secret handling server-side.
-- Verify that the final login flow works before removing the old configuration.
+- Use the approved Google OAuth configuration (`GOOGLE_CLIENT_ID` on the backend).
+- The frontend obtains the public client ID from `GET /api/config/public`; it must not read
+  `VITE_GOOGLE_CLIENT_ID` or any other frontend credential variable.
+- Keep token verification and any client secret handling server-side.
+- Verify that the final sign-in flow works before removing the old configuration.
 
-### 6.7 Cloudinary and OTP
+### 6.7 Cloudinary
 
-- Use only the approved Cloudinary and Twilio backend variables.
-- Preserve existing upload and OTP routes.
+- Use only the approved Cloudinary backend variables.
+- Preserve existing upload routes.
 - Keep credentials on the backend.
 - Do not introduce new configuration variables without an explicit change to this policy.
 
@@ -350,7 +347,7 @@ These references must be reviewed against the current repository.
 
 The intended final state is:
 
-- Exactly 30 manually configured backend application variables.
+- Exactly 26 manually configured backend application variables.
 - Exactly 1 frontend variable.
 - No application requirement for additional manually configured variables.
 - No dependency on a second frontend API base URL.
@@ -365,18 +362,18 @@ Do not remove an existing reference until the affected code, scripts, deployment
 
 The configuration change is complete only when all the following conditions are met:
 
-- [ ] The backend `.env.example` contains exactly the 30 approved backend variables.
+- [ ] The backend `.env.example` contains exactly the 26 approved backend variables.
 - [ ] The frontend `.env.example` contains only `VITE_API_BASE_URL=/api`.
 - [ ] Local backend configuration uses the approved backend variable names.
 - [ ] Hostinger production configuration uses the same approved backend variable names.
 - [ ] No additional manually configured backend variables are required.
 - [ ] No frontend environment variable other than `VITE_API_BASE_URL` is read or required.
 - [ ] The frontend build succeeds without `VITE_GOOGLE_CLIENT_ID` and `VITE_RAZORPAY_KEY_ID`.
-- [ ] Google login remains functional through the approved configuration path.
+- [ ] Google sign-in remains functional through the approved configuration path.
 - [ ] Razorpay checkout obtains its key ID from the backend.
 - [ ] Database connection, admin login, customer authentication, and cookies work.
 - [ ] Enquiry persistence and email error handling work.
-- [ ] Uploads and OTP work when their integrations are configured.
+- [ ] Uploads work when their integrations are configured.
 - [ ] Production startup fails safely when mandatory secrets are missing.
 - [ ] The environment validation does not print real secret values.
 - [ ] The environment leak scan passes.
@@ -402,7 +399,7 @@ Record actual command outputs and test results in the audit. Never mark a check 
 
 The approved environment configuration for SabrStudio is fixed as follows:
 
-**Backend:** 30 explicitly configured variables, all defined in the backend environment configuration.
+**Backend:** 26 explicitly configured variables, all defined in the backend environment configuration.
 
 **Frontend:** 1 variable only:
 
@@ -410,11 +407,11 @@ The approved environment configuration for SabrStudio is fixed as follows:
 VITE_API_BASE_URL=/api
 ```
 
-**Total:** 31 explicitly configured application environment variables.
+**Total:** 27 explicitly configured application environment variables.
 
 The frontend must not contain any additional environment variables. The backend must not require additional manually configured environment variables.
 
-All backend logic, frontend API communication, database access, authentication, payments, email notifications, uploads, and OTP flows must be implemented and validated against this contract.
+All backend logic, frontend API communication, database access, authentication, payments, email notifications, uploads, and Google Sign-In must be implemented and validated against this contract.
 
 Any future addition, removal, or renaming of an environment variable requires an explicit update to this document, the corresponding example files, the environment validation logic, and the affected code and tests.
 

@@ -27,21 +27,49 @@ process.env.CLOUDINARY_API_KEY = '';
 process.env.CLOUDINARY_API_SECRET = '';
 
 const { default: app } = await import('../app.js');
+const { googleIdentity } = await import('../services/google.service.js');
 const request = supertest(app);
 
 const ADMIN_LOGIN = { email: 'unit@test.local', password: 'unit-test-password-12345' };
+const CUSTOMER_A_KEY = 'a';
+const CUSTOMER_B_KEY = 'b';
 const CUSTOMER_A = {
   name: 'Unit Customer A',
   email: 'a@test.local',
-  password: 'password12345',
   phone: '+91 98765 43210',
 };
 const CUSTOMER_B = {
   name: 'Unit Customer B',
   email: 'b@test.local',
-  password: 'password12345',
   phone: '+91 98765 43211',
 };
+
+/**
+ * Customers authenticate with Google Sign-In only. In tests we replace the
+ * verifier seam with a stub that returns a fixed, already-verified identity -
+ * production code always performs the real RS256/JWKS verification.
+ */
+const GOOGLE_IDENTITIES = {
+  [CUSTOMER_A_KEY]: { googleId: 'google-sub-a', email: CUSTOMER_A.email, name: CUSTOMER_A.name, avatar: '' },
+  [CUSTOMER_B_KEY]: { googleId: 'google-sub-b', email: CUSTOMER_B.email, name: CUSTOMER_B.name, avatar: '' },
+};
+
+function stubGoogleIdentity(key) {
+  googleIdentity.verify = async (credential) => {
+    if (!credential) {
+      const e = new Error('Google credential is required.');
+      e.statusCode = 400;
+      throw e;
+    }
+    const identity = GOOGLE_IDENTITIES[key];
+    if (!identity || credential === 'invalid-credential') {
+      const e = new Error('Google credential verification failed.');
+      e.statusCode = 400;
+      throw e;
+    }
+    return identity;
+  };
+}
 
 function adminToken() {
   return request
@@ -53,22 +81,14 @@ function adminToken() {
     });
 }
 
-async function customerToken(customer) {
-  const regRes = await request
-    .post('/api/customer/register')
-    .send(customer);
-  if (regRes.status === 201 && regRes.headers['set-cookie']) {
-    return Array.isArray(regRes.headers['set-cookie'])
-      ? regRes.headers['set-cookie'].join('; ')
-      : regRes.headers['set-cookie'];
-  }
-  const loginRes = await request
-    .post('/api/customer/login')
-    .send({ email: customer.email, password: customer.password });
-  assert.equal(loginRes.status, 200);
-  return Array.isArray(loginRes.headers['set-cookie'])
-    ? loginRes.headers['set-cookie'].join('; ')
-    : loginRes.headers['set-cookie'];
+async function customerToken(key) {
+  stubGoogleIdentity(key);
+  const res = await request
+    .post('/api/customer/google')
+    .send({ credential: `valid-credential-${key}` });
+  assert.equal(res.status, 200, `google login for ${key} failed`);
+  const setCookie = res.headers['set-cookie'];
+  return Array.isArray(setCookie) ? setCookie.join('; ') : setCookie;
 }
 
 const SAMPLE_ADDRESS = {
@@ -90,7 +110,7 @@ describe('server-side price resolution', () => {
     assert.equal(catalog.status, 200);
     const unitPrice = catalog.body?.data?.[0]?.price ?? 34000;
 
-    const cookie = await customerToken(CUSTOMER_A);
+    const cookie = await customerToken(CUSTOMER_A_KEY);
     const res = await request
       .post('/api/orders/checkout')
       .set('Cookie', cookie)
@@ -155,7 +175,7 @@ describe('razorpay signature verification', () => {
 // ---------------------------------------------------------------------------
 describe('idempotency', () => {
   it('returns the same order for the same Idempotency-Key (no duplicate order)', async () => {
-    const cookie = await customerToken(CUSTOMER_A);
+    const cookie = await customerToken(CUSTOMER_A_KEY);
     const first = await request
       .post('/api/orders/checkout')
       .set('Cookie', cookie)
@@ -202,8 +222,8 @@ describe('admin route auth', () => {
 // ---------------------------------------------------------------------------
 describe('customer order ownership', () => {
   it('prevents a customer reading another customer\'s order', async () => {
-    const a = await customerToken(CUSTOMER_A);
-    const b = await customerToken(CUSTOMER_B);
+    const a = await customerToken(CUSTOMER_A_KEY);
+    const b = await customerToken(CUSTOMER_B_KEY);
 
     const orderA = await request
       .post('/api/orders/checkout')

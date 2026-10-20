@@ -1,5 +1,5 @@
 import { customerService } from '../services/customer.service.js';
-import { verifyGoogleIdToken } from '../services/google.service.js';
+import { googleIdentity } from '../services/google.service.js';
 import { getCustomerCookieOptions, getClearCookieOptions } from '../utils/cookieOptions.js';
 
 export const CUSTOMER_COOKIE = 'sabr_customer';
@@ -11,34 +11,16 @@ function setCustomerCookie(res, token) {
 }
 
 class CustomerController {
-  async register(req, res) {
-    res.setHeader('Cache-Control', 'no-store');
-    try {
-      const result = await customerService.register(req.body || {});
-      setCustomerCookie(res, result.token);
-      return res.status(201).json({ success: true, message: 'Account created', data: { customer: result.customer } });
-    } catch (err) {
-      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Registration failed' });
-    }
-  }
-  async login(req, res) {
-    res.setHeader('Cache-Control', 'no-store');
-    try {
-      const result = await customerService.login(req.body?.email, req.body?.password);
-      if (!result) return res.status(401).json({ success: false, message: 'Invalid email or password' });
-      setCustomerCookie(res, result.token);
-      return res.status(200).json({ success: true, message: 'Login successful', data: { customer: result.customer } });
-    } catch (err) {
-      return res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Login failed' });
-    }
-  }
+  /**
+   * The ONLY customer sign-in path. The browser sends an opaque Google ID
+   * token; identity is established from the server-side-verified claims
+   * (aud/iss/exp + email_verified), never from client-submitted data.
+   */
   async google(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     try {
-      // Browser sends ONLY an opaque Google ID token. Identity is established
-      // from the server-side-verified claims, never from client-submitted data.
       const credential = req.body?.credential || req.body?.idToken || req.body?.token;
-      const identity = await verifyGoogleIdToken(credential);
+      const identity = await googleIdentity.verify(credential);
       const result = await customerService.googleLogin(identity);
       setCustomerCookie(res, result.token);
       return res.status(200).json({ success: true, message: 'Google login successful', data: { customer: result.customer } });
@@ -56,52 +38,17 @@ class CustomerController {
     if (typeof res.clearCookie === 'function') res.clearCookie(CUSTOMER_COOKIE, opts);
     return res.status(200).json({ success: true, message: 'Logged out' });
   }
+  /**
+   * Profile mutation is restricted to the allowlisted fields (name, phone).
+   * The email is owned by Google and cannot be changed from here.
+   */
   async updateProfile(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     try {
-      const { name, phone, email, currentPassword } = req.body || {};
-      const result = await customerService.updateProfile(req.customer.id, { name, phone, email, currentPassword });
+      const result = await customerService.updateProfile(req.customer.id, req.body || {});
       return res.status(200).json({ success: true, message: 'Profile updated', data: { customer: result.customer } });
     } catch (err) {
       return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Profile update failed' });
-    }
-  }
-  async forgotPassword(req, res) {
-    res.setHeader('Cache-Control', 'no-store');
-    try {
-      await customerService.requestPasswordReset(req.body?.email);
-    } catch { /* never leak */ }
-    // Enumeration-safe: identical response whether or not the account exists.
-    return res.status(200).json({ success: true, message: 'If an account exists for that email, a reset code has been sent.' });
-  }
-  async resetPassword(req, res) {
-    res.setHeader('Cache-Control', 'no-store');
-    try {
-      const { email, token, password } = req.body || {};
-      await customerService.resetPassword(email, token, password);
-      return res.status(200).json({ success: true, message: 'Password reset successful. Please log in with your new password.' });
-    } catch (err) {
-      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Password reset failed' });
-    }
-  }
-  async requestOtp(req, res) {
-    res.setHeader('Cache-Control', 'no-store');
-    try {
-      await customerService.requestOtp(req.body?.phone);
-      return res.status(200).json({ success: true, message: 'If the number is valid, a login code has been sent by SMS.' });
-    } catch (err) {
-      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Could not send login code' });
-    }
-  }
-  async verifyOtp(req, res) {
-    res.setHeader('Cache-Control', 'no-store');
-    try {
-      const { phone, code } = req.body || {};
-      const result = await customerService.verifyOtp(phone, code);
-      setCustomerCookie(res, result.token);
-      return res.status(200).json({ success: true, message: 'Phone verified. Login successful.', data: { customer: result.customer } });
-    } catch (err) {
-      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'OTP verification failed' });
     }
   }
 }

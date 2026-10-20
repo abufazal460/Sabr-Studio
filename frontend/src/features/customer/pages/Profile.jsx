@@ -5,45 +5,41 @@ import TextInput from '../../../shared/components/TextInput';
 import { Button } from '../../../shared/components/Button';
 import Seo from '../../../shared/components/Seo';
 import EmptyState from '../../../shared/components/EmptyState';
-import { LuUser, LuShieldCheck, LuCircleCheck } from 'react-icons/lu';
+import { LuUser, LuCircleCheck, LuLock } from 'react-icons/lu';
 
 export const Profile = () => {
   const navigate = useNavigate();
   const { customer, isAuthenticated, loading, logout, updateProfile } = useCustomer();
-  const [form, setForm] = useState({ name: '', email: '', phone: '' });
-  const [currentPassword, setCurrentPassword] = useState('');
+  const [form, setForm] = useState({ name: '', phone: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    if (customer) setForm({ name: customer.name || '', email: customer.email || '', phone: customer.phone || '' });
+    if (customer) setForm({ name: customer.name || '', phone: customer.phone || '' });
   }, [customer]);
 
-  if (loading) return <div className="max-w-container mx-auto px-5 py-16 text-xs text-muted">Loading your profile…</div>;
+  if (loading) return <div className="max-w-container mx-auto px-5 py-16 text-xs text-muted">Loading your profile...</div>;
   if (!isAuthenticated) {
     return (
       <div className="max-w-container mx-auto px-5 py-16">
-        <EmptyState icon={LuUser} title="Log in to view your profile" description="Your account details, addresses and order history live behind a secure login." actionLabel="Go to Checkout Login" onAction={() => navigate('/checkout')} />
+        <EmptyState icon={LuUser} title="Log in to view your profile" description="Your account details, addresses and order history live behind a secure Google sign-in." actionLabel="Sign in with Google" onAction={() => navigate('/login')} />
       </div>
     );
   }
 
-  const emailChanged = form.email.trim().toLowerCase() !== String(customer?.email || '').toLowerCase();
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
     if (!form.name.trim() || form.name.trim().length < 2) { setError('Please enter your full name.'); return; }
-    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) { setError('Please enter a valid email address.'); return; }
-    if (emailChanged && !currentPassword) { setError('Changing your email requires your current password.'); return; }
     setSaving(true);
     try {
-      const payload = { name: form.name.trim(), phone: form.phone.trim() };
-      if (emailChanged) { payload.email = form.email.trim(); payload.currentPassword = currentPassword; }
-      const res = await updateProfile(payload);
-      if (res.success) { setSuccess('Profile updated.'); setCurrentPassword(''); }
+      // Only the allowlisted fields are sent. Email is owned by Google and
+      // the backend rejects anything outside the allowlist.
+      const res = await updateProfile({ name: form.name.trim(), phone: form.phone.trim() });
+      if (res.success) setSuccess('Profile updated.');
       else setError(res.message || 'Could not update profile.');
     } catch (err) { setError(err?.message || 'Could not update profile.'); }
     finally { setSaving(false); }
@@ -51,7 +47,7 @@ export const Profile = () => {
 
   return (
     <div className="w-full bg-white">
-      <Seo title="My Profile · Sabr Studio" noIndex />
+      <Seo title="My Profile - Sabr Studio" noIndex />
       <div className="max-w-container mx-auto px-5 sm:px-8 py-12 sm:py-16 space-y-8">
         <div className="flex flex-wrap items-center gap-3 justify-between">
           <div className="flex items-center gap-3">
@@ -73,13 +69,10 @@ export const Profile = () => {
         <form onSubmit={onSubmit} className="border border-border rounded-md p-6 sm:p-8 space-y-5 max-w-xl">
           <TextInput id="pf-name" label="Full Name" required value={form.name} onChange={set('name')} placeholder="Aarav Sharma" autoComplete="name" />
           <TextInput id="pf-phone" label="Phone" value={form.phone} onChange={set('phone')} placeholder="+91 98765 43210" autoComplete="tel" />
-          <TextInput id="pf-email" label="Email" type="email" required value={form.email} onChange={set('email')} placeholder="you@example.com" autoComplete="email" />
-          {emailChanged && (
-            <div className="p-4 bg-surface border border-border rounded-sm space-y-3">
-              <p className="text-[11px] text-muted flex items-start gap-2"><LuShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />Changing your email is a sensitive action. Confirm your current password to continue.</p>
-              <TextInput id="pf-pass" label="Current Password" type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
-            </div>
-          )}
+          <div className="space-y-1">
+            <TextInput id="pf-email" label="Email" type="email" value={customer?.email || ''} readOnly inputClassName="bg-surface text-muted cursor-not-allowed" autoComplete="email" />
+            <p className="text-[11px] text-muted flex items-start gap-2"><LuLock className="w-3.5 h-3.5 shrink-0 mt-0.5" />Your email is managed by Google and cannot be changed here.</p>
+          </div>
           <div className="pt-2 flex justify-end">
             <Button type="submit" variant="Primary" loading={saving} label="Save Changes" />
           </div>

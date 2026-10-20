@@ -23,8 +23,7 @@ Copy `backend/.env.example` to `backend/.env` and fill values:
 | Cloudinary | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_API_KEY` |
 | EmailJS | `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_PRIVATE_KEY` |
 | Razorpay | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` |
-| Google Login | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-| Twilio OTP | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` |
+| Google Sign-In (customers) | `GOOGLE_CLIENT_ID` |
 
 Local defaults (from `backend/.env.example`): `PORT=3000`, `NODE_ENV=development`,
 `SERVE_FRONTEND=true`, `JWT_EXPIRES_IN=7d`, `ADMIN_NAME=sabrstudio`, `COOKIE_SECURE=false`,
@@ -42,14 +41,14 @@ Use the **same names** with production values: `NODE_ENV=production`; host-injec
 `EMAILJS_ORIGIN=https://sabrstudio.in`; actual `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_SECRET`,
 `CLOUDINARY_API_KEY`; actual `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`,
 `EMAILJS_PRIVATE_KEY`; production `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` + actual
-`RAZORPAY_WEBHOOK_SECRET`; actual `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`; actual
-`TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + authorised `TWILIO_FROM_NUMBER`.
+`RAZORPAY_WEBHOOK_SECRET`; actual `GOOGLE_CLIENT_ID`.
 
 ### 1.3 Frontend (`frontend/.env`)
 
 Exactly **one** variable (see `frontend/.env.example`): `VITE_API_BASE_URL=/api`.
-Do **not** add others — the Razorpay key ID comes from the backend checkout response, Google
-login uses the backend flow, and all third-party secrets stay server-side.
+Do **not** add others — the Razorpay key ID comes from the backend checkout response, the Google
+Sign-In client ID comes from the backend `GET /api/config/public` response, and all third-party
+secrets stay server-side.
 
 ### 1.4 Optional observability
 

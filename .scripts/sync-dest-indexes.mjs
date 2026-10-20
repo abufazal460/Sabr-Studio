@@ -10,7 +10,6 @@ if (!rawUri) { console.error("ERROR: MONGODB_URI is not set"); process.exit(1); 
 await import("../backend/models/admin.model.js");
 await import("../backend/models/customer.model.js");
 await import("../backend/models/order.model.js");
-await import("../backend/models/otp.model.js");
 await import("../backend/models/project.model.js");
 await import("../backend/models/retail.model.js");
 await import("../backend/models/enquiry.model.js");

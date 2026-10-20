@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 import PublicLayout from '../shared/layouts/PublicLayout';
 import ProtectedRoute from './ProtectedRoute';
@@ -165,15 +165,17 @@ export const AppRouter = () => {
           path="/login"
           element={
             <Suspense fallback={<PageFallback />}>
-              <CustomerAuthPage defaultMode="login" />
+              <CustomerAuthPage />
             </Suspense>
           }
         />
+        {/* Accounts are created automatically on the first Google sign-in,
+            so the old /register route just points at the sign-in page. */}
         <Route
           path="/register"
           element={
             <Suspense fallback={<PageFallback />}>
-              <CustomerAuthPage defaultMode="register" />
+              <Navigate to="/login" replace />
             </Suspense>
           }
         />

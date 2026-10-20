@@ -26,8 +26,8 @@ arm, an enquiry ("Contact") pipeline, customer accounts, and an admin dashboard.
   `backend/apiHandler.js`, not `express.Router`.
 - **Database:** MongoDB via **Mongoose 8** (`backend/package.json:26`), pointed at **MongoDB Atlas**
   through `MONGODB_URI`.
-- **Auth:** JWT in httpOnly cookies — separate **admin** and **customer** identities; optional
-  Google ID-token login and phone-OTP login.
+- **Auth:** JWT in httpOnly cookies — separate **admin** and **customer** identities. Customers
+  authenticate with **Google Sign-In only** (server-verified ID token, no password, no OTP).
 - **Payments:** Razorpay (server-side order creation + HMAC signature verification + webhook).
 - **Media:** Cloudinary (admin uploads).
 - **Email:** EmailJS (server-side REST).
@@ -213,13 +213,13 @@ first write (§20).
 | Collection (Mongoose default) | Model | Source file | Purpose | Created by | Read by | Updated by | Deleted by | Status |
 |---|---|---|---|---|---|---|---|---|
 | `admins` | `Admin` | `backend/models/admin.model.js` | Admin dashboard accounts | `auth.service.js` first-run bootstrap (prod) / seed | `protect`, `auth.service.loginAdmin/getAdminById` | `loginAdmin` (lastLoginAt) | — (no admin-delete route) | Declared; **live count [NOT VERIFIED]** |
-| `customers` | `Customer` | `backend/models/customer.model.js` | Shopper accounts, addresses (embedded), reset state | `customer.service` register/google/phone-OTP | `protectCustomer`, `customer.service`, `address.controller` | profile/address/reset/lastLogin updates | — (no customer-delete route) | Declared |
+| `customers` | `Customer` | `backend/models/customer.model.js` | Shopper accounts, addresses (embedded) | `customer.service` google/profile/lastLogin | `protectCustomer`, `customer.service`, `address.controller` | profile/address/lastLogin updates | — (no customer-delete route) | Declared |
 | `projects` | `Project` | `backend/models/project.model.js` | Portfolio projects + content blocks | admin `POST /api/admin/projects`; dev seed | public `/api/projects`, admin list | admin `PUT/PATCH` | admin `DELETE` | Declared |
 | `retails` | `Retail` | `backend/models/retail.model.js` | Retail products | admin `POST /api/admin/retail`; dev seed | public `/api/retail`, admin, checkout price lookup | admin `PUT/PATCH` | admin `DELETE`; category cascade | Declared |
 | `retailcategories` | `RetailCategory` | `backend/models/retail.model.js` | Product category list | admin `POST /api/admin/retail/categories` | `GET /api/admin/retail/categories` | — (no category-update route) | admin `DELETE .../categories/:name` | Declared |
 | `orders` | `Order` | `backend/models/order.model.js` | Orders, line-item snapshots, payment, status | `POST /api/orders/checkout` (+ legacy `/api/checkout`) | customer `/api/orders/my*`, admin `/api/admin/orders*` | verify (paid), admin status/tracking, webhook | — (no order-delete route) | Declared |
 | `enquiries` | `Enquiry` | `backend/models/enquiry.model.js` | Contact-form leads + email status | `POST /api/enquiries` | admin `/api/admin/enquiries*` | admin status `PATCH`; email-status patch | admin `DELETE` | Declared |
-| `otpcodes` | `OtpCode` | `backend/models/otp.model.js` | Phone-OTP challenges (hashed, TTL) | `customer.service._saveOtp` | `customer.service._latestOtp` | attempts/verifiedAt via save | `_deleteOtp` on consume; TTL expiry | Declared |
+| `otpcodes` | ~~`OtpCode`~~ | — | **Removed** (phone OTP dropped) | — | — | — | legacy collection may still exist; TTL expires it | Removed |
 
 **Domains investigated but with NO dedicated collection (by design):**
 - **Order line items** → embedded `items[]` subdocuments in `orders` (§6.5), not a separate collection.
@@ -263,30 +263,29 @@ Field types are Mongoose types. "R" = required, "U" = unique. Timestamps `{ time
 
 | Field | Type | Constraints / default |
 |---|---|---|
-| `name` | String | R, trim |
-| `email` | String | R, **U**, lowercase, trim, email `match` |
-| `password` | String | `select:false`, default `null` (null for Google/OTP-only accounts) |
-| `googleId` | String | default `null`, **index, sparse** |
+| `name` | String | R, trim — **editable by the customer** |
+| `email` | String | R, **U**, lowercase, trim, email `match` — set from the verified Google token, **immutable** |
+| `googleId` | String | default `null`, **unique + partial index** (`$type: 'string'`) — the account key (Google `sub`) |
+| `emailVerified` | Boolean | default `true` (Google requires `email_verified`) |
 | `avatar` | String | default `''` |
-| `phone` | String | default `''`, trim |
+| `phone` | String | default `''`, trim — **editable by the customer** |
 | `addresses` | `[addressSchema]` | default `[]` (embedded subdocs, each with own `_id` + timestamps) |
 | `role` | String | enum `['customer']`, default `'customer'` |
 | `status` | String | enum `['active','disabled']`, default `'active'` |
 | `lastLoginAt` | Date | default `null` |
-| `passwordReset.tokenHash` | String | default `null` (**SHA-256 hash only**) |
-| `passwordReset.expiresAt` | Date | default `null` |
-| `passwordReset.attempts` | Number | default `0` |
-| `passwordReset.lastSentAt` | Date | default `null` |
-| `passwordReset.usedAt` | Date | default `null` |
 
 - **addressSchema** (`:9-24`): `label`(def `'Home'`), `fullName` R, `phone` R, `house` R, `street` R,
   `landmark`(def `''`), `city` R, `state` R, `pincode` R, `country`(def `'India'`), `isDefault`(def false).
-- **pre-save:** bcrypt-hashes `password` when modified **and non-null** (`:58-67`).
-- **method:** `comparePassword` returns false if no password (`:69-72`).
-- **Sensitive:** `password`, `passwordReset.tokenHash`. Raw reset tokens are never stored (only the
-  SHA-256 hash); raw OTPs are never stored here (see `otpcodes`).
+- **No password field.** There is no bcrypt hook and no `comparePassword` on this model — customers
+  authenticate exclusively through Google.
+- **No `passwordReset` subdocument.** Password reset, phone OTP and email/password login were all
+  removed with the Google-only migration.
+- **Profile update allowlist:** `name` and `phone` only. `email` is Google-owned and cannot be
+  changed by the customer.
+- **Identity key:** the Google `sub` claim, stored in `googleId`. The unique partial index tolerates
+  legacy records without a `googleId` while preventing two accounts from sharing one Google identity.
 - **No in-memory array is exported** for customers; the service keeps a process-local
-  `const inMemoryCustomers = []` (`customer.service.js:39`) that is **not** disk-persisted.
+  `const inMemoryCustomers = []` (`customer.service.js`) that is **not** disk-persisted.
 
 ### 5.3 `Project` — `projects` (`backend/models/project.model.js`)
 
@@ -398,19 +397,10 @@ Field types are Mongoose types. "R" = required, "U" = unique. Timestamps `{ time
 
 ### 5.8 `OtpCode` — `otpcodes` (`backend/models/otp.model.js`)
 
-| Field | Type | Constraints / default |
-|---|---|---|
-| `phone` | String | R, **index** |
-| `otpHash` | String | R (**SHA-256 of the code**; raw code never stored) |
-| `expiresAt` | Date | R |
-| `attempts` | Number | default `0` |
-| `lastSentAt` | Date | default `Date.now` |
-| `verifiedAt` | Date | default `null` |
-| `createdAt` | Date | default `Date.now` (no `timestamps:true`; manual) |
-
-- **Indexes:** `{ phone:1, createdAt:-1 }` (`:18`) and a **TTL** index `{ expiresAt:1 }` with
-  `expireAfterSeconds: 3600` (`:20`) — auto-deletes rows 1 h after `expiresAt`.
-- **Sensitive:** `otpHash`. `inMemoryOtps = []` is the (empty) fallback.
+**Removed.** The phone-OTP model, service and collection no longer exist. Customers authenticate
+through Google Sign-In only, so there is no OTP challenge to store. The `otpcodes` collection may
+still exist in a legacy database; its documents expire on their own via the old TTL index and can be
+dropped with `db.otpcodes.drop()` once confirmed unused.
 
 ---
 
@@ -454,18 +444,17 @@ is appropriate and should be preserved.
 erDiagram
     CUSTOMERS ||--o{ ORDERS : "places (Order.user ObjectId ref)"
     CUSTOMERS ||--o{ CUSTOMER_ADDRESSES : "embeds"
-    CUSTOMERS ||--o| PASSWORD_RESET : "embeds"
     RETAILCATEGORIES ||..o{ RETAILS : "name string match (not a ref)"
     RETAILS ||..o{ ORDER_ITEMS : "snapshotted into (no live ref)"
     PROJECTS ||..o{ ORDER_ITEMS : "snapshotted into (itemType project)"
-    PHONE ||--o{ OTPCODES : "hashed challenge (phone string)"
 
     CUSTOMERS {
         ObjectId _id
-        string email "unique"
-        string password "select:false, bcrypt"
-        string googleId "sparse index"
-        string phone
+        string email "unique, Google-owned"
+        string googleId "unique, partial index"
+        string name "editable"
+        string phone "editable"
+        boolean emailVerified
         string status
     }
     CUSTOMER_ADDRESSES {
@@ -475,12 +464,6 @@ erDiagram
         string city
         string pincode
         boolean isDefault
-    }
-    PASSWORD_RESET {
-        string tokenHash "sha256 only"
-        date expiresAt
-        number attempts
-        date usedAt
     }
     ADMINS {
         ObjectId _id
@@ -526,12 +509,6 @@ erDiagram
         string phone
         string status
         string emailStatus
-    }
-    OTPCODES {
-        ObjectId _id
-        string phone "indexed"
-        string otpHash "sha256"
-        date expiresAt "TTL"
     }
 ```
 
@@ -691,16 +668,10 @@ All paths are relative to `baseURL` (`/api`). Auth: **A**=admin (`protect`), **C
 | `PATCH /admin/orders/:id/status` | A | updateOrderStatus | `Order.findOneAndUpdate({$set:{orderStatus}},{new:true,runValidators:true})` | **paymentStatus/amount rejected 403** |
 | `PATCH /admin/orders/:id/tracking` | A | updateTracking | `Order.findOneAndUpdate({$set:{trackingId},$push:{statusHistory}},{new:true})` | no runValidators |
 | `POST /admin/uploads` | A | inline in apiHandler | Cloudinary `uploader.upload` | 400 no-data / 503 unconfigured / 502 fail |
-| `POST /customer/register` | — | customer.register | `Customer.findOne({email})` then `Customer.create` | 409 on duplicate |
-| `POST /customer/login` | — | customer.login | `Customer.findOne({email}).select('+password')` | cookie `sabr_customer` |
-| `POST /customer/forgot-password` | — | customer.forgotPassword | `Customer.findOne` + save `passwordReset` | always 200 (enumeration-safe) |
-| `POST /customer/reset-password` | — | customer.resetPassword | validate hash + save new password | single-use |
-| `POST /customer/request-otp` | — | customer.requestOtp | `OtpCode.deleteMany({phone})`+`create` | fail-closed 503 if Twilio unset |
-| `POST /customer/verify-otp` | — | customer.verifyOtp | `OtpCode.findOne` → `_deleteOtp` on success | single-use, attempt-limited |
-| `POST /customer/google` | — | customer.google | verify ID token → `Customer.findOne/create` | fail-closed 503 if unset |
+| `POST /customer/google` | — | customer.google | verify ID token → `Customer.findOne/create` by `googleId` | fail-closed 503 if unset |
 | `GET /customer/me` | C | customer.me | (uses `req.customer`) | |
 | `POST /customer/logout` | — | customer.logout | clears cookie | |
-| `PUT/PATCH /customer/profile` | C | customer.updateProfile | `Customer.findById().select('+password')` + save | |
+| `PUT/PATCH /customer/profile` | C | customer.updateProfile | `Customer.findById` + save (allowlist: `name`, `phone`) | |
 | `GET /customer/addresses` | C | address.list | `Customer.findById` (embedded) | |
 | `POST /customer/addresses` | C | address.create | `Customer.findByIdAndUpdate({$push:{addresses}},{new:true,runValidators:true})` | |
 | `PUT/PATCH /customer/addresses/:id` | C | address.update | `Customer.updateOne({_id,'addresses._id':id},{$set})` | no runValidators |
@@ -847,7 +818,7 @@ Unknown `/api/*` → `404 {success:false}` (`apiHandler.js:636-639`). Unknown ad
 
 ---
 
-## 14. Authentication, users and OTP
+## 14. Authentication, users and Google Sign-In
 
 ### 14.1 Admin auth (current source) **[IMPLEMENTED]**
 - **Login** `POST /api/auth/login` (`authLimiter` prod 5/15 min + `loginValidator`): finds
@@ -877,23 +848,25 @@ Unknown `/api/*` → `404 {success:false}` (`apiHandler.js:636-639`). Unknown ad
 - **JWT** `{id, role:'customer', kind:'customer'}` in httpOnly cookie `sabr_customer` (or Bearer).
   `protectCustomer` requires `decoded.kind==='customer'` (so an **admin token cannot be used as a
   customer token**) and re-loads the customer; missing → **401**, disabled → **403**.
-- **Password hashing:** bcrypt 10 rounds via the model pre-save hook.
-- **Password reset:** raw token emailed; only `SHA-256(token)` stored in `customer.passwordReset`;
-  15-min TTL, 60-s cooldown, max 5 attempts, single-use (`usedAt` set, `tokenHash` nulled).
-  `forgot-password` always returns 200 (enumeration-safe).
-- **Google login:** `google.service.js` verifies the RS256 ID token against Google JWKS
+- **Google Sign-In is the only customer sign-in method.** There is no customer password, no bcrypt
+  hook on the customer model, no phone OTP, and no email/password login. The frontend renders the
+  official Google Identity Services button and posts the opaque ID token to
+  `POST /api/customer/google`.
+- **Token verification:** `google.service.js` verifies the RS256 ID token against Google JWKS
   (`https://www.googleapis.com/oauth2/v3/certs`), checks `audience=GOOGLE_CLIENT_ID`, issuer, and
   `email_verified===true`; **fail-closed 503** when `GOOGLE_CLIENT_ID` is unset. Client-submitted
-  email/googleId is **never** trusted.
-- **Phone OTP:** `otpcodes` stores `SHA-256(code)`, 5-min TTL, 60-s resend cooldown, max 5 attempts;
-  **single-use** by **deleting** the record on success (`customer.service.js:343-346`). A code that
-  fails to send is deleted (`:316-319`). **Fail-closed 503** when Twilio creds are missing
-  (`otp.service.js`). Phone-only accounts get a placeholder email `phone_<digits>@sabr.invalid`.
-- **Duplicate prevention:** `Customer.email` unique index + a pre-create `findOne({email})` check;
-  a race is caught by the unique index → `11000` → 409.
+  email/googleId is **never** trusted — the account key is the verified `sub` claim.
+- **No client secret:** the flow is a pure public-client ID-token flow. `GOOGLE_CLIENT_SECRET` is
+  neither required nor exposed. The public client id is served to the browser by
+  `GET /api/config/public` (unauthenticated, rate-limit exempt) so the built bundle stays free of
+  environment-specific credentials.
+- **Profile editing is allowlisted** to `name` and `phone`. The email comes from the verified Google
+  token and is immutable.
+- **Duplicate prevention:** `Customer.email` unique index + `Customer.googleId` unique partial
+  index; a race is caught by a unique index → `11000` → 409.
 
-> **Never stored in plain documents/logs:** raw passwords, raw OTP codes, raw reset tokens, JWTs, or
-> provider secrets. Only bcrypt/SHA-256 hashes are persisted. **[IMPLEMENTED]**
+> **Never stored in plain documents/logs:** raw Google ID tokens, JWTs, or provider secrets. Only the
+> Google `sub`, the profile fields and token hashes/bcrypt (admin) are persisted. **[IMPLEMENTED]**
 
 ---
 
@@ -976,7 +949,7 @@ unbounded reads.
 | all | `_id` | yes | primary key | Current (automatic) | none |
 | `admins` | `email` | **yes** | login lookup + dup prevention | Current (`unique:true`) | write cost negligible |
 | `customers` | `email` | **yes** | login + dup prevention | Current | — |
-| `customers` | `googleId` | no (sparse) | Google login lookup | Current (`index,sparse`) | sparse skips nulls |
+| `customers` | `googleId` | **yes** (partial) | Google account lookup by `sub` | Current (`unique` + `partialFilterExpression`) | partial keeps null `googleId` records out |
 | `projects` | `slug` | **yes** | detail-by-slug | Current | — |
 | `projects` | `{published,category,createdAt}` | no | public list + filter + sort | Current (`:101`) | compound order matches query |
 | `retails` | `slug` | **yes** | detail-by-slug | Current | — |
@@ -987,9 +960,6 @@ unbounded reads.
 | `orders` | `idempotencyKey` | no | checkout dedupe | Current (`:87`) | **not unique** (see note) |
 | `orders` | `{paymentStatus,orderStatus,createdAt}` | no | admin list/revenue | Current (`:94`) | — |
 | `enquiries` | `{status,createdAt}` | no | admin list + status filter | Current (`:68`) | — |
-| `otpcodes` | `phone` | no | latest-code lookup | Current (`:9`) | — |
-| `otpcodes` | `{phone,createdAt}` | no | latest by phone | Current (`:18`) | overlaps single `phone` |
-| `otpcodes` | `expiresAt` (TTL 3600s) | no | auto-expire challenges | Current (`:20`) | TTL only — correct here |
 
 **Notes**
 - `idempotencyKey` is **indexed but not unique**, yet `order.service.js:218` relies on catching an
@@ -1032,7 +1002,7 @@ unbounded reads.
    `retailcategories.name` (a pre-insert `findOne` check alone is **not** sufficient under concurrency;
    the unique index is the guarantee).
 5. **Business rules** — server-side pricing, stock/availability checks, `paymentStatus` immutability,
-   category-delete guard, OTP attempt/expiry/single-use.
+   category-delete guard, profile-field allowlist, Google token verification.
 6. **MongoDB collection validators (`$jsonSchema`)** — **not configured** (validation is via Mongoose only).
 
 **`runValidators` on updates — where used / missing [IMPLEMENTED]:**
@@ -1062,9 +1032,10 @@ unbounded reads.
 - **Backend:** a fixed inventory of application variables (policy states "exactly 30"); the approved
   template is in `ENV_AUDIT.md §3`.
 - **Frontend:** **exactly one** variable — `VITE_API_BASE_URL=/api`.
-- **Never** expose `MONGODB_URI`, `JWT_SECRET`, Razorpay secret, Cloudinary secret, EmailJS private
-  key, Twilio creds, or `GOOGLE_CLIENT_SECRET` through any `VITE_*` variable (they would be bundled
-  into public JS).
+- **Never expose** `MONGODB_URI`, `JWT_SECRET`, Razorpay secret, Cloudinary secret, EmailJS private
+  key, or any Google client secret through a `VITE_*` variable (they would be bundled into public
+  JS). The Google **client id** is not a secret and is served by `GET /api/config/public` instead of
+  being compiled into the bundle.
 
 ### 19.2 Database-relevant variables **[IMPLEMENTED]**
 | Variable | Where read | Browser-exposed? | Purpose |
@@ -1083,17 +1054,23 @@ This audit may only create `dataBase.md`, so the following are reported, not fix
    the "frontend = 1 variable" policy. `ENV_AUDIT.md §2.7/§6.6` already anticipates it: the client id
    must be obtained through a supported mechanism (e.g. a backend `/config` endpoint or injecting the
    public id at build time) **before** the variable is removed, so Google login is not broken.
-   **[IMPLEMENTED-DRIFT]**
+   **[IMPLEMENTED-DRIFT]** → **Resolved:** the frontend now reads the client id from
+   `GET /api/config/public` (`frontend/src/shared/hooks/usePublicConfig.js`), and `VITE_GOOGLE_CLIENT_ID`
+   no longer exists in `frontend/.env.example`.
 2. **`VITE_RAZORPAY_KEY_ID`** appears only in `frontend/.env.example:17`; **no source reads it**
    (checkout uses `keyId` from the server response). Safe to drop from the example. **[IMPLEMENTED]**
 3. **`frontend/.env.example`** currently lists `VITE_GOOGLE_CLIENT_ID` and `VITE_RAZORPAY_KEY_ID`,
    which contradicts `ENV_AUDIT.md §4.1` ("frontend `.env` must contain only `VITE_API_BASE_URL=/api`").
+   **[IMPLEMENTED]** → **Resolved:** `frontend/.env.example` now contains exactly one variable,
+   `VITE_API_BASE_URL=/api`.
 4. **`backend/.env.example`** documents optional `BACKEND_PORT`, `HOST`, `SERVE_FRONTEND`,
    `FALLBACK_DIR` (commented). `ENV_AUDIT.md §6.1` says the app must **not require** manually
    configured `HOST`/`BACKEND_PORT`/`FALLBACK_DIR`; they are read as optional overrides
    (`server.js:26-31`, `fallbackStorage.js`). This is drift between the example and the policy.
 5. **Backend variable count:** the `ENV_AUDIT.md §3` template lists **29** concrete names while the
    policy text says **30** — an internal inconsistency in the policy doc to reconcile.
+   **[IMPLEMENTED]** → **Resolved:** the count was corrected to **26** backend variables (27 including
+   the single frontend variable).
 
 ### 19.4 Behaviour per environment **[IMPLEMENTED/INFERRED]**
 - **Local dev (`dev.js`, `NODE_ENV=development`):** no Atlas needed — services use in-memory/JSON
@@ -1125,8 +1102,7 @@ This audit may only create `dataBase.md`, so the following are reported, not fix
 - **Admin account:** created by the production first-run bootstrap (§14.1) or manually in Atlas.
 - **`_id` assignment:** MongoDB assigns an `ObjectId` automatically unless overridden. In-memory/fallback
   docs use string ids like `proj-<ts>`, `prod-<ts>`, `fb-<ts>-...`.
-- **Timestamps:** `{timestamps:true}` maintains `createdAt`/`updatedAt` on all models except
-  `OtpCode` (manual `createdAt`).
+- **Timestamps:** `{timestamps:true}` maintains `createdAt`/`updatedAt` on all models.
 - **Duplicate insertion:** a unique-index violation raises `11000` → surfaced as **409**.
 - **Delete type:** all deletes are **hard/physical** (`findOneAndDelete`, `deleteMany`). There is **no
   soft-delete** flag on any model.
@@ -1200,7 +1176,7 @@ no delete route (orders are preserved).
 1. **Open** Atlas → **Data Explorer** for the SabrStudio cluster/project.
 2. **Select database** (the name from the `MONGODB_URI` path — see §3.5; it was not verifiable from
    this audit environment) → pick a collection (`projects`, `retails`, `retailcategories`, `orders`,
-   `enquiries`, `customers`, `admins`, `otpcodes`).
+   `enquiries`, `customers`, `admins`). The legacy `otpcodes` collection may still exist.
 3. **Browse/filter** documents. Example filters (placeholders for unknown ids):
    - A project by slug: `{ "slug": "<project-slug>" }`
    - A product by category: `{ "category": "Chair", "published": true }`
@@ -1241,12 +1217,12 @@ no delete route (orders are preserved).
 - **Mass-assignment protection [IMPLEMENTED]:** admin order update destructures out disallowed fields
   and rejects `paymentStatus`/`amount` with **403**; project update strips `slug`/`_id`/`createdAt`.
 - **Rate limiting [IMPLEMENTED]:** per-IP limiters (prod values): auth 5, admin 50, general 100,
-  enquiry 5, register 5, reset 5, checkout 30, OTP 8 per 15 min. **In-memory store** — on multi-instance
+  enquiry 5, checkout 30, customer Google sign-in (auth limiter) 5 per 15 min. **In-memory store** — on multi-instance
   serverless each instance has its own counters (`rateLimit.middleware.js:82-86`); a shared store is
   recommended for strict guarantees. **[IMPLEMENTED-LIMITATION]**
 - **Headers/CORS [IMPLEMENTED]:** `helmet` (CSP disabled for external CDNs), CORS allow-list from
   `CORS_ORIGIN` with `credentials:true`; body limit 10 MB; 30 s request timeout.
-- **Secrets in errors/logs:** sanitised (email/otp/reset are hashed; provider errors log status only).
+- **Secrets in errors/logs:** sanitised (Google tokens are never logged; provider errors log status only).
 
 ---
 
@@ -1352,7 +1328,7 @@ Connection success; missing mandatory prod config → fail-safe 503; model valid
 CRUD per collection; duplicate key → 409; invalid ObjectId handling; unauthorised CRUD → 401/403;
 customer order ownership (IDOR) → 403; pagination boundaries (once added); payment signature
 fail → 400 and **no** paid write; duplicate webhook → single paid; failed email → enquiry saved with
-`emailStatus:'failed'`; upload failure → 502/503 (no fabricated URL); OTP expiry/attempts/single-use;
+`emailStatus:'failed'`; upload failure → 502/503 (no fabricated URL); invalid/expired Google ID token → 401;
 DB outage → 503 (never demo data in prod); seed safety (prod no-op). Use a **separate test database**;
 never run destructive tests against production.
 
@@ -1472,7 +1448,7 @@ Each fix should be shipped with a test (§26.4) and verified against a **dev** d
 - [ ] **Physical** Atlas collection inventory, document counts and live index list — blocked by the
       Atlas IP allow-list (§3.5). Verify from an allow-listed IP via the Data Explorer (§21).
 - [ ] Live confirmation of **D1** (open a recent `orders` doc; check `statusHistory`/`userEmail`).
-- [ ] Live third-party integrations (Razorpay real charge, EmailJS delivery, Twilio OTP, Google login,
+- [ ] Live third-party integrations (Razorpay real charge, EmailJS delivery, Google Sign-In,
       Cloudinary upload) — require real credentials and were not exercised.
 - [ ] `scripts/test-all-routes.mjs` full pass — intentionally **not run** to avoid writing to the
       configured (possibly production) database (§26.3); run against a dev DB, after updating stale

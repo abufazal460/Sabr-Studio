@@ -215,7 +215,7 @@ export const Navbar = () => {
                   {customerAuthed ? (
                     <button type="button" role="menuitem" onClick={handleCustomerLogout} className="w-full text-left px-4 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-surface transition-colors border-t border-border mt-1 !pt-3">Logout</button>
                   ) : (
-                    <button type="button" role="menuitem" onClick={openCustomerAuth} className="w-full text-left px-4 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-surface transition-colors">Login / Register</button>
+                    <button type="button" role="menuitem" onClick={openCustomerAuth} className="w-full text-left px-4 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-surface transition-colors">Continue with Google</button>
                   )}
                 </motion.div>
               )}
@@ -324,7 +324,7 @@ export const Navbar = () => {
                   <Button
                     variant="White"
                     size="default"
-                    label="Login / Register"
+                    label="Continue with Google"
                     className="w-full justify-center"
                     onClick={openCustomerAuth}
                   />
@@ -362,7 +362,7 @@ export const Navbar = () => {
         )}
       </AnimatePresence>
 
-      {/* Customer login / register / OTP / Google modal */}
+      {/* Customer Google sign-in modal */}
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onSuccess={() => setAuthOpen(false)} />
     </header>
   );

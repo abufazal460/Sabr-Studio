@@ -38,6 +38,15 @@ async function getGoogleKeys() {
  * Verify a Google ID token and return its claims.
  * Throws an Error with statusCode 400 (invalid token) or 503 (not configured).
  */
+/**
+ * Indirection seam so tests can inject a verified identity without ever
+ * weakening production verification. `googleIdentity.verify` is ALWAYS the
+ * real `verifyGoogleIdToken` unless a test replaces it at runtime.
+ */
+export const googleIdentity = {
+  verify: verifyGoogleIdToken,
+};
+
 export async function verifyGoogleIdToken(idToken) {
   const clientId = String(process.env.GOOGLE_CLIENT_ID || '').trim();
   if (!clientId) {

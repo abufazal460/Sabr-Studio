@@ -26,7 +26,6 @@ import '../backend/models/retail.model.js';
 import '../backend/models/project.model.js';
 import '../backend/models/admin.model.js';
 import '../backend/models/customer.model.js';
-import '../backend/models/otp.model.js';
 
 const uri = process.env.MONGODB_URI;
 
