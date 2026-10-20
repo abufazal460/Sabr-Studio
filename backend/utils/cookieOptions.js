@@ -24,7 +24,7 @@ export function getCookieOptions() {
 }
 
 /**
- * Returns cookie options for setting the customer authentication JWT (customer: 30 days)
+ * Returns cookie options for setting the customer authentication JWT (customer: 1 year)
  */
 export function getCustomerCookieOptions() {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -36,7 +36,7 @@ export function getCustomerCookieOptions() {
     secure: cookieSecure,
     sameSite: cookieSameSite,
     path: '/',
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
+    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year in milliseconds
   };
 }
 
@@ -53,5 +53,6 @@ export function getClearCookieOptions() {
     secure: cookieSecure,
     sameSite: cookieSameSite,
     path: '/',
+    maxAge: 0, // immediately expire the cookie
   };
 }

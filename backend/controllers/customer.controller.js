@@ -6,8 +6,17 @@ export const CUSTOMER_COOKIE = 'sabr_customer';
 
 function setCustomerCookie(res, token) {
   const opts = getCustomerCookieOptions();
-  if (typeof res.cookie === 'function') res.cookie(CUSTOMER_COOKIE, token, opts);
-  else res.setHeader('Set-Cookie', `${CUSTOMER_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=${opts.sameSite}${opts.secure ? '; Secure' : ''}`);
+  if (typeof res.cookie === 'function') {
+    res.cookie(CUSTOMER_COOKIE, token, opts);
+  } else {
+    // Fallback manual Set-Cookie header if running in raw Connect/Node http.
+    // Must include Max-Age so the cookie is persistent (not session-only).
+    const maxAgeSeconds = Math.floor(opts.maxAge / 1000);
+    res.setHeader(
+      'Set-Cookie',
+      `${CUSTOMER_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=${opts.sameSite}${opts.secure ? '; Secure' : ''}; Max-Age=${maxAgeSeconds}`,
+    );
+  }
 }
 
 class CustomerController {
@@ -35,7 +44,15 @@ class CustomerController {
   async logout(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     const opts = getClearCookieOptions();
-    if (typeof res.clearCookie === 'function') res.clearCookie(CUSTOMER_COOKIE, opts);
+    if (typeof res.clearCookie === 'function') {
+      res.clearCookie(CUSTOMER_COOKIE, opts);
+    } else {
+      // Fallback manual Set-Cookie header to expire the cookie immediately.
+      res.setHeader(
+        'Set-Cookie',
+        `${CUSTOMER_COOKIE}=; Path=${opts.path}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly${opts.secure ? '; Secure' : ''}; SameSite=${opts.sameSite}`,
+      );
+    }
     return res.status(200).json({ success: true, message: 'Logged out' });
   }
   /**

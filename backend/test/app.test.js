@@ -4,6 +4,7 @@ import process from 'node:process';
 import supertest from 'supertest';
 
 import crypto from 'node:crypto';
+import jwt from 'jsonwebtoken';
 
 // ---------------------------------------------------------------------------
 // Test environment isolation
@@ -389,6 +390,142 @@ describe('project category management & persistence', () => {
     assert.equal(updateRes.status, 200);
     assert.equal(updateRes.body.data.category, 'Commercial');
     assert.equal(updateRes.body.data.title, 'Boutique Heritage Villa'); // other fields preserved
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Customer session persistence (reload / browser restart simulation)
+// ---------------------------------------------------------------------------
+describe('customer session persistence', () => {
+  it('issues a persistent HttpOnly cookie with correct attributes on Google login', async () => {
+    stubGoogleIdentity(CUSTOMER_A_KEY);
+    const res = await request
+      .post('/api/customer/google')
+      .send({ credential: `valid-credential-${CUSTOMER_A_KEY}` });
+    assert.equal(res.status, 200);
+    const setCookie = res.headers['set-cookie'];
+    assert.ok(setCookie, 'Set-Cookie header must be present');
+    const cookieStr = Array.isArray(setCookie) ? setCookie.join('; ') : setCookie;
+    assert.ok(cookieStr.startsWith('sabr_customer='), 'Cookie must be named sabr_customer');
+    assert.ok(cookieStr.includes('HttpOnly'), 'Cookie must be HttpOnly');
+    assert.ok(cookieStr.includes('Path=/'), 'Cookie path must be /');
+    assert.ok(cookieStr.toLowerCase().includes('samesite=lax'), 'Cookie SameSite must be lax in dev');
+    assert.ok(cookieStr.includes('Max-Age=31536000'), 'Cookie Max-Age must be 1 year (31536000s)');
+    assert.ok(!cookieStr.includes('Secure'), 'Cookie must not be Secure in dev');
+  });
+
+  it('restores customer session on /customer/me after login (simulated page reload)', async () => {
+    stubGoogleIdentity(CUSTOMER_A_KEY);
+    const loginRes = await request
+      .post('/api/customer/google')
+      .send({ credential: `valid-credential-${CUSTOMER_A_KEY}` });
+    assert.equal(loginRes.status, 200);
+    const cookie = loginRes.headers['set-cookie'];
+    const meRes = await request.get('/api/customer/me').set('Cookie', cookie);
+    assert.equal(meRes.status, 200);
+    assert.equal(meRes.body.success, true);
+    assert.equal(meRes.body.data.customer.email, CUSTOMER_A.email);
+    assert.equal(meRes.body.data.customer.name, CUSTOMER_A.name);
+  });
+
+  it('keeps customer logged in across multiple requests with the same cookie', async () => {
+    stubGoogleIdentity(CUSTOMER_B_KEY);
+    const loginRes = await request
+      .post('/api/customer/google')
+      .send({ credential: `valid-credential-${CUSTOMER_B_KEY}` });
+    assert.equal(loginRes.status, 200);
+    const cookie = loginRes.headers['set-cookie'];
+    const r1 = await request.get('/api/customer/me').set('Cookie', cookie);
+    assert.equal(r1.status, 200);
+    const r2 = await request.get('/api/customer/me').set('Cookie', cookie);
+    assert.equal(r2.status, 200);
+    assert.equal(r2.body.data.customer.email, CUSTOMER_B.email);
+  });
+
+  it('rejects /api/customer/me with no cookie (unauthenticated)', async () => {
+    const res = await request.get('/api/customer/me');
+    assert.equal(res.status, 401);
+    assert.equal(res.body.code, 'CUSTOMER_AUTH_REQUIRED');
+  });
+
+  it('rejects /api/customer/me with an invalid cookie token', async () => {
+    const res = await request
+      .get('/api/customer/me')
+      .set('Cookie', 'sabr_customer=invalid.token.here');
+    assert.equal(res.status, 401);
+    assert.equal(res.body.code, 'CUSTOMER_TOKEN_INVALID');
+  });
+
+  it('clears the persistent cookie on logout', async () => {
+    stubGoogleIdentity(CUSTOMER_A_KEY);
+    const loginRes = await request
+      .post('/api/customer/google')
+      .send({ credential: `valid-credential-${CUSTOMER_A_KEY}` });
+    assert.equal(loginRes.status, 200);
+    const cookie = loginRes.headers['set-cookie'];
+    const meRes = await request.get('/api/customer/me').set('Cookie', cookie);
+    assert.equal(meRes.status, 200);
+    const logoutRes = await request
+      .post('/api/customer/logout')
+      .set('Cookie', cookie);
+    assert.equal(logoutRes.status, 200);
+    const clearCookie = logoutRes.headers['set-cookie'];
+    assert.ok(clearCookie, 'Set-Cookie header must be present on logout');
+    const clearStr = Array.isArray(clearCookie) ? clearCookie.join('; ') : clearCookie;
+    assert.ok(clearStr.startsWith('sabr_customer='), 'Logout cookie must be named sabr_customer');
+    assert.ok(clearStr.includes('Max-Age=0'), 'Logout cookie Max-Age must be 0');
+    // After logout, a request without any cookie must be rejected
+    const noCookie = await request.get('/api/customer/me');
+    assert.equal(noCookie.status, 401);
+    assert.equal(noCookie.body.code, 'CUSTOMER_AUTH_REQUIRED');
+  });
+
+  it('keeps admin authentication separate from customer authentication', async () => {
+    const adminCookie = await adminToken();
+    const adminRes = await request.get('/api/admin/orders').set('Cookie', adminCookie);
+    assert.equal(adminRes.status, 200);
+    const customerRes = await request.get('/api/customer/me').set('Cookie', adminCookie);
+    assert.equal(customerRes.status, 401);
+  });
+
+  it('keeps customer and admin JWT lifetimes independent (1y customer, env-driven admin)', async () => {
+    // Customer: default lifetime is one year, matching the cookie Max-Age.
+    const custCookieStr = await customerToken(CUSTOMER_A_KEY);
+    const custMatch = /sabr_customer=([^;]+)/.exec(custCookieStr);
+    assert.ok(custMatch, 'customer cookie value missing');
+    const custPayload = jwt.decode(decodeURIComponent(custMatch[1]));
+    const custTtl = custPayload.exp - custPayload.iat;
+    const year = 365 * 24 * 60 * 60;
+    assert.ok(Math.abs(custTtl - year) <= 60, `customer JWT TTL ${custTtl}s should be ~1 year`);
+
+    // Admin: still honors JWT_EXPIRES_IN (1h in this test env) — the customer
+    // one-year default must not leak into admin sessions.
+    const adminCookieStr = await adminToken();
+    const adminMatch = /token=([^;]+)/.exec(adminCookieStr);
+    assert.ok(adminMatch, 'admin cookie value missing');
+    const adminPayload = jwt.decode(decodeURIComponent(adminMatch[1]));
+    assert.equal(adminPayload.exp - adminPayload.iat, 3600, 'admin JWT TTL must stay JWT_EXPIRES_IN (1h in tests)');
+    assert.equal(adminPayload.kind, undefined, 'admin token must not carry the customer kind claim');
+  });
+
+  it('checkout works after session restoration (cookie persists)', async () => {
+    stubGoogleIdentity(CUSTOMER_A_KEY);
+    const loginRes = await request
+      .post('/api/customer/google')
+      .send({ credential: `valid-credential-${CUSTOMER_A_KEY}` });
+    assert.equal(loginRes.status, 200);
+    const cookie = loginRes.headers['set-cookie'];
+    const meRes = await request.get('/api/customer/me').set('Cookie', cookie);
+    assert.equal(meRes.status, 200);
+    const checkoutRes = await request
+      .post('/api/orders/checkout')
+      .set('Cookie', cookie)
+      .send({
+        address: SAMPLE_ADDRESS,
+        items: [{ productId: 'prod-1', quantity: 1 }],
+      });
+    assert.equal(checkoutRes.status, 200);
+    assert.ok(checkoutRes.body.data.orderId);
   });
 });
 

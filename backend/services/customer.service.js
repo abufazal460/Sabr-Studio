@@ -18,7 +18,11 @@ function getJwtSecret() {
   return secret;
 }
 function getJwtExpiresIn() {
-  return process.env.JWT_EXPIRES_IN || '30d';
+  // Customer sessions are deliberately DECOUPLED from JWT_EXPIRES_IN, which
+  // also controls the admin token lifetime (auth.service.js: JWT_EXPIRES_IN ||
+  // 24h). Customers stay signed in for one year (until explicit logout);
+  // operators can override per-role with CUSTOMER_JWT_EXPIRES_IN only.
+  return process.env.CUSTOMER_JWT_EXPIRES_IN || '365d';
 }
 
 /**

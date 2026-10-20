@@ -20,14 +20,18 @@ export const Navbar = () => {
   const navigate = useNavigate();
   const { cartCount, openDrawer } = useCart();
   const { isAuthenticated } = useAuth();
-  const { isAuthenticated: customerAuthed, customer, logout } = useCustomer();
+  const { isAuthenticated: customerAuthed, customer, logout, loading: customerLoading } = useCustomer();
   const reduceMotion = useReducedMotion();
 
   const goAccount = (path) => { setUserMenuOpen(false); setMobileMenuOpen(false); navigate(path); };
   const openCustomerAuth = () => { setUserMenuOpen(false); setMobileMenuOpen(false); setAuthOpen(true); };
   const handleCustomerLogout = async () => { setUserMenuOpen(false); setMobileMenuOpen(false); try { await logout(); } catch { /* logout is best-effort */ } navigate('/'); };
   // Logged-out -> open login modal. Logged-in (customer or admin) -> account menu.
+  // While the session restore check is still pending we are NEITHER logged in
+  // nor logged out: ignore the click instead of flashing the login modal over
+  // an already-authenticated session.
   const handleUserIcon = () => {
+    if (customerLoading) return;
     if (customerAuthed || isAuthenticated) setUserMenuOpen((v) => !v);
     else openCustomerAuth();
   };
@@ -314,7 +318,7 @@ export const Navbar = () => {
 
               {/* Fixed bottom actions inside drawer */}
               <div className="shrink-0 px-5 py-5 border-t border-white/15 space-y-3">
-                {customerAuthed ? (
+                {customerLoading ? null : customerAuthed ? (
                   <div className="space-y-2">
                     <button type="button" onClick={() => goAccount('/account')} className="w-full text-left text-sm font-medium text-white/80 hover:text-white py-2 px-2 rounded-md hover:bg-white/5 transition-colors">Profile</button>
                     <button type="button" onClick={() => goAccount('/orders')} className="w-full text-left text-sm font-medium text-white/80 hover:text-white py-2 px-2 rounded-md hover:bg-white/5 transition-colors">My Orders</button>
