@@ -18,7 +18,7 @@ Copy `backend/.env.example` to `backend/.env` and fill values:
 | Section | Variable names |
 |---|---|
 | Server & Hosting | `PORT`, `NODE_ENV`, `SERVE_FRONTEND` |
-| Database & Authentication | `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_NAME` |
+| Database & Authentication | `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CUSTOMER_JWT_EXPIRES_IN`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_NAME` |
 | Cookies & Domain | `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `CORS_ORIGIN`, `APP_URL`, `EMAILJS_ORIGIN` |
 | Cloudinary | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_API_KEY` |
 | EmailJS | `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_PRIVATE_KEY` |

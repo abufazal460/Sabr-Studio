@@ -62,6 +62,10 @@ export function checkEnv() {
     if (!/^\d+[smhd]$/.test(expiry)) {
       warnings.push(`JWT_EXPIRES_IN=${expiry} does not look like a jsonwebtoken duration (e.g. 24h, 7d, 30d).`);
     }
+    const customerExpiry = String(process.env.CUSTOMER_JWT_EXPIRES_IN || '').trim();
+    if (customerExpiry && !/^\d+[smhd]$/.test(customerExpiry)) {
+      warnings.push(`CUSTOMER_JWT_EXPIRES_IN=${customerExpiry} does not look like a jsonwebtoken duration (e.g. 365d, 30d).`);
+    }
     for (const key of ['APP_URL', 'EMAILJS_ORIGIN']) {
       const v = process.env[key];
       if (!isBlank(v) && !isValidHttpUrl(v)) {

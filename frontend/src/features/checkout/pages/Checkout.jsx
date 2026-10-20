@@ -15,7 +15,7 @@ import { LuMapPin, LuPencil, LuCircleAlert, LuShieldCheck } from 'react-icons/lu
 
 export const Checkout = () => {
   const navigate = useNavigate();
-  const { customer, isAuthenticated } = useCustomer();
+  const { customer, isAuthenticated, loading: authLoading } = useCustomer();
   const { cartItems } = useCart();
   const [addresses, setAddresses] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -65,6 +65,9 @@ export const Checkout = () => {
   const placeOrder = async () => {
     setError(''); setNotice('');
     if (!cartItems.length) { setError('Your bag is empty.'); return; }
+    // Session restore still pending: neither logged in nor logged out yet —
+    // never open the login modal as if the customer were signed out.
+    if (authLoading) return;
     if (!isAuthenticated) { setAuthOpen(true); return; }
     if (!selected) { setEditing(null); setAddrOpen(true); return; }
     if (placing || verifying) return;
@@ -134,9 +137,10 @@ export const Checkout = () => {
           <section className="border border-border rounded-md p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-abhaya text-xl text-ink">1 · Account</h2>
-              {!isAuthenticated && <Button size="sm" variant="Secondary-Outline" label="Log In" onClick={() => setAuthOpen(true)} />}
+              {!authLoading && !isAuthenticated && <Button size="sm" variant="Secondary-Outline" label="Log In" onClick={() => setAuthOpen(true)} />}
             </div>
-            {isAuthenticated ? <p className="text-xs text-muted">Signed in as <span className="text-ink font-medium">{customer?.name}</span> · {customer?.email}</p>
+            {authLoading ? <p className="text-xs text-muted">Checking your session…</p>
+              : isAuthenticated ? <p className="text-xs text-muted">Signed in as <span className="text-ink font-medium">{customer?.name}</span> · {customer?.email}</p>
               : <p className="text-xs text-muted">Log in or create an account to place your order. Your bag stays intact.</p>}
           </section>
           <section className="border border-border rounded-md p-6 space-y-4">
@@ -144,7 +148,8 @@ export const Checkout = () => {
               <h2 className="font-abhaya text-xl text-ink">2 · Delivery Address</h2>
               {isAuthenticated && <Button size="sm" variant="Secondary-Outline" label={addresses.length ? 'Add New' : 'Add Address'} onClick={() => { setEditing(null); setAddrOpen(true); }} />}
             </div>
-            {!isAuthenticated ? <p className="text-xs text-muted">Log in first, then add your delivery address.</p>
+            {authLoading ? <p className="text-xs text-muted">Checking your session…</p>
+              : !isAuthenticated ? <p className="text-xs text-muted">Log in first, then add your delivery address.</p>
               : !addresses.length ? <p className="text-xs text-muted">No saved address yet — add one to continue.</p>
               : (<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{addresses.map((a) => {
                     const id = String(a._id || a.id);
