@@ -529,4 +529,199 @@ describe('customer session persistence', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// 10. Single-address enforcement (frontend + API)
+// ---------------------------------------------------------------------------
+describe('single address per customer', () => {
+  it('creates the first address and the list contains exactly one', async () => {
+    const cookie = await customerToken(CUSTOMER_A_KEY);
+    const res = await request
+      .post('/api/customer/addresses')
+      .set('Cookie', cookie)
+      .send(SAMPLE_ADDRESS);
+    assert.equal(res.status, 201);
+    assert.equal(res.body.success, true);
+    assert.ok(res.body.data.id || res.body.data._id, 'created address must have an id');
+    assert.equal(res.body.addresses.length, 1, 'response must expose exactly one address');
+    assert.equal(res.body.data.isDefault, true, 'the single address is always the default');
+
+    const list = await request.get('/api/customer/addresses').set('Cookie', cookie);
+    assert.equal(list.status, 200);
+    assert.equal(list.body.data.length, 1, 'list must contain exactly one address');
+  });
+
+  it('rejects a second address when the API is called directly (409)', async () => {
+    const cookie = await customerToken(CUSTOMER_A_KEY);
+    const res = await request
+      .post('/api/customer/addresses')
+      .set('Cookie', cookie)
+      .send({ ...SAMPLE_ADDRESS, house: '99', street: 'Different Street' });
+    assert.equal(res.status, 409);
+    assert.equal(res.body.code, 'ADDRESS_ALREADY_EXISTS');
+
+    const list = await request.get('/api/customer/addresses').set('Cookie', cookie);
+    assert.equal(list.body.data.length, 1, 'a blocked create must not add a record');
+    assert.notEqual(list.body.data[0].house, '99', 'the saved address must be unchanged');
+  });
+
+  it('handles concurrent duplicate submissions safely (exactly one address)', async () => {
+    const cookie = await customerToken(CUSTOMER_B_KEY);
+    const [r1, r2] = await Promise.all([
+      request.post('/api/customer/addresses').set('Cookie', cookie).send(SAMPLE_ADDRESS),
+      request.post('/api/customer/addresses').set('Cookie', cookie).send(SAMPLE_ADDRESS),
+    ]);
+    const statuses = [r1.status, r2.status].sort((a, b) => a - b);
+    assert.deepEqual(statuses, [201, 409], `expected one 201 and one 409, got ${statuses}`);
+
+    const list = await request.get('/api/customer/addresses').set('Cookie', cookie);
+    assert.equal(list.body.data.length, 1, 'concurrent duplicates must not create two addresses');
+  });
+
+  it('updates the existing address in place without creating another record', async () => {
+    const cookie = await customerToken(CUSTOMER_A_KEY);
+    const before = await request.get('/api/customer/addresses').set('Cookie', cookie);
+    const id = before.body.data[0].id;
+
+    const res = await request
+      .put(`/api/customer/addresses/${id}`)
+      .set('Cookie', cookie)
+      .send({ ...SAMPLE_ADDRESS, street: 'Updated Street Lane', house: 'Updated 7' });
+    assert.equal(res.status, 200);
+    assert.equal(String(res.body.data.id), String(id), 'edit must keep the same address id');
+
+    const after = await request.get('/api/customer/addresses').set('Cookie', cookie);
+    assert.equal(after.body.data.length, 1, 'editing must never create a second address');
+    assert.equal(after.body.data[0].street, 'Updated Street Lane');
+  });
+
+  it('returns 404 when editing an address id that does not exist', async () => {
+    const cookie = await customerToken(CUSTOMER_A_KEY);
+    const res = await request
+      .put('/api/customer/addresses/addr-does-not-exist')
+      .set('Cookie', cookie)
+      .send(SAMPLE_ADDRESS);
+    assert.equal(res.status, 404);
+    assert.equal(res.body.code, 'ADDRESS_NOT_FOUND');
+
+    const list = await request.get('/api/customer/addresses').set('Cookie', cookie);
+    assert.equal(list.body.data.length, 1, 'a failed edit must not change the list');
+  });
+
+  it('refuses to delete the saved address through the API (403)', async () => {
+    const cookie = await customerToken(CUSTOMER_A_KEY);
+    const before = await request.get('/api/customer/addresses').set('Cookie', cookie);
+    const id = before.body.data[0].id;
+
+    const res = await request.delete(`/api/customer/addresses/${id}`).set('Cookie', cookie);
+    assert.equal(res.status, 403);
+    assert.equal(res.body.code, 'ADDRESS_DELETE_NOT_ALLOWED');
+
+    const after = await request.get('/api/customer/addresses').set('Cookie', cookie);
+    assert.equal(after.body.data.length, 1, 'the address must survive a delete attempt');
+    assert.equal(after.body.data[0].id, id);
+  });
+
+  it('preserves the same address across logout/login (another "device" session)', async () => {
+    const first = await customerToken(CUSTOMER_A_KEY);
+    const before = await request.get('/api/customer/addresses').set('Cookie', first);
+
+    // Fresh login = new session cookie, same Google identity.
+    const second = await customerToken(CUSTOMER_A_KEY);
+    const after = await request.get('/api/customer/addresses').set('Cookie', second);
+    assert.equal(after.body.data.length, 1);
+    assert.equal(after.body.data[0].id, before.body.data[0].id, 'address id must be stable');
+    assert.equal(after.body.data[0].street, before.body.data[0].street);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. Profile editing (immutable email) & secure account deletion
+// ---------------------------------------------------------------------------
+describe('profile editing & account deletion', () => {
+  it('updates name and phone but rejects any email change', async () => {
+    const cookie = await customerToken(CUSTOMER_A_KEY);
+
+    const rejected = await request
+      .put('/api/customer/profile')
+      .set('Cookie', cookie)
+      .send({ name: 'Name Swap', email: 'attacker@evil.example' });
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.body.code, 'FIELD_NOT_EDITABLE');
+
+    const ok = await request
+      .put('/api/customer/profile')
+      .set('Cookie', cookie)
+      .send({ name: 'Updated Customer Name', phone: '+911234567890' });
+    assert.equal(ok.status, 200);
+
+    const me = await request.get('/api/customer/me').set('Cookie', cookie);
+    assert.equal(me.status, 200);
+    assert.equal(me.body.data.customer.name, 'Updated Customer Name');
+    assert.equal(me.body.data.customer.phone, '+911234567890');
+    assert.equal(me.body.data.customer.email, CUSTOMER_A.email, 'email must remain unchanged');
+  });
+
+  it('requires an authenticated session to delete an account', async () => {
+    const res = await request.delete('/api/customer/account');
+    assert.equal(res.status, 401);
+    assert.equal(res.body.code, 'CUSTOMER_AUTH_REQUIRED');
+  });
+
+  it("deletes the customer's own account, clears the cookie, and kills the session", async () => {
+    const cookie = await customerToken(CUSTOMER_A_KEY);
+    const before = await request.get('/api/customer/me').set('Cookie', cookie);
+    assert.equal(before.status, 200);
+    const oldId = before.body.data.customer.id;
+
+    const res = await request.delete('/api/customer/account').set('Cookie', cookie);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.success, true);
+    const cleared = res.headers['set-cookie'];
+    const clearStr = Array.isArray(cleared) ? cleared.join('; ') : String(cleared);
+    assert.ok(clearStr.startsWith('sabr_customer='), 'deletion must clear the session cookie');
+    assert.ok(clearStr.includes('Max-Age=0'), 'the cleared cookie must expire immediately');
+
+    // The OLD session token must be rejected even if a browser kept it.
+    const stale = await request.get('/api/customer/me').set('Cookie', cookie);
+    assert.equal(stale.status, 401);
+
+    // The same Google identity can sign in again and gets a FRESH account
+    // (no address, different id) — the deleted one is never resurrected.
+    const newCookie = await customerToken(CUSTOMER_A_KEY);
+    const fresh = await request.get('/api/customer/me').set('Cookie', newCookie);
+    assert.equal(fresh.status, 200);
+    assert.notEqual(fresh.body.data.customer.id, oldId, 're-login must create a new account');
+    const freshAddr = await request.get('/api/customer/addresses').set('Cookie', newCookie);
+    assert.equal(freshAddr.body.data.length, 0, 'the new account starts without an address');
+  });
+
+  it('never lets one customer delete another (deletion is keyed to the session)', async () => {
+    // Customer B (still active with an address) deletes only THEMSELVES…
+    const bCookie = await customerToken(CUSTOMER_B_KEY);
+    const bMe = await request.get('/api/customer/me').set('Cookie', bCookie);
+    const bId = bMe.body.data.customer.id;
+    const res = await request.delete('/api/customer/account').set('Cookie', bCookie);
+    assert.equal(res.status, 200);
+
+    const bStale = await request.get('/api/customer/me').set('Cookie', bCookie);
+    assert.equal(bStale.status, 401, "B's own session must be dead");
+
+    // …while customer A (fresh account from the previous test) is untouched.
+    const aCookie = await customerToken(CUSTOMER_A_KEY);
+    const aMe = await request.get('/api/customer/me').set('Cookie', aCookie);
+    assert.equal(aMe.status, 200, "another customer must survive B's deletion");
+    assert.notEqual(aMe.body.data.customer.id, bId);
+  });
+
+  it('rejects a second address for the re-created account too (rule persists)', async () => {
+    const cookie = await customerToken(CUSTOMER_A_KEY);
+    const first = await request.post('/api/customer/addresses').set('Cookie', cookie).send(SAMPLE_ADDRESS);
+    assert.equal(first.status, 201);
+    const second = await request.post('/api/customer/addresses').set('Cookie', cookie).send(SAMPLE_ADDRESS);
+    assert.equal(second.status, 409);
+    const list = await request.get('/api/customer/addresses').set('Cookie', cookie);
+    assert.equal(list.body.data.length, 1);
+  });
+});
+
 

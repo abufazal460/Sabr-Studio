@@ -1,4 +1,5 @@
 import { body, validationResult } from 'express-validator';
+import { isValidCSSColor } from '../utils/colorValidator.js';
 
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -13,6 +14,72 @@ const handleValidationErrors = (req, res, next) => {
     });
   }
   next();
+};
+
+const validateKeywords = (val) => {
+  if (val === null || val === undefined) return true;
+  if (typeof val !== 'object' || Array.isArray(val)) {
+    throw new Error('Keywords must be an object with heading and items');
+  }
+  const heading = typeof val.heading === 'string' ? val.heading.trim() : '';
+  const items = val.items;
+
+  // Heading required containing at least one word
+  if (!heading || !/\S+/.test(heading)) {
+    throw new Error('Keywords heading is required and must contain at least one word');
+  }
+
+  // Require at least one non-empty item
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('Keywords must contain at least one item');
+  }
+
+  // Reject empty entries and trim whitespace
+  const nonEmpties = items
+    .map((it) => (typeof it === 'string' ? it.trim() : ''))
+    .filter(Boolean);
+
+  if (nonEmpties.length === 0) {
+    throw new Error('Keywords must contain at least one non-empty item');
+  }
+
+  for (const item of items) {
+    if (typeof item !== 'string' || !item.trim()) {
+      throw new Error('Keyword items cannot be empty and whitespace must not be blank');
+    }
+  }
+
+  return true;
+};
+
+const validatePalette = (val) => {
+  if (val === null || val === undefined) return true;
+  if (typeof val !== 'object' || Array.isArray(val)) {
+    throw new Error('Palette must be an object with heading and colors');
+  }
+  if (val.heading !== undefined && val.heading !== null && typeof val.heading !== 'string') {
+    throw new Error('Palette heading must be a string');
+  }
+  if (val.colors !== undefined) {
+    if (!Array.isArray(val.colors)) {
+      throw new Error('Palette colors must be an array');
+    }
+    for (const color of val.colors) {
+      if (!color || typeof color !== 'object') {
+        throw new Error('Each palette color must be an object');
+      }
+      if (typeof color.value !== 'string' || !color.value.trim()) {
+        throw new Error('Color value is required');
+      }
+      if (!isValidCSSColor(color.value)) {
+        throw new Error(`Invalid CSS color value: "${color.value}"`);
+      }
+      if (color.name !== undefined && color.name !== null && typeof color.name !== 'string') {
+        throw new Error('Color name must be a string if provided');
+      }
+    }
+  }
+  return true;
 };
 
 export const createProjectValidator = [
@@ -49,6 +116,12 @@ export const createProjectValidator = [
     .optional()
     .isBoolean()
     .withMessage('Published must be a boolean'),
+  body('keywords')
+    .optional({ nullable: true })
+    .custom(validateKeywords),
+  body('palette')
+    .optional({ nullable: true })
+    .custom(validatePalette),
   handleValidationErrors,
 ];
 
@@ -84,6 +157,12 @@ export const updateProjectValidator = [
   body('published')
     .optional()
     .isBoolean(),
+  body('keywords')
+    .optional({ nullable: true })
+    .custom(validateKeywords),
+  body('palette')
+    .optional({ nullable: true })
+    .custom(validatePalette),
   handleValidationErrors,
 ];
 
@@ -96,4 +175,3 @@ export const createProjectCategoryValidator = [
     .withMessage('Category name cannot exceed 50 characters'),
   handleValidationErrors,
 ];
-

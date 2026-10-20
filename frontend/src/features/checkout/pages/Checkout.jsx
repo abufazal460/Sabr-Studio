@@ -43,6 +43,7 @@ export const Checkout = () => {
   const selected = addresses.find((a) => String(a._id || a.id) === String(selectedId)) || null;
 
   const saveAddress = async (form) => {
+    if (addrSaving) return; // duplicate-submit guard (double-click / Enter spam)
     setAddrSaving(true); setAddrError('');
     try {
       const res = editing ? await updateAddress(editing._id || editing.id, form) : await createAddress({ ...form, isDefault: addresses.length === 0 });
@@ -146,7 +147,13 @@ export const Checkout = () => {
           <section className="border border-border rounded-md p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-abhaya text-xl text-ink">2 · Delivery Address</h2>
-              {isAuthenticated && <Button size="sm" variant="Secondary-Outline" label={addresses.length ? 'Add New' : 'Add Address'} onClick={() => { setEditing(null); setAddrOpen(true); }} />}
+              {/* ONE address: Add until saved, Edit afterwards. A failed save
+                  never removes the Add button (addresses only update on success). */}
+              {isAuthenticated && !authLoading && (addresses.length ? (
+                <Button size="sm" variant="Secondary-Outline" label="Edit Address" onClick={() => { setEditing(addresses[0]); setAddrOpen(true); }} />
+              ) : (
+                <Button size="sm" variant="Secondary-Outline" label="Add Address" onClick={() => { setEditing(null); setAddrOpen(true); }} />
+              ))}
             </div>
             {authLoading ? <p className="text-xs text-muted">Checking your session…</p>
               : !isAuthenticated ? <p className="text-xs text-muted">Log in first, then add your delivery address.</p>

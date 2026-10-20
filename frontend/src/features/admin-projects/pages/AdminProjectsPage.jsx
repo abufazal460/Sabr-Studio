@@ -18,6 +18,7 @@ import {
   LuUpload,
 } from 'react-icons/lu';
 import adminApi from '../api/adminProjects.api';
+import { isValidCSSColor } from '../../../shared/utils/colorValidator';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -102,6 +103,10 @@ export const AdminDashboard = () => {
     seoTitle: '',
     seoDescription: '',
     seoOgImage: '',
+    keywordsHeading: '',
+    keywordsItems: [],
+    paletteHeading: '',
+    paletteColors: [],
   };
 
   const [projectForm, setProjectForm] = useState(emptyProjectForm);
@@ -191,6 +196,55 @@ export const AdminDashboard = () => {
     const cleanDesc = (projectForm.description || projectForm.shortDescription || cleanTitle).trim();
     const usableImages = (projectForm.images || []).filter((img) => img && img.url && img.url.trim());
 
+    const kwHeading = projectForm.keywordsHeading?.trim() || '';
+    const rawKwItems = Array.isArray(projectForm.keywordsItems) ? projectForm.keywordsItems : [];
+    let keywordsPayload = null;
+
+    if (kwHeading || rawKwItems.length > 0) {
+      if (!kwHeading || !/\S+/.test(kwHeading)) {
+        window.alert('Keyword list heading is required and must contain at least one word.');
+        return;
+      }
+      if (rawKwItems.length === 0) {
+        window.alert('Keyword list requires at least one non-empty item.');
+        return;
+      }
+      if (rawKwItems.some((it) => typeof it !== 'string' || !it.trim())) {
+        window.alert('Empty keyword entries are not allowed. Please enter a value or remove the empty item.');
+        return;
+      }
+      keywordsPayload = {
+        heading: kwHeading,
+        items: rawKwItems.map((it) => it.trim()),
+      };
+    }
+
+    const palHeading = projectForm.paletteHeading?.trim() || 'Color Palette';
+    const rawPalColors = Array.isArray(projectForm.paletteColors) ? projectForm.paletteColors : [];
+    let palettePayload = null;
+
+    if (rawPalColors.length > 0) {
+      for (let i = 0; i < rawPalColors.length; i++) {
+        const col = rawPalColors[i];
+        const val = col.value ? String(col.value).trim() : '';
+        if (!val) {
+          window.alert(`Color entry #${i + 1} requires a color value.`);
+          return;
+        }
+        if (!isValidCSSColor(val)) {
+          window.alert(`Color entry #${i + 1} has an invalid CSS color value: "${val}". Please enter a valid HEX (#D9C7B8), RGB, RGBA, or CSS named color.`);
+          return;
+        }
+      }
+      palettePayload = {
+        heading: palHeading,
+        colors: rawPalColors.map((c) => ({
+          name: c.name ? String(c.name).trim() : '',
+          value: String(c.value).trim(),
+        })),
+      };
+    }
+
     const payload = {
       title: cleanTitle,
       category: projectForm.category || 'Residential',
@@ -210,6 +264,8 @@ export const AdminDashboard = () => {
         url: block.url || '',
       })),
       published: Boolean(projectForm.published),
+      keywords: keywordsPayload,
+      palette: palettePayload,
       seo: {
         title: projectForm.seoTitle?.trim() || '',
         description: projectForm.seoDescription?.trim() || '',
@@ -280,6 +336,17 @@ export const AdminDashboard = () => {
         seoTitle: project.seo?.title || '',
         seoDescription: project.seo?.description || '',
         seoOgImage: project.seo?.ogImage || '',
+        keywordsHeading: project.keywords?.heading || '',
+        keywordsItems: Array.isArray(project.keywords?.items)
+          ? [...project.keywords.items]
+          : [],
+        paletteHeading: project.palette?.heading || '',
+        paletteColors: Array.isArray(project.palette?.colors)
+          ? project.palette.colors.map((c) => ({
+              name: c.name || '',
+              value: c.value || '',
+            }))
+          : [],
       });
     } else {
       setEditingProjectId(null);
@@ -432,6 +499,62 @@ export const AdminDashboard = () => {
       ...f,
       contentBlocks: [...f.contentBlocks, { type: 'image', text: '', url: '' }],
     }));
+
+  const addKeywordItem = () =>
+    setProjectForm((f) => ({
+      ...f,
+      keywordsHeading: f.keywordsHeading || 'Spatial Highlights',
+      keywordsItems: [...f.keywordsItems, ''],
+    }));
+
+  const updateKeywordItem = (index, value) =>
+    setProjectForm((f) => ({
+      ...f,
+      keywordsItems: f.keywordsItems.map((item, idx) => (idx === index ? value : item)),
+    }));
+
+  const removeKeywordItem = (index) =>
+    setProjectForm((f) => ({
+      ...f,
+      keywordsItems: f.keywordsItems.filter((_, idx) => idx !== index),
+    }));
+
+  const moveKeywordItem = (index, direction) =>
+    setProjectForm((f) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= f.keywordsItems.length) return f;
+      const next = [...f.keywordsItems];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return { ...f, keywordsItems: next };
+    });
+
+  const addPaletteColor = () =>
+    setProjectForm((f) => ({
+      ...f,
+      paletteHeading: f.paletteHeading || 'Color Palette',
+      paletteColors: [...f.paletteColors, { name: '', value: '#D9C7B8' }],
+    }));
+
+  const updatePaletteColor = (index, patch) =>
+    setProjectForm((f) => ({
+      ...f,
+      paletteColors: f.paletteColors.map((c, idx) => (idx === index ? { ...c, ...patch } : c)),
+    }));
+
+  const removePaletteColor = (index) =>
+    setProjectForm((f) => ({
+      ...f,
+      paletteColors: f.paletteColors.filter((_, idx) => idx !== index),
+    }));
+
+  const movePaletteColor = (index, direction) =>
+    setProjectForm((f) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= f.paletteColors.length) return f;
+      const next = [...f.paletteColors];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return { ...f, paletteColors: next };
+    });
 
   const clearContentBlockImage = (idx) => updateContentBlock(idx, { url: '' });
 
@@ -1293,6 +1416,317 @@ export const AdminDashboard = () => {
                     onClick={addImageContentBlock}
                   />
                 </div>
+              </div>
+
+              {/* Feature A — Keyword Lists Section */}
+              <div className="space-y-4 border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
+                      Keyword Lists
+                    </span>
+                    <span className="text-[11px] text-muted">
+                      Custom categorized keywords, materials, or architectural tags.
+                    </span>
+                  </div>
+                  {projectForm.keywordsItems.length === 0 && !projectForm.keywordsHeading && (
+                    <Button
+                      type="button"
+                      variant="Secondary-Outline"
+                      size="sm"
+                      icon={LuPlus}
+                      iconPosition="left"
+                      label="Add Keywords Section"
+                      onClick={addKeywordItem}
+                    />
+                  )}
+                </div>
+
+                {(projectForm.keywordsItems.length > 0 || projectForm.keywordsHeading) && (
+                  <div className="space-y-3 bg-surface/40 border border-border rounded-sm p-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <TextInput
+                        id="proj-keywords-heading"
+                        label="Section Heading (Required)"
+                        value={projectForm.keywordsHeading}
+                        onChange={(e) =>
+                          setProjectForm((prev) => ({ ...prev, keywordsHeading: e.target.value }))
+                        }
+                        placeholder="e.g. Key Materials, Spatial Highlights, Project Tags"
+                        className="flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectForm((prev) => ({
+                            ...prev,
+                            keywordsHeading: '',
+                            keywordsItems: [],
+                          }));
+                        }}
+                        className="mt-6 text-xs text-muted hover:text-error transition-colors px-2 py-1"
+                        title="Remove keywords section"
+                      >
+                        Clear Section
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 pt-1">
+                      <span className="text-[11px] font-mono text-muted uppercase tracking-wider block">
+                        Keyword Items ({projectForm.keywordsItems.length})
+                      </span>
+                      {projectForm.keywordsItems.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs text-muted font-mono w-5 shrink-0 text-center">
+                            {idx + 1}.
+                          </span>
+                          <TextInput
+                            value={item}
+                            onChange={(e) => updateKeywordItem(idx, e.target.value)}
+                            placeholder={`Item ${idx + 1} (e.g. Board-formed concrete)`}
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => moveKeywordItem(idx, -1)}
+                            disabled={idx === 0}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move up"
+                          >
+                            <LuArrowUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveKeywordItem(idx, 1)}
+                            disabled={idx === projectForm.keywordsItems.length - 1}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move down"
+                          >
+                            <LuArrowDown className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeKeywordItem(idx)}
+                            className="p-1.5 text-muted hover:text-error transition-colors"
+                            title="Remove item"
+                          >
+                            <LuTrash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-1">
+                      <Button
+                        type="button"
+                        variant="Secondary-Outline"
+                        size="sm"
+                        icon={LuPlus}
+                        iconPosition="left"
+                        label="Add Keyword Item"
+                        onClick={addKeywordItem}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Feature B — Dynamic Color / Material Palette Section */}
+              <div className="space-y-4 border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
+                      Color / Material Palette (Optional)
+                    </span>
+                    <span className="text-[11px] text-muted">
+                      Circular color swatches with live preview (HEX, RGB, RGBA, named colors).
+                    </span>
+                  </div>
+                  {projectForm.paletteColors.length === 0 && (
+                    <Button
+                      type="button"
+                      variant="Secondary-Outline"
+                      size="sm"
+                      icon={LuPlus}
+                      iconPosition="left"
+                      label="Add Color Palette"
+                      onClick={addPaletteColor}
+                    />
+                  )}
+                </div>
+
+                {projectForm.paletteColors.length > 0 && (
+                  <div className="space-y-3 bg-surface/40 border border-border rounded-sm p-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <TextInput
+                        id="proj-palette-heading"
+                        label="Palette Heading"
+                        value={projectForm.paletteHeading}
+                        onChange={(e) =>
+                          setProjectForm((prev) => ({ ...prev, paletteHeading: e.target.value }))
+                        }
+                        placeholder="e.g. Color Palette, Material Palette"
+                        className="flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectForm((prev) => ({
+                            ...prev,
+                            paletteHeading: '',
+                            paletteColors: [],
+                          }));
+                        }}
+                        className="mt-6 text-xs text-muted hover:text-error transition-colors px-2 py-1"
+                        title="Remove palette"
+                      >
+                        Clear Palette
+                      </button>
+                    </div>
+
+                    {/* Palette swatches live preview summary */}
+                    <div className="pt-2 pb-1 border-b border-border/50">
+                      <span className="text-[11px] font-mono text-muted uppercase tracking-wider block mb-2">
+                        Swatches Live Preview
+                      </span>
+                      <div className="flex flex-wrap items-start gap-4 p-3 bg-white border border-border rounded-sm min-h-[60px]">
+                        {projectForm.paletteColors.map((col, idx) => {
+                          const valid = isValidCSSColor(col.value);
+                          return (
+                            <div key={idx} className="flex flex-col items-center gap-1.5 text-center">
+                              <div
+                                className={`w-9 h-9 rounded-full border shadow-xs transition-transform ${
+                                  valid
+                                    ? 'border-border'
+                                    : 'border-error border-dashed bg-error/10'
+                                }`}
+                                style={valid ? { backgroundColor: col.value } : undefined}
+                                title={valid ? (col.name ? `${col.name} (${col.value})` : col.value) : 'Invalid CSS color'}
+                              />
+                              {col.name ? (
+                                <span className="text-[10px] font-inter text-ink max-w-[70px] truncate">
+                                  {col.name}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-mono text-muted max-w-[70px] truncate">
+                                  {valid ? col.value : 'Invalid'}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Individual color entries editor */}
+                    <div className="space-y-2.5 pt-2">
+                      <span className="text-[11px] font-mono text-muted uppercase tracking-wider block">
+                        Color Entries ({projectForm.paletteColors.length})
+                      </span>
+                      {projectForm.paletteColors.map((col, idx) => {
+                        const valid = isValidCSSColor(col.value);
+                        return (
+                          <div
+                            key={idx}
+                            className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-white border border-border rounded-sm"
+                          >
+                            {/* Live circular swatch preview - ONLY color inside, no text/icons */}
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`w-9 h-9 rounded-full border shrink-0 ${
+                                  valid
+                                    ? 'border-border'
+                                    : 'border-error border-dashed bg-error/10'
+                                }`}
+                                style={valid ? { backgroundColor: col.value } : undefined}
+                                title={valid ? col.value : 'Invalid color'}
+                              />
+                            </div>
+
+                            {/* Color Value Input */}
+                            <div className="flex-1">
+                              <input
+                                type="text"
+                                aria-label={`Color Value ${idx + 1}`}
+                                value={col.value}
+                                onChange={(e) =>
+                                  updatePaletteColor(idx, { value: e.target.value })
+                                }
+                                placeholder="CSS value (e.g. #D9C7B8, rgba(...), burlywood)"
+                                className={`w-full px-3 py-1.5 text-xs font-mono border rounded-sm outline-none transition-colors ${
+                                  col.value && !valid
+                                    ? 'border-error text-error bg-error/5 focus:border-error'
+                                    : 'border-border focus:border-ink'
+                                }`}
+                              />
+                              {col.value && !valid && (
+                                <span className="text-[10px] text-error block mt-0.5">
+                                  Invalid CSS color value
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Optional Color Name Input */}
+                            <div className="flex-1">
+                              <input
+                                type="text"
+                                aria-label={`Color Name ${idx + 1} (optional)`}
+                                value={col.name}
+                                onChange={(e) =>
+                                  updatePaletteColor(idx, { name: e.target.value })
+                                }
+                                placeholder="Color name (optional, e.g. Warm Alabaster)"
+                                className="w-full px-3 py-1.5 text-xs font-inter border border-border rounded-sm outline-none focus:border-ink transition-colors"
+                              />
+                            </div>
+
+                            {/* Reorder and Delete controls */}
+                            <div className="flex items-center gap-1 self-end sm:self-center">
+                              <button
+                                type="button"
+                                onClick={() => movePaletteColor(idx, -1)}
+                                disabled={idx === 0}
+                                className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                                title="Move up"
+                              >
+                                <LuArrowUp className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => movePaletteColor(idx, 1)}
+                                disabled={idx === projectForm.paletteColors.length - 1}
+                                className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                                title="Move down"
+                              >
+                                <LuArrowDown className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removePaletteColor(idx)}
+                                className="p-1.5 text-muted hover:text-error transition-colors"
+                                title="Remove color"
+                              >
+                                <LuTrash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="pt-1">
+                      <Button
+                        type="button"
+                        variant="Secondary-Outline"
+                        size="sm"
+                        icon={LuPlus}
+                        iconPosition="left"
+                        label="Add Another Color"
+                        onClick={addPaletteColor}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* SEO Settings */}

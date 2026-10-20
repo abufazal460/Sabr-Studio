@@ -84,4 +84,36 @@ describe('CustomerContext session lifecycle', () => {
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.customer).toBeNull();
   });
+
+  it('deleteAccount clears the state only on confirmed success', async () => {
+    axiosClient.get.mockResolvedValueOnce({ success: true, data: { customer: CUSTOMER } });
+    axiosClient.delete.mockResolvedValueOnce({ success: true, message: 'Account deleted successfully' });
+
+    const { result } = renderCustomerHook();
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+    let res;
+    await act(async () => { res = await result.current.deleteAccount(); });
+
+    expect(res.success).toBe(true);
+    expect(axiosClient.delete).toHaveBeenCalledWith('/customer/account');
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.customer).toBeNull();
+  });
+
+  it('keeps the customer signed in when account deletion fails', async () => {
+    axiosClient.get.mockResolvedValueOnce({ success: true, data: { customer: CUSTOMER } });
+    axiosClient.delete.mockRejectedValueOnce({ success: false, status: 500, message: 'Service unavailable.' });
+
+    const { result } = renderCustomerHook();
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+    let res;
+    await act(async () => { res = await result.current.deleteAccount(); });
+
+    expect(res.success).toBe(false);
+    expect(res.message).toBe('Service unavailable.');
+    expect(result.current.isAuthenticated).toBe(true);
+    expect(result.current.customer).not.toBeNull();
+  });
 });

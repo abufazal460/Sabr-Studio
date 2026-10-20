@@ -4,6 +4,24 @@ import { getCustomerCookieOptions, getClearCookieOptions } from '../utils/cookie
 
 export const CUSTOMER_COOKIE = 'sabr_customer';
 
+/**
+ * Clears the customer session cookie with attributes that always MATCH the
+ * ones used to set it (path/SameSite/Secure), so the browser reliably drops
+ * the persistent one-year cookie on logout AND on account deletion.
+ */
+function clearCustomerCookie(res) {
+  const opts = getClearCookieOptions();
+  if (typeof res.clearCookie === 'function') {
+    res.clearCookie(CUSTOMER_COOKIE, opts);
+  } else {
+    // Fallback manual Set-Cookie header to expire the cookie immediately.
+    res.setHeader(
+      'Set-Cookie',
+      `${CUSTOMER_COOKIE}=; Path=${opts.path}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly${opts.secure ? '; Secure' : ''}; SameSite=${opts.sameSite}`,
+    );
+  }
+}
+
 function setCustomerCookie(res, token) {
   const opts = getCustomerCookieOptions();
   if (typeof res.cookie === 'function') {
@@ -43,17 +61,24 @@ class CustomerController {
   }
   async logout(req, res) {
     res.setHeader('Cache-Control', 'no-store');
-    const opts = getClearCookieOptions();
-    if (typeof res.clearCookie === 'function') {
-      res.clearCookie(CUSTOMER_COOKIE, opts);
-    } else {
-      // Fallback manual Set-Cookie header to expire the cookie immediately.
-      res.setHeader(
-        'Set-Cookie',
-        `${CUSTOMER_COOKIE}=; Path=${opts.path}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly${opts.secure ? '; Secure' : ''}; SameSite=${opts.sameSite}`,
-      );
-    }
+    clearCustomerCookie(res);
     return res.status(200).json({ success: true, message: 'Logged out' });
+  }
+  /**
+   * Permanently deletes the authenticated customer's own account.
+   * Identity comes from the session JWT via protectCustomer — a customer can
+   * only ever delete themselves. Orders/payments are retained (never cascaded).
+   * The response clears the session cookie so the browser drops it too.
+   */
+  async deleteAccount(req, res) {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      await customerService.deleteAccount(req.customer.id);
+      clearCustomerCookie(res);
+      return res.status(200).json({ success: true, message: 'Account deleted successfully' });
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Could not delete account.' });
+    }
   }
   /**
    * Profile mutation is restricted to the allowlisted fields (name, phone).
@@ -65,7 +90,9 @@ class CustomerController {
       const result = await customerService.updateProfile(req.customer.id, req.body || {});
       return res.status(200).json({ success: true, message: 'Profile updated', data: { customer: result.customer } });
     } catch (err) {
-      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Profile update failed' });
+      // Pass the machine-readable `code` through (e.g. FIELD_NOT_EDITABLE for
+      // an email change attempt) so API clients can branch on it.
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message || 'Profile update failed', ...(err.code ? { code: err.code } : {}) });
     }
   }
 }

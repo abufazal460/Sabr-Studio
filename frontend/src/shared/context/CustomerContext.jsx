@@ -43,8 +43,19 @@ export const CustomerProvider = ({ children }) => {
     } catch (err) { return { success: false, message: err?.message || 'Profile update failed' }; }
   };
 
+  // Deletes the CURRENT customer's account (server keys off the session JWT).
+  // Frontend state is cleared ONLY on confirmed success — a failed deletion
+  // must never log the user out of an account that still exists.
+  const deleteAccount = async () => {
+    try {
+      const res = await axiosClient.delete('/customer/account');
+      if (res?.success) { setCustomer(null); return { success: true }; }
+      return { success: false, message: res?.message || 'Could not delete account.' };
+    } catch (err) { return { success: false, message: err?.message || 'Could not delete account.' }; }
+  };
+
   return (
-    <CustomerContext.Provider value={{ customer, setCustomer, loading, isAuthenticated: Boolean(customer), googleLogin, logout, updateProfile, checkAuth }}>
+    <CustomerContext.Provider value={{ customer, setCustomer, loading, isAuthenticated: Boolean(customer), googleLogin, logout, updateProfile, deleteAccount, checkAuth }}>
       {children}
     </CustomerContext.Provider>
   );

@@ -31,6 +31,11 @@ export async function protectCustomer(req, res, next) {
   const doc = await customerService.findById(decoded.id);
   if (!doc) return res.status(401).json({ success: false, message: 'Account no longer exists.', code: 'CUSTOMER_NOT_FOUND' });
   const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+  if (plain.status === 'deleted') {
+    // Account was deleted: the session JWT is no longer a valid login
+    // credential. 401 (not 403) so clients treat it as "session gone".
+    return res.status(401).json({ success: false, message: 'This account has been deleted.', code: 'CUSTOMER_ACCOUNT_DELETED' });
+  }
   if (plain.status === 'disabled') return res.status(403).json({ success: false, message: 'Account is disabled.' });
   const id = plain._id ? String(plain._id) : String(plain.id);
   req.customer = { id, name: plain.name, email: plain.email, phone: plain.phone || '', avatar: plain.avatar || '', role: 'customer', status: plain.status, addresses: plain.addresses || [] };
