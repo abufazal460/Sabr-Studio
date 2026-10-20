@@ -331,6 +331,12 @@ export default async function handleApiRequest(req, res) {
     if (path === '/api/customer/profile' && (method === 'PUT' || method === 'PATCH')) {
       return parseBody(() => protectCustomer(req, res, () => customerController.updateProfile(req, res)));
     }
+    // Self-service account deletion. Identity comes from the session JWT
+    // (protectCustomer) — never from the body — so a customer can only ever
+    // delete their own account. No body parsing needed.
+    if (path === '/api/customer/account' && method === 'DELETE') {
+      return protectCustomer(req, res, () => customerController.deleteAccount(req, res));
+    }
     if (path === '/api/customer/addresses' && method === 'GET') {
       return protectCustomer(req, res, () => addressController.list(req, res));
     }

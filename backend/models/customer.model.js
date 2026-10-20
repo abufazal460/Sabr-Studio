@@ -51,7 +51,11 @@ const customerSchema = new mongoose.Schema(
     phone: { type: String, default: '', trim: true },
     addresses: { type: [addressSchema], default: [] },
     role: { type: String, enum: ['customer'], default: 'customer' },
-    status: { type: String, enum: ['active', 'disabled'], default: 'active' },
+    // 'deleted' is a soft-delete tombstone: PII is anonymized by
+    // customer.service.deleteAccount, the document is retained so order
+    // references stay intact (retention policy: orders/payments are immutable
+    // business records; customer accounts are anonymized on request).
+    status: { type: String, enum: ['active', 'disabled', 'deleted'], default: 'active' },
     lastLoginAt: { type: Date, default: null },
   },
   { timestamps: true }

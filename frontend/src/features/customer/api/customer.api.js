@@ -6,5 +6,6 @@ export const updateAddress = (id, payload) => axiosClient.put(`/customer/address
 export const deleteAddress = (id) => axiosClient.delete(`/customer/addresses/${encodeURIComponent(id)}`);
 export const setDefaultAddress = (id) => axiosClient.patch(`/customer/addresses/${encodeURIComponent(id)}/default`);
 export const updateProfile = (payload) => axiosClient.put('/customer/profile', payload);
+export const deleteAccount = () => axiosClient.delete('/customer/account');
 export const googleAuth = (credential) => axiosClient.post('/customer/google', { credential });
 export const getProfile = () => axiosClient.get('/customer/me');

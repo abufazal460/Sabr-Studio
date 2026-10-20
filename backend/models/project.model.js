@@ -100,6 +100,31 @@ const projectSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    keywords: {
+      type: {
+        _id: false,
+        heading: { type: String, trim: true, default: '' },
+        items: { type: [String], default: [] },
+      },
+      default: null,
+    },
+    palette: {
+      type: {
+        _id: false,
+        heading: { type: String, trim: true, default: '' },
+        colors: {
+          type: [
+            {
+              _id: false,
+              name: { type: String, trim: true, default: '' },
+              value: { type: String, trim: true, required: true },
+            },
+          ],
+          default: [],
+        },
+      },
+      default: null,
+    },
     seo: {
       title: {
         type: String,
@@ -209,6 +234,25 @@ export const inMemoryProjects = [
       'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
       'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1200&q=80',
     ],
+    keywords: {
+      heading: 'Spatial & Material Highlights',
+      items: [
+        'Board-formed concrete',
+        'Smoked oak cabinetry',
+        'Central shaded courtyard',
+        'Lime plaster finish',
+      ],
+    },
+    palette: {
+      heading: 'Material Palette',
+      colors: [
+        { name: 'Warm Alabaster', value: '#F4EFEA' },
+        { name: 'Smoked Oak', value: '#3D342E' },
+        { name: 'Board Concrete', value: '#9E9A93' },
+        { name: 'Muted Terracotta', value: 'rgba(184, 115, 87, 0.75)' },
+        { name: 'Raw Sandstone', value: 'burlywood' },
+      ],
+    },
     featured: true,
     published: true,
     createdAt: new Date('2024-01-15T00:00:00.000Z'),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LuShoppingBag, LuMenu, LuX, LuUser } from 'react-icons/lu';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -13,27 +13,27 @@ export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState(null);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
-  const userMenuRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { cartCount, openDrawer } = useCart();
   const { isAuthenticated } = useAuth();
-  const { isAuthenticated: customerAuthed, customer, logout, loading: customerLoading } = useCustomer();
+  const { isAuthenticated: customerAuthed, logout, loading: customerLoading } = useCustomer();
   const reduceMotion = useReducedMotion();
 
-  const goAccount = (path) => { setUserMenuOpen(false); setMobileMenuOpen(false); navigate(path); };
-  const openCustomerAuth = () => { setUserMenuOpen(false); setMobileMenuOpen(false); setAuthOpen(true); };
-  const handleCustomerLogout = async () => { setUserMenuOpen(false); setMobileMenuOpen(false); try { await logout(); } catch { /* logout is best-effort */ } navigate('/'); };
-  // Logged-out -> open login modal. Logged-in (customer or admin) -> account menu.
-  // While the session restore check is still pending we are NEITHER logged in
-  // nor logged out: ignore the click instead of flashing the login modal over
-  // an already-authenticated session.
+  const goAccount = (path) => { setMobileMenuOpen(false); navigate(path); };
+  const openCustomerAuth = () => { setMobileMenuOpen(false); setAuthOpen(true); };
+  const handleCustomerLogout = async () => { setMobileMenuOpen(false); try { await logout(); } catch { /* logout is best-effort */ } navigate('/'); };
+  // Account icon routing (state-driven, mobile-safe):
+  //  - session check PENDING  -> do nothing (never flash the logged-out login UI)
+  //  - signed-in customer     -> the profile/account page (/account)
+  //  - signed-in admin only   -> the admin portal (/admin), same as the Admin button
+  //  - logged out             -> the existing Google sign-in modal (login)
   const handleUserIcon = () => {
     if (customerLoading) return;
-    if (customerAuthed || isAuthenticated) setUserMenuOpen((v) => !v);
-    else openCustomerAuth();
+    if (customerAuthed) { goAccount('/account'); return; }
+    if (isAuthenticated) { goAccount('/admin'); return; }
+    openCustomerAuth();
   };
 
   const navLinks = [
@@ -69,15 +69,13 @@ export const Navbar = () => {
     }
   }, [mobileMenuOpen]);
 
-  // Close the account menu on outside click or Escape.
+  // Close the mobile drawer on Escape.
   useEffect(() => {
-    if (!userMenuOpen) return;
-    const onDown = (e) => { if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setUserMenuOpen(false); };
-    document.addEventListener('mousedown', onDown);
+    if (!mobileMenuOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setMobileMenuOpen(false); };
     window.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey); };
-  }, [userMenuOpen]);
+    return () => { window.removeEventListener('keydown', onKey); };
+  }, [mobileMenuOpen]);
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/';
@@ -179,51 +177,19 @@ export const Navbar = () => {
             />
           </motion.div>
 
-          {/* Account (user icon) — visible on sm+ screens */}
-          <motion.div {...enter(0.16)} className="relative hidden sm:block" ref={userMenuRef}>
+          {/* Account (user icon) — visible on sm+ screens.
+              State-driven navigation: profile page when signed in, login when not.
+              No dropdown: Profile / My Orders / Logout all live on /account,
+              and the Admin portal keeps its own dedicated navbar button. */}
+          <motion.div {...enter(0.16)} className="hidden sm:block">
             <button
               type="button"
               onClick={handleUserIcon}
               aria-label="Your account"
-              aria-haspopup="menu"
-              aria-expanded={userMenuOpen}
               className="p-2 text-ink hover:text-black transition-transform duration-150 active:scale-95 focus:outline-none"
             >
               <LuUser className="w-5 h-5" />
             </button>
-            <AnimatePresence>
-              {userMenuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-2 w-52 bg-white border border-border rounded-md shadow-hover py-2 z-50"
-                  role="menu"
-                >
-                  {customerAuthed && (
-                    <div className="px-4 py-2 border-b border-border mb-1">
-                      <p className="text-xs font-medium text-ink truncate">{customer?.name}</p>
-                      <p className="text-[11px] text-muted truncate">{customer?.email}</p>
-                    </div>
-                  )}
-                  {customerAuthed && (
-                    <>
-                      <button type="button" role="menuitem" onClick={() => goAccount('/account')} className="w-full text-left px-4 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-surface transition-colors">Profile</button>
-                      <button type="button" role="menuitem" onClick={() => goAccount('/orders')} className="w-full text-left px-4 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-surface transition-colors">My Orders</button>
-                    </>
-                  )}
-                  {isAuthenticated && (
-                    <button type="button" role="menuitem" onClick={() => goAccount('/admin')} className="w-full text-left px-4 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-surface transition-colors">Admin Panel</button>
-                  )}
-                  {customerAuthed ? (
-                    <button type="button" role="menuitem" onClick={handleCustomerLogout} className="w-full text-left px-4 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-surface transition-colors border-t border-border mt-1 !pt-3">Logout</button>
-                  ) : (
-                    <button type="button" role="menuitem" onClick={openCustomerAuth} className="w-full text-left px-4 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-surface transition-colors">Continue with Google</button>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
 
           {/* Cart Trigger */}

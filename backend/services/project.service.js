@@ -144,6 +144,25 @@ export const projectService = {
       price: data.price !== undefined && data.price !== null ? Number(data.price) : null,
       published: data.published !== undefined ? Boolean(data.published) : false,
       featured: Boolean(data.featured),
+      keywords:
+        data.keywords && data.keywords.heading
+          ? {
+              heading: String(data.keywords.heading).trim(),
+              items: Array.isArray(data.keywords.items)
+                ? data.keywords.items.map((it) => String(it).trim()).filter(Boolean)
+                : [],
+            }
+          : null,
+      palette:
+        data.palette && Array.isArray(data.palette.colors) && data.palette.colors.length > 0
+          ? {
+              heading: String(data.palette.heading || 'Color Palette').trim(),
+              colors: data.palette.colors.map((c) => ({
+                name: String(c.name || '').trim(),
+                value: String(c.value || '').trim(),
+              })),
+            }
+          : null,
       seo: {
         title: String(data.seo?.title || '').trim(),
         description: String(data.seo?.description || '').trim(),
@@ -208,6 +227,31 @@ export const projectService = {
         text: block.text || '',
         url: block.url || '',
       }));
+    }
+    if (updateData.keywords !== undefined) {
+      if (updateData.keywords === null) {
+        allowedUpdates.keywords = null;
+      } else {
+        const heading = String(updateData.keywords.heading || '').trim();
+        const items = Array.isArray(updateData.keywords.items)
+          ? updateData.keywords.items.map((it) => String(it).trim()).filter(Boolean)
+          : [];
+        allowedUpdates.keywords = heading || items.length ? { heading, items } : null;
+      }
+    }
+    if (updateData.palette !== undefined) {
+      if (updateData.palette === null) {
+        allowedUpdates.palette = null;
+      } else {
+        const heading = String(updateData.palette.heading || 'Color Palette').trim();
+        const colors = Array.isArray(updateData.palette.colors)
+          ? updateData.palette.colors.map((c) => ({
+              name: String(c.name || '').trim(),
+              value: String(c.value || '').trim(),
+            }))
+          : [];
+        allowedUpdates.palette = colors.length ? { heading, colors } : null;
+      }
     }
     if (updateData.seo !== undefined) {
       allowedUpdates.seo = {

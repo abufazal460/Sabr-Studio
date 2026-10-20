@@ -157,6 +157,52 @@ class CustomerService {
     if (connected && typeof doc.save === 'function') { await doc.save(); }
     return { customer: sanitize(typeof doc.toObject === 'function' ? doc.toObject() : doc) };
   }
+
+  /**
+   * Delete the customer's OWN account (id always comes from the verified JWT,
+   * never from the request body — one customer can never delete another).
+   *
+   * Retention policy (requirement.md §retention): orders and payment records
+   * are IMMUTABLE business records and are NEVER touched here. The customer
+   * document is kept as an anonymized tombstone so existing order references
+   * stay resolvable for admins: name/email/phone/avatar/addresses are scrubbed,
+   * status becomes 'deleted', and the Google `sub` is released so the same
+   * person may sign in later and create a FRESH account if they choose.
+   * Old sessions die immediately: protectCustomer rejects status 'deleted',
+   * and the in-memory fallback removes the record outright.
+   */
+  async deleteAccount(id) {
+    if (!id) { const e = new Error('Account not found.'); e.statusCode = 404; throw e; }
+    const connected = mongoose.connection?.readyState === 1;
+    if (connected) {
+      const doc = await Customer.findById(id).catch(() => null);
+      if (!doc) { const e = new Error('Account not found.'); e.statusCode = 404; throw e; }
+      if (doc.status !== 'deleted') {
+        // Deterministic anonymized email → idempotent under concurrent
+        // duplicate deletes and always unique per account (unique index safe).
+        await Customer.updateOne(
+          { _id: doc._id, status: { $ne: 'deleted' } },
+          {
+            $set: {
+              name: 'Deleted Customer',
+              email: `deleted-${String(doc._id)}@deleted.invalid`,
+              phone: '',
+              avatar: '',
+              addresses: [],
+              status: 'deleted',
+              lastLoginAt: null,
+            },
+            $unset: { googleId: '' },
+          },
+        );
+      }
+      return { success: true };
+    }
+    const idx = inMemoryCustomers.findIndex((c) => String(c.id) === String(id) || String(c._id) === String(id));
+    if (idx === -1) { const e = new Error('Account not found.'); e.statusCode = 404; throw e; }
+    inMemoryCustomers.splice(idx, 1);
+    return { success: true };
+  }
 }
 
 export const customerService = new CustomerService();

@@ -9,11 +9,14 @@ import { LuUser, LuCircleCheck, LuLock } from 'react-icons/lu';
 
 export const Profile = () => {
   const navigate = useNavigate();
-  const { customer, isAuthenticated, loading, logout, updateProfile } = useCustomer();
+  const { customer, isAuthenticated, loading, logout, updateProfile, deleteAccount } = useCustomer();
   const [form, setForm] = useState({ name: '', phone: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (customer) setForm({ name: customer.name || '', phone: customer.phone || '' });
@@ -43,6 +46,24 @@ export const Profile = () => {
       else setError(res.message || 'Could not update profile.');
     } catch (err) { setError(err?.message || 'Could not update profile.'); }
     finally { setSaving(false); }
+  };
+
+  const onDeleteAccount = async () => {
+    setDeleteError('');
+    setDeleting(true);
+    try {
+      const res = await deleteAccount();
+      if (res.success) {
+        // State was cleared by the context; leave the profile page immediately.
+        navigate('/');
+      } else {
+        setDeleteError(res.message || 'Could not delete your account. Please try again.');
+        setConfirmingDelete(false);
+      }
+    } catch (err) {
+      setDeleteError(err?.message || 'Could not delete your account. Please try again.');
+      setConfirmingDelete(false);
+    } finally { setDeleting(false); }
   };
 
   return (
@@ -81,6 +102,40 @@ export const Profile = () => {
         <p className="text-xs text-muted">
           Delivery addresses are managed during <Link to="/checkout" className="underline text-ink">checkout</Link>.
         </p>
+
+        {/* Danger zone — explicit, two-step confirmed account deletion */}
+        <section className="border border-error/30 rounded-md p-6 space-y-3 max-w-xl">
+          <h2 className="font-abhaya text-xl text-ink">Delete Account</h2>
+          {deleteError && (
+            <div role="alert" className="p-3 bg-error/5 border border-error/20 text-error text-xs rounded-sm">{deleteError}</div>
+          )}
+          {!confirmingDelete ? (
+            <>
+              <p className="text-xs text-muted">
+                Permanently delete your Sabr Studio account and saved delivery address. Your order and
+                payment history is retained as required by law. This cannot be undone — you will be signed out.
+              </p>
+              <Button
+                variant="Secondary-Outline"
+                size="sm"
+                label="Delete Account"
+                className="!text-error border border-red-500"
+                onClick={() => { setDeleteError(''); setConfirmingDelete(true); }}
+              />
+            </>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-ink font-medium">
+                Are you sure? This permanently deletes your profile and saved address. Type-free confirmation below —
+                this cannot be undone.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="Primary" size="sm" label="Yes, Delete My Account" loading={deleting} onClick={onDeleteAccount} />
+                <Button variant="Secondary-Outline" size="sm" label="Cancel" onClick={() => { setConfirmingDelete(false); setDeleteError(''); }} />
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

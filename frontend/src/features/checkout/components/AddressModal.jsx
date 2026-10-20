@@ -17,6 +17,7 @@ export const AddressModal = ({ open, initial, saving, error, onClose, onSave }) 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const submit = (e) => {
     e.preventDefault();
+    if (saving) return; // ignore duplicate submissions while a save is in flight
     const req = [['fullName','Full name'],['phone','Phone'],['house','House/flat'],['street','Street/locality'],['city','City'],['state','State'],['pincode','PIN code']];
     for (const [k, label] of req) {
       if (!String(form[k] || '').trim()) { setLocalError(`${label} is required.`); return; }

@@ -131,6 +131,20 @@ export const ProjectDetail = () => {
   const hasBlocks = blocks.length > 0;
   const gallery = Array.isArray(project.gallery) ? project.gallery : [];
 
+  const hasKeywords = Boolean(
+    project.keywords &&
+      project.keywords.heading &&
+      project.keywords.heading.trim() &&
+      Array.isArray(project.keywords.items) &&
+      project.keywords.items.length > 0
+  );
+
+  const hasPalette = Boolean(
+    project.palette &&
+      Array.isArray(project.palette.colors) &&
+      project.palette.colors.length > 0
+  );
+
   return (
     <div className="w-full bg-white">
       <Seo
@@ -212,6 +226,58 @@ export const ProjectDetail = () => {
               )}
             </div>
           )}
+
+          {/* Dynamic Keyword Lists */}
+          {hasKeywords && (
+            <section
+              className="space-y-3 sm:space-y-4 max-w-4xl pt-6 border-t border-border/60"
+              aria-label={project.keywords.heading}
+            >
+              <h2 className="font-abhaya text-2xl sm:text-3xl lg:text-4xl text-black font-medium">
+                {project.keywords.heading}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                {project.keywords.items.map((item, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-inter text-ink bg-surface border border-border"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Dynamic Color / Material Palette */}
+          {hasPalette && (
+            <section
+              className="space-y-4 max-w-4xl pt-6 border-t border-border/60"
+              aria-label={project.palette.heading || 'Color Palette'}
+            >
+              <h2 className="font-abhaya text-2xl sm:text-3xl lg:text-4xl text-black font-medium">
+                {project.palette.heading || 'Color Palette'}
+              </h2>
+              <div className="flex flex-wrap items-start gap-6 sm:gap-8 pt-2">
+                {project.palette.colors.map((color, idx) => (
+                  <div key={idx} className="flex flex-col items-center gap-2 text-center group">
+                    <div
+                      className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border border-border shadow-xs transition-transform duration-200 group-hover:scale-105"
+                      style={{ backgroundColor: color.value }}
+                      aria-label={color.name || color.value}
+                      title={color.name ? `${color.name} (${color.value})` : color.value}
+                    />
+                    {color.name ? (
+                      <span className="font-inter text-xs sm:text-sm text-ink max-w-[100px] break-words">
+                        {color.name}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <div className="flex justify-center pt-10 sm:pt-14">
             <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 max-w-full">
               <Button variant="Primary" label="View All Projects" to="/projects" />
@@ -227,7 +293,6 @@ export const ProjectDetail = () => {
             // title="Inquire About Similar Architecture"
             subtitle={`Discuss commissioning an architectural or interior work inspired by ${project.title}.`}
           />
-
         </div>
       </section>
     </div>
