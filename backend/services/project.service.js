@@ -160,9 +160,34 @@ export const projectService = {
               colors: data.palette.colors.map((c) => ({
                 name: String(c.name || '').trim(),
                 value: String(c.value || '').trim(),
+                description: String(c.description || '').trim(),
               })),
             }
           : null,
+      lists: Array.isArray(data.lists)
+        ? data.lists.map((l) => ({
+            heading: typeof l.heading === 'string' ? l.heading.trim() : '',
+            paragraph: typeof l.paragraph === 'string' ? l.paragraph.trim() : '',
+            items: Array.isArray(l.items) ? l.items.map((it) => String(it).trim()).filter(Boolean) : [],
+          }))
+        : [],
+      sections: Array.isArray(data.sections)
+        ? data.sections.map((s) => ({
+            heading: typeof s.heading === 'string' ? s.heading.trim() : '',
+            intro: typeof s.intro === 'string' ? s.intro.trim() : '',
+            paragraphs: Array.isArray(s.paragraphs) ? s.paragraphs.map((p) => String(p).trim()) : [],
+          }))
+        : [],
+      imageBlocks: Array.isArray(data.imageBlocks)
+        ? data.imageBlocks.map((b) => ({
+            heading: typeof b.heading === 'string' ? b.heading.trim() : '',
+            paragraphs: Array.isArray(b.paragraphs) ? b.paragraphs.map((p) => String(p).trim()) : [],
+            subheadings: Array.isArray(b.subheadings) ? b.subheadings.map((p) => String(p).trim()) : [],
+            items: Array.isArray(b.items) ? b.items.map((it) => String(it).trim()).filter(Boolean) : [],
+            caption: typeof b.caption === 'string' ? b.caption.trim() : '',
+            layout: typeof b.layout === 'string' ? b.layout.trim() : '',
+          }))
+        : [],
       seo: {
         title: String(data.seo?.title || '').trim(),
         description: String(data.seo?.description || '').trim(),
@@ -248,6 +273,7 @@ export const projectService = {
           ? updateData.palette.colors.map((c) => ({
               name: String(c.name || '').trim(),
               value: String(c.value || '').trim(),
+              description: String(c.description || '').trim(),
             }))
           : [];
         allowedUpdates.palette = colors.length ? { heading, colors } : null;
@@ -259,6 +285,31 @@ export const projectService = {
         description: String(updateData.seo?.description || '').trim(),
         ogImage: String(updateData.seo?.ogImage || '').trim(),
       };
+    }
+
+    if (Array.isArray(updateData.lists)) {
+      allowedUpdates.lists = updateData.lists.map((l) => ({
+        heading: typeof l.heading === 'string' ? l.heading.trim() : '',
+        paragraph: typeof l.paragraph === 'string' ? l.paragraph.trim() : '',
+        items: Array.isArray(l.items) ? l.items.map((it) => String(it).trim()).filter(Boolean) : [],
+      }));
+    }
+    if (Array.isArray(updateData.sections)) {
+      allowedUpdates.sections = updateData.sections.map((s) => ({
+        heading: typeof s.heading === 'string' ? s.heading.trim() : '',
+        intro: typeof s.intro === 'string' ? s.intro.trim() : '',
+        paragraphs: Array.isArray(s.paragraphs) ? s.paragraphs.map((p) => String(p).trim()) : [],
+      }));
+    }
+    if (Array.isArray(updateData.imageBlocks)) {
+      allowedUpdates.imageBlocks = updateData.imageBlocks.map((b) => ({
+        heading: typeof b.heading === 'string' ? b.heading.trim() : '',
+        paragraphs: Array.isArray(b.paragraphs) ? b.paragraphs.map((p) => String(p).trim()) : [],
+        subheadings: Array.isArray(b.subheadings) ? b.subheadings.map((p) => String(p).trim()) : [],
+        items: Array.isArray(b.items) ? b.items.map((it) => String(it).trim()).filter(Boolean) : [],
+        caption: typeof b.caption === 'string' ? b.caption.trim() : '',
+        layout: typeof b.layout === 'string' ? b.layout.trim() : '',
+      }));
     }
 
     const nextImageIds = Array.isArray(allowedUpdates.images)

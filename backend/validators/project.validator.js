@@ -82,6 +82,87 @@ const validatePalette = (val) => {
   return true;
 };
 
+const validateLists = (val) => {
+  if (val === null || val === undefined) return true;
+  if (!Array.isArray(val)) throw new Error('Lists must be an array');
+  for (const list of val) {
+    if (typeof list !== 'object' || Array.isArray(list)) {
+      throw new Error('Each list must be an object');
+    }
+    if (list.heading !== undefined && list.heading !== null && typeof list.heading !== 'string') {
+      throw new Error('List heading must be a string');
+    }
+    if (list.paragraph !== undefined && list.paragraph !== null && typeof list.paragraph !== 'string') {
+      throw new Error('List paragraph must be a string');
+    }
+    if (Array.isArray(list.items)) {
+      for (const item of list.items) {
+        if (typeof item !== 'string' || !item.trim()) {
+          throw new Error('List items cannot be empty');
+        }
+      }
+    }
+  }
+  return true;
+};
+
+const validateSections = (val) => {
+  if (val === null || val === undefined) return true;
+  if (!Array.isArray(val)) throw new Error('Sections must be an array');
+  for (const section of val) {
+    if (typeof section !== 'object' || Array.isArray(section)) {
+      throw new Error('Each section must be an object');
+    }
+    if (section.heading !== undefined && typeof section.heading !== 'string') {
+      throw new Error('Section heading must be a string');
+    }
+    if (section.intro !== undefined && typeof section.intro !== 'string') {
+      throw new Error('Section intro must be a string');
+    }
+    if (Array.isArray(section.paragraphs)) {
+      for (const p of section.paragraphs) {
+        if (typeof p !== 'string') throw new Error('Section paragraphs must be strings');
+      }
+    }
+  }
+  return true;
+};
+
+const validateImageBlocks = (val) => {
+  if (val === null || val === undefined) return true;
+  if (!Array.isArray(val)) throw new Error('Image blocks must be an array');
+  for (const block of val) {
+    if (typeof block !== 'object' || Array.isArray(block)) {
+      throw new Error('Each image block must be an object');
+    }
+    if (block.heading !== undefined && typeof block.heading !== 'string') {
+      throw new Error('Image block heading must be a string');
+    }
+    if (Array.isArray(block.paragraphs)) {
+      for (const p of block.paragraphs) {
+        if (typeof p !== 'string') throw new Error('Image block paragraph must be a string');
+      }
+    }
+    if (Array.isArray(block.subheadings)) {
+      for (const s of block.subheadings) {
+        if (typeof s !== 'string') throw new Error('Image block subheading must be a string');
+      }
+    }
+    if (Array.isArray(block.items)) {
+      for (const it of block.items) {
+        if (typeof it !== 'string') throw new Error('Image block item must be a string');
+      }
+    }
+    if (block.caption !== undefined && typeof block.caption !== 'string') {
+      throw new Error('Image block caption must be a string');
+    }
+    if (block.layout !== undefined && typeof block.layout !== 'string') {
+      throw new Error('Image block layout must be a string');
+    }
+  }
+  return true;
+};
+
 export const createProjectValidator = [
   body('title')
     .trim()
@@ -122,6 +203,18 @@ export const createProjectValidator = [
   body('palette')
     .optional({ nullable: true })
     .custom(validatePalette),
+  body('lists')
+    .optional({ nullable: true })
+    .isArray()
+    .custom(validateLists),
+  body('sections')
+    .optional({ nullable: true })
+    .isArray()
+    .custom(validateSections),
+  body('imageBlocks')
+    .optional({ nullable: true })
+    .isArray()
+    .custom(validateImageBlocks),
   handleValidationErrors,
 ];
 
@@ -163,6 +256,18 @@ export const updateProjectValidator = [
   body('palette')
     .optional({ nullable: true })
     .custom(validatePalette),
+  body('lists')
+    .optional({ nullable: true })
+    .isArray()
+    .custom(validateLists),
+  body('sections')
+    .optional({ nullable: true })
+    .isArray()
+    .custom(validateSections),
+  body('imageBlocks')
+    .optional({ nullable: true })
+    .isArray()
+    .custom(validateImageBlocks),
   handleValidationErrors,
 ];
 
