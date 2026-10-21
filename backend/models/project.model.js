@@ -118,12 +118,53 @@ const projectSchema = new mongoose.Schema(
               _id: false,
               name: { type: String, trim: true, default: '' },
               value: { type: String, trim: true, required: true },
+              description: { type: String, default: '' },
             },
           ],
           default: [],
         },
       },
       default: null,
+    },
+
+    // ---- Project details editor fields (07-project-details) ----
+    // Structured arrays persisted separately from flat contentBlocks so the
+    // public project-details page can render Section A..D independently.
+    lists: {
+      type: [
+        {
+          _id: false,
+          heading: { type: String, trim: true, default: '' },
+          paragraph: { type: String, default: '' },
+          items: { type: [String], default: [] },
+        },
+      ],
+      default: [],
+    },
+    sections: {
+      type: [
+        {
+          _id: false,
+          heading: { type: String, trim: true, default: '' },
+          intro: { type: String, default: '' },
+          paragraphs: { type: [String], default: [] },
+        },
+      ],
+      default: [],
+    },
+    imageBlocks: {
+      type: [
+        {
+          _id: false,
+          heading: { type: String, trim: true, default: '' },
+          paragraphs: { type: [String], default: [] },
+          subheadings: { type: [String], default: [] },
+          items: { type: [String], default: [] },
+          caption: { type: String, default: '' },
+          layout: { type: String, trim: true, default: '' },
+        },
+      ],
+      default: [],
     },
     seo: {
       title: {

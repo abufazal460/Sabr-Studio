@@ -1,4 +1,0 @@
-# SabrStudio repository audit — backend config & connection
-Set-Content -Path .scripts/audit_repo.ps1 -Value "Write-Host 'hello'" -Force
-$content = Get-Content .scripts/audit_repo.ps1 -Raw
-Write-Host "exists: $content"

@@ -107,6 +107,9 @@ export const AdminDashboard = () => {
     keywordsItems: [],
     paletteHeading: '',
     paletteColors: [],
+    lists: [],
+    sections: [],
+    imageBlocks: [],
   };
 
   const [projectForm, setProjectForm] = useState(emptyProjectForm);
@@ -241,6 +244,7 @@ export const AdminDashboard = () => {
         colors: rawPalColors.map((c) => ({
           name: c.name ? String(c.name).trim() : '',
           value: String(c.value).trim(),
+          description: c.description ? String(c.description).trim() : '',
         })),
       };
     }
@@ -271,6 +275,9 @@ export const AdminDashboard = () => {
         description: projectForm.seoDescription?.trim() || '',
         ogImage: projectForm.seoOgImage?.trim() || '',
       },
+      lists: Array.isArray(projectForm.lists) ? projectForm.lists : [],
+      sections: Array.isArray(projectForm.sections) ? projectForm.sections : [],
+      imageBlocks: Array.isArray(projectForm.imageBlocks) ? projectForm.imageBlocks : [],
     };
 
     setSavingProject(true);
@@ -345,8 +352,12 @@ export const AdminDashboard = () => {
           ? project.palette.colors.map((c) => ({
               name: c.name || '',
               value: c.value || '',
+              description: c.description || '',
             }))
           : [],
+        lists: Array.isArray(project.lists) ? [...project.lists] : [],
+        sections: Array.isArray(project.sections) ? [...project.sections] : [],
+        imageBlocks: Array.isArray(project.imageBlocks) ? [...project.imageBlocks] : [],
       });
     } else {
       setEditingProjectId(null);
@@ -556,7 +567,215 @@ export const AdminDashboard = () => {
       return { ...f, paletteColors: next };
     });
 
+  const addList = () =>
+    setProjectForm((f) => ({
+      ...f,
+      lists: [...f.lists, { heading: '', paragraph: '', items: [''] }],
+    }));
+  const removeList = (idx) =>
+    setProjectForm((f) => ({
+      ...f,
+      lists: f.lists.filter((_, i) => i !== idx),
+    }));
+  const moveList = (idx, dir) =>
+    setProjectForm((f) => {
+      const next = [...f.lists];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return f;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return { ...f, lists: next };
+    });
+  const updateList = (idx, patch) =>
+    setProjectForm((f) => ({
+      ...f,
+      lists: f.lists.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
+    }));
+  const addListItem = (listIdx) =>
+    setProjectForm((f) => ({
+      ...f,
+      lists: f.lists.map((l, i) =>
+        i === listIdx ? { ...l, items: [...l.items, ''] } : l
+      ),
+    }));
+  const removeListItem = (listIdx, itemIdx) =>
+    setProjectForm((f) => ({
+      ...f,
+      lists: f.lists.map((l, i) =>
+        i === listIdx ? { ...l, items: l.items.filter((_, j) => j !== itemIdx) } : l
+      ),
+    }));
+  const moveListItem = (listIdx, itemIdx, dir) =>
+    setProjectForm((f) => {
+      const list = f.lists[listIdx];
+      if (!list) return f;
+      const next = [...list.items];
+      const target = itemIdx + dir;
+      if (target < 0 || target >= next.length) return f;
+      [next[itemIdx], next[target]] = [next[target], next[itemIdx]];
+      return {
+        ...f,
+        lists: f.lists.map((l, i) =>
+          i === listIdx ? { ...l, items: next } : l
+        ),
+      };
+    });
+  const updateListItem = (listIdx, itemIdx, value) =>
+    setProjectForm((f) => ({
+      ...f,
+      lists: f.lists.map((l, i) =>
+        i === listIdx
+          ? { ...l, items: l.items.map((it, j) => (j === itemIdx ? value : it)) }
+          : l
+      ),
+    }));
   const clearContentBlockImage = (idx) => updateContentBlock(idx, { url: '' });
+
+  /** ---- Explanations sections (Section C) ---- */
+  const addSection = () =>
+    setProjectForm((f) => ({
+      ...f,
+      sections: [...f.sections, { heading: '', intro: '', paragraphs: [''] }],
+    }));
+  const removeSection = (idx) =>
+    setProjectForm((f) => ({
+      ...f,
+      sections: f.sections.filter((_, i) => i !== idx),
+    }));
+  const moveSection = (idx, dir) =>
+    setProjectForm((f) => {
+      const next = [...f.sections];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return f;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return { ...f, sections: next };
+    });
+  const updateSection = (idx, patch) =>
+    setProjectForm((f) => ({
+      ...f,
+      sections: f.sections.map((s, i) => (i === idx ? { ...s, ...patch } : s)),
+    }));
+  const addSectionParagraph = (sectionIdx) =>
+    setProjectForm((f) => ({
+      ...f,
+      sections: f.sections.map((s, i) =>
+        i === sectionIdx ? { ...s, paragraphs: [...s.paragraphs, ''] } : s
+      ),
+    }));
+  const removeSectionParagraph = (sectionIdx, paraIdx) =>
+    setProjectForm((f) => ({
+      ...f,
+      sections: f.sections.map((s, i) =>
+        i === sectionIdx
+          ? { ...s, paragraphs: s.paragraphs.filter((_, j) => j !== paraIdx) }
+          : s
+      ),
+    }));
+  const moveSectionParagraph = (sectionIdx, paraIdx, dir) =>
+    setProjectForm((f) => {
+      const section = f.sections[sectionIdx];
+      if (!section) return f;
+      const next = [...section.paragraphs];
+      const target = paraIdx + dir;
+      if (target < 0 || target >= next.length) return f;
+      [next[paraIdx], next[target]] = [next[target], next[paraIdx]];
+      return {
+        ...f,
+        sections: f.sections.map((s, i) =>
+          i === sectionIdx ? { ...s, paragraphs: next } : s
+        ),
+      };
+    });
+  const updateSectionParagraph = (sectionIdx, paraIdx, value) =>
+    setProjectForm((f) => ({
+      ...f,
+      sections: f.sections.map((s, i) =>
+        i === sectionIdx
+          ? {
+              ...s,
+              paragraphs: s.paragraphs.map((p, j) => (j === paraIdx ? value : p)),
+            }
+          : s
+      ),
+    }));
+
+  /** ---- Image & text blocks (Section D) ---- */
+  const addImageBlock = () =>
+    setProjectForm((f) => ({
+      ...f,
+      imageBlocks: [
+        ...f.imageBlocks,
+        {
+          url: '',
+          heading: '',
+          paragraphs: [''],
+          subheadings: [],
+          items: [],
+          caption: '',
+          layout: '',
+        },
+      ],
+    }));
+  const removeImageBlock = (idx) =>
+    setProjectForm((f) => ({
+      ...f,
+      imageBlocks: f.imageBlocks.filter((_, i) => i !== idx),
+    }));
+  const moveImageBlock = (idx, dir) =>
+    setProjectForm((f) => {
+      const next = [...f.imageBlocks];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return f;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return { ...f, imageBlocks: next };
+    });
+  const updateImageBlock = (idx, patch) =>
+    setProjectForm((f) => ({
+      ...f,
+      imageBlocks: f.imageBlocks.map((b, i) => (i === idx ? { ...b, ...patch } : b)),
+    }));
+  const addImageParagraph = (blockIdx) =>
+    setProjectForm((f) => ({
+      ...f,
+      imageBlocks: f.imageBlocks.map((b, i) =>
+        i === blockIdx ? { ...b, paragraphs: [...b.paragraphs, ''] } : b
+      ),
+    }));
+  const removeImageParagraph = (blockIdx, paraIdx) =>
+    setProjectForm((f) => ({
+      ...f,
+      imageBlocks: f.imageBlocks.map((b, i) =>
+        i === blockIdx
+          ? { ...b, paragraphs: b.paragraphs.filter((_, j) => j !== paraIdx) }
+          : b
+      ),
+    }));
+  const moveImageParagraph = (blockIdx, paraIdx, dir) =>
+    setProjectForm((f) => {
+      const block = f.imageBlocks[blockIdx];
+      if (!block) return f;
+      const next = [...block.paragraphs];
+      const target = paraIdx + dir;
+      if (target < 0 || target >= next.length) return f;
+      [next[paraIdx], next[target]] = [next[target], next[paraIdx]];
+      return {
+        ...f,
+        imageBlocks: f.imageBlocks.map((b, i) =>
+          i === blockIdx ? { ...b, paragraphs: next } : b
+        ),
+      };
+    });
+  const updateImageParagraph = (blockIdx, paraIdx, value) =>
+    setProjectForm((f) => ({
+      ...f,
+      imageBlocks: f.imageBlocks.map((b, i) =>
+        i === blockIdx
+          ? {
+              ...b,
+              paragraphs: b.paragraphs.map((p, j) => (j === paraIdx ? value : p)),
+            }
+          : b
+      ),
+    }));
 
   const handleUploadContentBlockImage = async (e, targetIdx) => {
     const file = e.target.files?.[0];
@@ -1286,6 +1505,592 @@ export const AdminDashboard = () => {
                 <span className="text-[11px] text-muted block">
                   Select the radio button to choose the listing &amp; hero image.
                 </span>
+              </div>
+
+              <div className="space-y-4 border-t border-border pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
+                      Image Explanations
+                    </span>
+                    <span className="text-[11px] text-muted">
+                      One block per image: image, heading, paragraphs, and an optional list.
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="Secondary-Outline"
+                    size="sm"
+                    icon={LuPlus}
+                    iconPosition="left"
+                    label="Add Block"
+                    onClick={addImageBlock}
+                  />
+                </div>
+
+                {projectForm.imageBlocks.map((block, blockIdx) => (
+                  <div
+                    key={blockIdx}
+                    className="border border-border rounded-sm bg-surface/40 p-3 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <Select
+                          id={`proj-img-layout-${blockIdx}`}
+                          label="Layout"
+                          placeholder=""
+                          value={block.layout || ''}
+                          onChange={(e) =>
+                            updateImageBlock(blockIdx, { layout: e.target.value })
+                          }
+                          className="max-w-[220px]"
+                          options={[
+                            { value: '', label: 'Default (image above)' },
+                            { value: 'image-left', label: 'Image left' },
+                            { value: 'image-right', label: 'Image right' },
+                            { value: 'full-width', label: 'Full width' },
+                            { value: 'editorial', label: 'Editorial' },
+                            { value: 'grid', label: 'Grid' },
+                          ]}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => removeImageBlock(blockIdx)}
+                          className="p-1.5 text-muted hover:text-error transition-colors"
+                          title="Remove block"
+                        >
+                          <LuTrash2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveImageBlock(blockIdx, -1)}
+                          disabled={blockIdx === 0}
+                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <LuArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveImageBlock(blockIdx, 1)}
+                          disabled={blockIdx === projectForm.imageBlocks.length - 1}
+                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <LuArrowDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        id={`proj-img-file-${blockIdx}`}
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            updateImageBlock(blockIdx, { url: reader.result });
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="Secondary-Outline"
+                        size="sm"
+                        label="Upload"
+                        onClick={() =>
+                          document.getElementById(`proj-img-file-${blockIdx}`)?.click()
+                        }
+                      />
+                      {block.url && (
+                        <span className="text-[10px] text-muted truncate max-w-[160px]">
+                          {block.url}
+                        </span>
+                      )}
+                    </div>
+                    {block.url && (
+                      <div className="border border-border rounded-sm overflow-hidden bg-white h-32">
+                        <img
+                          src={block.url}
+                          alt={block.heading || `Image ${blockIdx + 1}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+
+                    <TextInput
+                      id={`proj-img-heading-${blockIdx}`}
+                      label="Image Heading"
+                      value={block.heading || ''}
+                      onChange={(e) =>
+                        updateImageBlock(blockIdx, { heading: e.target.value })
+                      }
+                      placeholder="Image heading"
+                      className="mt-2"
+                    />
+
+                    <div className="space-y-2 border-t border-border pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">
+                          Explanation Paragraphs
+                        </span>
+                        <Button
+                          type="button"
+                          variant="Secondary-Outline"
+                          size="sm"
+                          icon={LuPlus}
+                          label="Add"
+                          onClick={() => addImageParagraph(blockIdx)}
+                        />
+                      </div>
+                      {block.paragraphs.map((para, paraIdx) => (
+                        <div key={paraIdx} className="flex items-center gap-2">
+                          <TextArea
+                            id={`proj-img-para-${blockIdx}-${paraIdx}`}
+                            rows={2}
+                            value={para}
+                            onChange={(e) =>
+                              updateImageParagraph(blockIdx, paraIdx, e.target.value)
+                            }
+                            placeholder="Explains this image"
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              removeImageParagraph(blockIdx, paraIdx)
+                            }
+                            className="p-1.5 text-muted hover:text-error transition-colors"
+                            title="Remove paragraph"
+                          >
+                            <LuTrash2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveImageParagraph(blockIdx, paraIdx, -1)}
+                            disabled={paraIdx === 0}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move up"
+                          >
+                            <LuArrowUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveImageParagraph(blockIdx, paraIdx, 1)}
+                            disabled={paraIdx === block.paragraphs.length - 1}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move down"
+                          >
+                            <LuArrowDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-2 border-t border-border pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">
+                          Subheadings
+                        </span>
+                        <Button
+                          type="button"
+                          variant="Secondary-Outline"
+                          size="sm"
+                          icon={LuPlus}
+                          label="Add"
+                          onClick={() =>
+                            updateImageBlock(blockIdx, {
+                              subheadings: [...block.subheadings, ''],
+                            })
+                          }
+                        />
+                      </div>
+                      {block.subheadings.map((sub, subIdx) => (
+                        <div key={subIdx} className="flex items-center gap-2">
+                          <TextInput
+                            id={`proj-img-sub-${blockIdx}-${subIdx}`}
+                            value={sub}
+                            onChange={(e) =>
+                              updateImageBlock(
+                                blockIdx,
+                                { subheadings: block.subheadings.map((s, j) =>
+                                  j === subIdx ? e.target.value : s
+                                )}
+                              )
+                            }
+                            placeholder="Subheading"
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateImageBlock(
+                                blockIdx,
+                                { subheadings: block.subheadings.filter((_, j) => j !== subIdx) }
+                              )
+                            }
+                            className="p-1.5 text-muted hover:text-error transition-colors"
+                            title="Remove"
+                          >
+                            <LuTrash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-2 border-t border-border pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">
+                          List Items
+                        </span>
+                        <Button
+                          type="button"
+                          variant="Secondary-Outline"
+                          size="sm"
+                          icon={LuPlus}
+                          label="Add Item"
+                          onClick={() =>
+                            updateImageBlock(blockIdx, {
+                              items: [...block.items, ''],
+                            })
+                          }
+                        />
+                      </div>
+                      {block.items.map((item, itemIdx) => (
+                        <div key={itemIdx} className="flex items-center gap-2">
+                          <TextInput
+                            id={`proj-img-item-${blockIdx}-${itemIdx}`}
+                            value={item}
+                            onChange={(e) =>
+                              updateImageBlock(
+                                blockIdx,
+                                { items: block.items.map((it, j) =>
+                                  j === itemIdx ? e.target.value : it
+                                )}
+                              )
+                            }
+                            placeholder="List item"
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateImageBlock(
+                                blockIdx,
+                                { items: block.items.filter((_, j) => j !== itemIdx) }
+                              )
+                            }
+                            className="p-1.5 text-muted hover:text-error transition-colors"
+                            title="Remove"
+                          >
+                            <LuTrash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {projectForm.imageBlocks.length === 0 && (
+                  <p className="text-xs text-muted py-2">
+                    No image blocks yet. Add a block to explain an image with its own heading and paragraphs.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-4 border-t border-border pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
+                      Explanation Sections
+                    </span>
+                    <span className="text-[11px] text-muted">
+                      Grouped headings + paragraphs so each aspect stays independently editable.
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="Secondary-Outline"
+                    size="sm"
+                    icon={LuPlus}
+                    iconPosition="left"
+                    label="Add Section"
+                    onClick={addSection}
+                  />
+                </div>
+
+                {projectForm.sections.map((section, sectionIdx) => (
+                  <div
+                    key={sectionIdx}
+                    className="border border-border rounded-sm bg-surface/40 p-3 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <TextInput
+                        id={`proj-sec-heading-${sectionIdx}`}
+                        label="Section Heading"
+                        value={section.heading || ''}
+                        onChange={(e) =>
+                          updateSection(sectionIdx, { heading: e.target.value })
+                        }
+                        placeholder="e.g. Design Concept"
+                        className="flex-1"
+                      />
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => removeSection(sectionIdx)}
+                          className="p-1.5 text-muted hover:text-error transition-colors"
+                          title="Remove section"
+                        >
+                          <LuTrash2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveSection(sectionIdx, -1)}
+                          disabled={sectionIdx === 0}
+                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <LuArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveSection(sectionIdx, 1)}
+                          disabled={sectionIdx === projectForm.sections.length - 1}
+                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <LuArrowDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <TextArea
+                      id={`proj-sec-intro-${sectionIdx}`}
+                      rows={2}
+                      value={section.intro || ''}
+                      onChange={(e) =>
+                        updateSection(sectionIdx, { intro: e.target.value })
+                      }
+                      placeholder="Short introduction (optional)"
+                    />
+
+                    <div className="space-y-2 border-t border-border pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">
+                          Paragraphs
+                        </span>
+                        <Button
+                          type="button"
+                          variant="Secondary-Outline"
+                          size="sm"
+                          icon={LuPlus}
+                          iconPosition="left"
+                          label="Add Paragraph"
+                          onClick={() => addSectionParagraph(sectionIdx)}
+                        />
+                      </div>
+
+                      {section.paragraphs.map((para, paraIdx) => (
+                        <div key={paraIdx} className="flex items-center gap-2">
+                          <TextArea
+                            id={`proj-sec-para-${sectionIdx}-${paraIdx}`}
+                            rows={2}
+                            value={para}
+                            onChange={(e) =>
+                              updateSectionParagraph(sectionIdx, paraIdx, e.target.value)
+                            }
+                            placeholder="Paragraph text"
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeSectionParagraph(sectionIdx, paraIdx)}
+                            className="p-1.5 text-muted hover:text-error transition-colors"
+                            title="Remove paragraph"
+                          >
+                            <LuTrash2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveSectionParagraph(sectionIdx, paraIdx, -1)}
+                            disabled={paraIdx === 0}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move up"
+                          >
+                            <LuArrowUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveSectionParagraph(sectionIdx, paraIdx, 1)}
+                            disabled={paraIdx === section.paragraphs.length - 1}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move down"
+                          >
+                            <LuArrowDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {projectForm.sections.length === 0 && (
+                  <p className="text-xs text-muted py-2">
+                    No explanation sections yet. Add a section with a heading and paragraphs.
+                  </p>
+                )}
+              </div>
+
+              {/* Section B — Project Lists (real lists, never badges) */}
+              <div className="space-y-4 border-t border-border pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
+                      Project Lists
+                    </span>
+                    <span className="text-[11px] text-muted">
+                      Add titled lists; each list can have a paragraph and multiple items.
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="Secondary-Outline"
+                    size="sm"
+                    icon={LuPlus}
+                    iconPosition="left"
+                    label="Add List"
+                    onClick={addList}
+                  />
+                </div>
+
+                {projectForm.lists.map((list, listIdx) => (
+                  <div
+                    key={listIdx}
+                    className="border border-border rounded-sm bg-surface/40 p-3 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <TextInput
+                        id={`proj-list-heading-${listIdx}`}
+                        label="List Heading"
+                        value={list.heading || ''}
+                        onChange={(e) =>
+                          updateList(listIdx, { heading: e.target.value })
+                        }
+                        placeholder="e.g. Materials, Specifications"
+                        className="flex-1"
+                      />
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => removeList(listIdx)}
+                          className="p-1.5 text-muted hover:text-error transition-colors"
+                          title="Remove list"
+                        >
+                          <LuTrash2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveList(listIdx, -1)}
+                          disabled={listIdx === 0}
+                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <LuArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveList(listIdx, 1)}
+                          disabled={listIdx === projectForm.lists.length - 1}
+                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <LuArrowDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <TextArea
+                      id={`proj-list-para-${listIdx}`}
+                      rows={2}
+                      value={list.paragraph || ''}
+                      onChange={(e) =>
+                        updateList(listIdx, { paragraph: e.target.value })
+                      }
+                      placeholder="Short introductory paragraph (optional)"
+                    />
+
+                    <div className="space-y-2 border-t border-border pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">
+                          Items
+                        </span>
+                        <Button
+                          type="button"
+                          variant="Secondary-Outline"
+                          size="sm"
+                          icon={LuPlus}
+                          iconPosition="left"
+                          label="Add Item"
+                          onClick={() => addListItem(listIdx)}
+                        />
+                      </div>
+                      {list.items.map((item, itemIdx) => (
+                        <div key={itemIdx} className="flex items-center gap-2">
+                          <TextInput
+                            id={`proj-list-item-${listIdx}-${itemIdx}`}
+                            value={item}
+                            onChange={(e) =>
+                              updateListItem(listIdx, itemIdx, e.target.value)
+                            }
+                            placeholder="List item"
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeListItem(listIdx, itemIdx)}
+                            className="p-1.5 text-muted hover:text-error transition-colors"
+                            title="Remove item"
+                          >
+                            <LuTrash2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveListItem(listIdx, itemIdx, -1)}
+                            disabled={itemIdx === 0}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move up"
+                          >
+                            <LuArrowUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveListItem(listIdx, itemIdx, 1)}
+                            disabled={itemIdx === list.items.length - 1}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move down"
+                          >
+                            <LuArrowDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {projectForm.lists.length === 0 && (
+                  <p className="text-xs text-muted py-2">
+                    No lists yet. Add a titled list with items using the button above.
+                  </p>
+                )}
               </div>
 
               {/* Detail page content blocks editor */}

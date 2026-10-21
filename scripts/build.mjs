@@ -12,7 +12,21 @@ import { fileURLToPath } from 'url';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const frontendDir = path.join(root, 'frontend');
 const distDir = path.join(frontendDir, 'dist');
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+
+// Same reason as scripts/dev.mjs: on Windows npm is only npm.cmd, so args would
+// have to go through a shell and get concatenated (DEP0190). Node's bundled
+// npm-cli.js is a real file, so argv can stay an array.
+const npmCli = [
+  path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  path.join(path.dirname(process.execPath), 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+].find((p) => fs.existsSync(p)) || null;
+
+function runNpm(args, opts) {
+  return npmCli
+    ? execFileSync(process.execPath, [npmCli, ...args], { ...opts, shell: false })
+    : execFileSync(npmBin, args, { ...opts, shell: true });
+}
 
 // Vite lives in devDependencies. Hosts such as Hostinger run the build with
 // NODE_ENV=production, and npm then omits devDependencies, so `vite` is missing
@@ -26,7 +40,7 @@ const viteBin = process.platform === 'win32'
 
 if (!fs.existsSync(viteBin)) {
   console.log('[build] Vite not found — installing frontend dependencies (including devDependencies)...');
-  execFileSync(npm, ['install', '--include=dev'], { cwd: frontendDir, stdio: 'inherit', shell: true });
+  runNpm(['install', '--include=dev'], { cwd: frontendDir, stdio: 'inherit' });
 }
 
 if (!fs.existsSync(viteBin)) {
@@ -35,7 +49,7 @@ if (!fs.existsSync(viteBin)) {
 }
 
 console.log('[build] Building frontend (vite build)...');
-execFileSync(npm, ['run', 'build'], { cwd: frontendDir, stdio: 'inherit', shell: true });
+runNpm(['run', 'build'], { cwd: frontendDir, stdio: 'inherit' });
 
 if (!fs.existsSync(path.join(distDir, 'index.html'))) {
   console.error('[build] Frontend build did not produce dist/index.html — aborting.');

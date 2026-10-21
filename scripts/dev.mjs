@@ -2,7 +2,7 @@
 // Usage: npm run dev
 // This file is required by root package.json ("dev": "node scripts/dev.mjs").
 // Cross-platform: Node APIs only (no shell-specific syntax).
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -11,7 +11,46 @@ import { fileURLToPath } from 'url';
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const backendDir = path.join(rootDir, 'backend');
 const frontendDir = path.join(rootDir, 'frontend');
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const isWin = process.platform === 'win32';
+const npmBin = isWin ? 'npm.cmd' : 'npm';
+
+// On Windows npm only ships as npm.cmd, and spawning a .cmd requires
+// `shell: true` — which makes Node concatenate argv into one command line
+// (DEP0190, and a genuine injection foot-gun). Node's bundled npm-cli.js is an
+// actual file, so run it with the current Node binary and keep args as an argv
+// array. The shell form remains a fallback for installs where npm lives
+// elsewhere (pnpm/corepack-managed Node).
+function resolveNpmCli() {
+  const nodeDir = path.dirname(process.execPath);
+  return [
+    path.join(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.join(nodeDir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ].find((p) => fs.existsSync(p)) || null;
+}
+const npmCli = resolveNpmCli();
+
+function spawnNpm(args, opts) {
+  return npmCli
+    ? spawn(process.execPath, [npmCli, ...args], { ...opts, shell: false })
+    : spawn(npmBin, args, { ...opts, shell: true });
+}
+
+// `npm run` nests children (npm -> cmd -> nodemon -> node), so child.kill()
+// would reap only the outermost process and leave the dev servers orphaned on
+// their ports. Terminate the whole tree instead.
+function killTree(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  if (isWin) {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+  } else {
+    try {
+      child.kill('SIGTERM');
+    } catch {}
+  }
+}
 
 function hasNodeModules(dir) {
   return fs.existsSync(path.join(dir, 'node_modules'));
@@ -19,7 +58,7 @@ function hasNodeModules(dir) {
 
 if (!hasNodeModules(backendDir)) {
   console.log('[dev] Installing backend dependencies...');
-  const r = spawn(npm, ['install'], { cwd: backendDir, stdio: 'inherit', shell: true });
+  const r = spawnNpm(['install'], { cwd: backendDir, stdio: 'inherit' });
   await new Promise((resolve, reject) => {
     r.on('exit', (c) => (c === 0 ? resolve() : reject(new Error('backend npm install failed'))));
     r.on('error', reject);
@@ -28,7 +67,7 @@ if (!hasNodeModules(backendDir)) {
 
 if (!hasNodeModules(frontendDir)) {
   console.log('[dev] Installing frontend dependencies...');
-  const r = spawn(npm, ['install'], { cwd: frontendDir, stdio: 'inherit', shell: true });
+  const r = spawnNpm(['install'], { cwd: frontendDir, stdio: 'inherit' });
   await new Promise((resolve, reject) => {
     r.on('exit', (c) => (c === 0 ? resolve() : reject(new Error('frontend npm install failed'))));
     r.on('error', reject);
@@ -52,10 +91,9 @@ function checkHealth(url) {
 const children = [];
 
 function launch(name, args, cwd, extraEnv) {
-  const child = spawn(npm, args, {
+  const child = spawnNpm(args, {
     cwd,
     stdio: 'inherit',
-    shell: true,
     env: { ...process.env, ...extraEnv },
   });
   children.push({ name, child });
@@ -70,18 +108,15 @@ let shuttingDown = false;
 function shutdown(code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
-  for (const { child } of children) {
-    try {
-      child.kill('SIGTERM');
-    } catch {}
-  }
-  setTimeout(() => process.exit(code), 800);
+  for (const { child } of children) killTree(child);
+  setTimeout(() => process.exit(code), 1000);
 }
 
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
-// Backend first: explicit ports so backend/dev.js binds :3000 even when PORT=8080 exists.
+// Backend first: BACKEND_PORT pins :3000 (backend/dev.js ignores the deployment
+// PORT on purpose, so the Vite /api proxy target always matches).
 launch('backend', ['run', 'dev'], backendDir, { PORT: '3000', BACKEND_PORT: '3000' });
 
 // Wait for backend health before starting frontend so the Vite proxy never

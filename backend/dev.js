@@ -17,8 +17,11 @@ const [{ logger }, { clearAllFallbackData, syncFallbackToMongoose }, { default: 
     import('./services/auth.service.js'),
   ]);
 
-const PORT = parseInt(process.env.BACKEND_PORT, 10) ||
-  (process.env.PORT && process.env.PORT !== '8080' ? parseInt(process.env.PORT, 10) : 3000);
+// Dev binds BACKEND_PORT (default 3000) and deliberately ignores PORT: on
+// Hostinger PORT is the panel-assigned deployment port (server.js reads it), and
+// honouring it here would move the dev server off the 127.0.0.1:3000 target that
+// frontend/vite.config.js proxies /api to.
+const PORT = parseInt(process.env.BACKEND_PORT, 10) || 3000;
 let server;
 
 server = app.listen(PORT, async () => {
@@ -27,7 +30,7 @@ server = app.listen(PORT, async () => {
   await bootstrapAdmin();
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    logger.error(`[Sabr Studio] Port ${PORT} already in use. Free the port or change the PORT env variable.`);
+    logger.error(`[Sabr Studio] Port ${PORT} already in use. Free the port or change the BACKEND_PORT env variable.`);
     process.exit(1);
   } else {
     logger.error('[Server] Startup error:', err);
