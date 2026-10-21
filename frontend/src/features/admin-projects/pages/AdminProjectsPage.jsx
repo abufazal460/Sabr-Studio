@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useScrollLock } from '../../../shared/hooks/useScrollLock';
 import {
@@ -37,7 +37,7 @@ export const AdminDashboard = () => {
   const navigate = useNavigate();
   // Single source of truth: URL. /admin = All Operations (overview);
   // sub-routes preselect their tab, tabs navigate back to the same routes
-  // the sidebar/hamburger already use â€” all three stay synchronized.
+  // the sidebar/hamburger already use — all three stay synchronized.
   const [activeTab, setActiveTab] = useState('projects');
   const [loading, setLoading] = useState(true);
 
@@ -120,7 +120,7 @@ export const AdminDashboard = () => {
     price: 45000,
     image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&w=700&q=80',
     description: '',
-    dimensions: '600mm W Ã— 580mm D Ã— 740mm H',
+    dimensions: '600mm W × 580mm D × 740mm H',
     materials: 'Solid Ash timber, natural beeswax, Belgian linen',
     inStock: true,
   });
@@ -818,7 +818,7 @@ export const AdminDashboard = () => {
       price: 45000,
       image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&w=700&q=80',
       description: '',
-      dimensions: '600mm W Ã— 580mm D Ã— 740mm H',
+      dimensions: '600mm W × 580mm D × 740mm H',
       materials: 'Solid Ash timber, natural beeswax, Belgian linen',
       inStock: true,
     });
@@ -1042,7 +1042,7 @@ export const AdminDashboard = () => {
                           <Badge variant="error">Draft</Badge>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-muted">{proj.category || 'â€”'}</td>
+                      <td className="py-3 px-4 text-muted">{proj.category || '—'}</td>
                       <td className="py-3 px-4 text-right space-x-2">
                         <button
                           type="button"
@@ -1191,7 +1191,7 @@ export const AdminDashboard = () => {
                       <td className="py-3 px-4 text-muted">{enq.email}</td>
                       <td className="py-3 px-4 font-mono text-muted">{enq.phone}</td>
                       <td className="py-3 px-4 text-muted max-w-xs truncate">
-                        {enq.message || 'â€”'}
+                        {enq.message || '—'}
                       </td>
                       <td className="py-3 px-4">
                         <select
@@ -1396,7 +1396,7 @@ export const AdminDashboard = () => {
                     >
                       <LuUpload className="w-3.5 h-3.5" />
                       <span>
-                        {uploadingImage ? `Uploadingâ€¦ ${uploadProgress}%` : 'Upload images'}
+                        {uploadingImage ? `Uploading… ${uploadProgress}%` : 'Upload images'}
                       </span>
                       <input
                         type="file"
@@ -1430,178 +1430,82 @@ export const AdminDashboard = () => {
                     </div>
                   ) : null}
 
-                      {block.items.map((item, itemIdx) => (
-                        <div key={itemIdx} className="flex items-center gap-2">
-                          <TextInput
-                            id={`proj-img-item-${blockIdx}-${itemIdx}`}
-                            value={item}
-                            onChange={(e) =>
-                              updateImageBlock(
-                                blockIdx,
-                                { items: block.items.map((it, j) =>
-                                  j === itemIdx ? e.target.value : it
-                                )}
-                              )
-                            }
-                            placeholder="List item"
-                            className="flex-1"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateImageBlock(
-                                blockIdx,
-                                { items: block.items.filter((_, j) => j !== itemIdx) }
-                              )
-                            }
-                            className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove"
-                          >
-                            <LuTrash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  {uploadError ? (
+                    <p className="text-[11px] text-error leading-relaxed" role="alert">
+                      {uploadError}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-muted">
+                      JPG, PNG, WEBP or AVIF · max 4 MB each. Images upload straight to Cloudinary.
+                    </p>
+                  )}
+                </div>
 
-                {projectForm.imageBlocks.length === 0 && (
-                  <p className="text-xs text-muted py-2">
-                    No image blocks yet. Add a block to explain an image with its own heading and paragraphs.
-                  </p>
-                )}
+                {projectForm.images.map((img, idx) => {
+                  const previewUrl = buildCloudinaryUrl(img.url, { width: 160, height: 160 });
+                  return (
+                    <div key={idx} className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        name="proj-cover-select"
+                        checked={projectForm.coverImage === img.url && img.url !== ''}
+                        onChange={() =>
+                          setProjectForm({
+                            ...projectForm,
+                            coverImage: img.url,
+                            coverImagePublicId: img.publicId || '',
+                          })
+                        }
+                        title="Use as listing & hero image"
+                        className="w-4 h-4 accent-black shrink-0 mt-2"
+                      />
+                      {/* Preview after upload */}
+                      <div className="w-14 h-14 shrink-0 bg-surface border border-border overflow-hidden flex items-center justify-center">
+                        {previewUrl ? (
+                          <img
+                            src={previewUrl}
+                            alt={`Project image ${idx + 1} preview`}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <TextInput
+                          value={img.url}
+                          onChange={(e) => updateProjectImage(idx, e.target.value)}
+                          placeholder="https://... image URL"
+                        />
+                        <label
+                          className={`inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-medium ${
+                            uploadingImage ? 'text-muted' : 'text-ink cursor-pointer hover:text-black'
+                          }`}
+                        >
+                          <span>{uploadingImage ? 'Uploading…' : 'Replace'}</span>
+                          <input
+                            type="file"
+                            accept={ACCEPTED_IMAGE_TYPES}
+                            className="hidden"
+                            disabled={uploadingImage}
+                            onChange={(e) => handleUploadImageFile(e, idx)}
+                          />
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeProjectImage(idx)}
+                        className="p-1 text-muted hover:text-error transition-colors shrink-0 mt-2"
+                        title="Remove image"
+                      >
+                        <LuTrash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+                <span className="text-[11px] text-muted block">
+                  Select the radio button to choose the listing &amp; hero image.
+                </span>
               </div>
-
-
-                    <div className="space-y-2 border-t border-border pt-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-wider text-muted">
-                          Subheadings
-                        </span>
-                        <Button
-                          type="button"
-                          variant="Secondary-Outline"
-                          size="sm"
-                          icon={LuPlus}
-                          label="Add"
-                          onClick={() =>
-                            updateImageBlock(blockIdx, {
-                              subheadings: [...block.subheadings, ''],
-                            })
-                          }
-                        />
-                      </div>
-                      {block.subheadings.map((sub, subIdx) => (
-                        <div key={subIdx} className="flex items-center gap-2">
-                          <TextInput
-                            id={`proj-img-sub-${blockIdx}-${subIdx}`}
-                            value={sub}
-                            onChange={(e) =>
-                              updateImageBlock(
-                                blockIdx,
-                                { subheadings: block.subheadings.map((s, j) =>
-                                  j === subIdx ? e.target.value : s
-                                )}
-                              )
-                            }
-                            placeholder="Subheading"
-                            className="flex-1"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateImageBlock(
-                                blockIdx,
-                                { subheadings: block.subheadings.filter((_, j) => j !== subIdx) }
-                              )
-                            }
-                            className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove"
-                          >
-                            <LuTrash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="space-y-2 border-t border-border pt-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-wider text-muted">
-                          List Items
-                        </span>
-                        <Button
-                          type="button"
-                          variant="Secondary-Outline"
-                          size="sm"
-                          icon={LuPlus}
-                          label="Add Item"
-                          onClick={() =>
-                            updateImageBlock(blockIdx, {
-                              items: [...block.items, ''],
-                            })
-                          }
-                        />
-                      </div>
-
-
-                    <div className="space-y-2 border-t border-border pt-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-wider text-muted">
-                          Explanation Paragraphs
-                        </span>
-                        <Button
-                          type="button"
-                          variant="Secondary-Outline"
-                          size="sm"
-                          icon={LuPlus}
-                          label="Add"
-                          onClick={() => addImageParagraph(blockIdx)}
-                        />
-                      </div>
-                      {block.paragraphs.map((para, paraIdx) => (
-                        <div key={paraIdx} className="flex items-center gap-2">
-                          <TextArea
-                            id={`proj-img-para-${blockIdx}-${paraIdx}`}
-                            rows={2}
-                            value={para}
-                            onChange={(e) =>
-                              updateImageParagraph(blockIdx, paraIdx, e.target.value)
-                            }
-                            placeholder="Explains this image"
-                            className="flex-1"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeImageParagraph(blockIdx, paraIdx)
-                            }
-                            className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove paragraph"
-                          >
-                            <LuTrash2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveImageParagraph(blockIdx, paraIdx, -1)}
-                            disabled={paraIdx === 0}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move up"
-                          >
-                            <LuArrowUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveImageParagraph(blockIdx, paraIdx, 1)}
-                            disabled={paraIdx === block.paragraphs.length - 1}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move down"
-                          >
-                            <LuArrowDown className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
 
               <div className="space-y-4 border-t border-border pt-4">
                 <div className="flex items-center justify-between gap-2">
@@ -1631,23 +1535,24 @@ export const AdminDashboard = () => {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
-                        <TextInput
+                        <Select
                           id={`proj-img-layout-${blockIdx}`}
                           label="Layout"
-                          as="select"
+                          placeholder=""
                           value={block.layout || ''}
                           onChange={(e) =>
                             updateImageBlock(blockIdx, { layout: e.target.value })
                           }
-                          className="max-w-[120px]"
-                        >
-                          <option value="">Default (image above)</option>
-                          <option value="image-left">Image left</option>
-                          <option value="image-right">Image right</option>
-                          <option value="full-width">Full width</option>
-                          <option value="editorial">Editorial</option>
-                          <option value="grid">Grid</option>
-                        </TextInput>
+                          className="max-w-[220px]"
+                          options={[
+                            { value: '', label: 'Default (image above)' },
+                            { value: 'image-left', label: 'Image left' },
+                            { value: 'image-right', label: 'Image right' },
+                            { value: 'full-width', label: 'Full width' },
+                            { value: 'editorial', label: 'Editorial' },
+                            { value: 'grid', label: 'Grid' },
+                          ]}
+                        />
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
@@ -1732,21 +1637,37 @@ export const AdminDashboard = () => {
                       className="mt-2"
                     />
 
-                      {section.paragraphs.map((para, paraIdx) => (
+                    <div className="space-y-2 border-t border-border pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">
+                          Explanation Paragraphs
+                        </span>
+                        <Button
+                          type="button"
+                          variant="Secondary-Outline"
+                          size="sm"
+                          icon={LuPlus}
+                          label="Add"
+                          onClick={() => addImageParagraph(blockIdx)}
+                        />
+                      </div>
+                      {block.paragraphs.map((para, paraIdx) => (
                         <div key={paraIdx} className="flex items-center gap-2">
                           <TextArea
-                            id={`proj-sec-para-${sectionIdx}-${paraIdx}`}
+                            id={`proj-img-para-${blockIdx}-${paraIdx}`}
                             rows={2}
                             value={para}
                             onChange={(e) =>
-                              updateSectionParagraph(sectionIdx, paraIdx, e.target.value)
+                              updateImageParagraph(blockIdx, paraIdx, e.target.value)
                             }
-                            placeholder="Paragraph text"
+                            placeholder="Explains this image"
                             className="flex-1"
                           />
                           <button
                             type="button"
-                            onClick={() => removeSectionParagraph(sectionIdx, paraIdx)}
+                            onClick={() =>
+                              removeImageParagraph(blockIdx, paraIdx)
+                            }
                             className="p-1.5 text-muted hover:text-error transition-colors"
                             title="Remove paragraph"
                           >
@@ -1754,7 +1675,7 @@ export const AdminDashboard = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => moveSectionParagraph(sectionIdx, paraIdx, -1)}
+                            onClick={() => moveImageParagraph(blockIdx, paraIdx, -1)}
                             disabled={paraIdx === 0}
                             className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
                             title="Move up"
@@ -1763,8 +1684,8 @@ export const AdminDashboard = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => moveSectionParagraph(sectionIdx, paraIdx, 1)}
-                            disabled={paraIdx === section.paragraphs.length - 1}
+                            onClick={() => moveImageParagraph(blockIdx, paraIdx, 1)}
+                            disabled={paraIdx === block.paragraphs.length - 1}
                             className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
                             title="Move down"
                           >
@@ -1773,16 +1694,117 @@ export const AdminDashboard = () => {
                         </div>
                       ))}
                     </div>
+
+                    <div className="space-y-2 border-t border-border pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">
+                          Subheadings
+                        </span>
+                        <Button
+                          type="button"
+                          variant="Secondary-Outline"
+                          size="sm"
+                          icon={LuPlus}
+                          label="Add"
+                          onClick={() =>
+                            updateImageBlock(blockIdx, {
+                              subheadings: [...block.subheadings, ''],
+                            })
+                          }
+                        />
+                      </div>
+                      {block.subheadings.map((sub, subIdx) => (
+                        <div key={subIdx} className="flex items-center gap-2">
+                          <TextInput
+                            id={`proj-img-sub-${blockIdx}-${subIdx}`}
+                            value={sub}
+                            onChange={(e) =>
+                              updateImageBlock(
+                                blockIdx,
+                                { subheadings: block.subheadings.map((s, j) =>
+                                  j === subIdx ? e.target.value : s
+                                )}
+                              )
+                            }
+                            placeholder="Subheading"
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateImageBlock(
+                                blockIdx,
+                                { subheadings: block.subheadings.filter((_, j) => j !== subIdx) }
+                              )
+                            }
+                            className="p-1.5 text-muted hover:text-error transition-colors"
+                            title="Remove"
+                          >
+                            <LuTrash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-2 border-t border-border pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">
+                          List Items
+                        </span>
+                        <Button
+                          type="button"
+                          variant="Secondary-Outline"
+                          size="sm"
+                          icon={LuPlus}
+                          label="Add Item"
+                          onClick={() =>
+                            updateImageBlock(blockIdx, {
+                              items: [...block.items, ''],
+                            })
+                          }
+                        />
+                      </div>
+                      {block.items.map((item, itemIdx) => (
+                        <div key={itemIdx} className="flex items-center gap-2">
+                          <TextInput
+                            id={`proj-img-item-${blockIdx}-${itemIdx}`}
+                            value={item}
+                            onChange={(e) =>
+                              updateImageBlock(
+                                blockIdx,
+                                { items: block.items.map((it, j) =>
+                                  j === itemIdx ? e.target.value : it
+                                )}
+                              )
+                            }
+                            placeholder="List item"
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateImageBlock(
+                                blockIdx,
+                                { items: block.items.filter((_, j) => j !== itemIdx) }
+                              )
+                            }
+                            className="p-1.5 text-muted hover:text-error transition-colors"
+                            title="Remove"
+                          >
+                            <LuTrash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
 
-                {projectForm.sections.length === 0 && (
+                {projectForm.imageBlocks.length === 0 && (
                   <p className="text-xs text-muted py-2">
-                    No explanation sections yet. Add a section with a heading and paragraphs.
+                    No image blocks yet. Add a block to explain an image with its own heading and paragraphs.
                   </p>
                 )}
               </div>
-
 
               <div className="space-y-4 border-t border-border pt-4">
                 <div className="flex items-center justify-between gap-2">
@@ -1851,7 +1873,7 @@ export const AdminDashboard = () => {
                       </div>
                     </div>
 
-                    <TextInput
+                    <TextArea
                       id={`proj-sec-intro-${sectionIdx}`}
                       rows={2}
                       value={section.intro || ''}
@@ -1877,45 +1899,30 @@ export const AdminDashboard = () => {
                         />
                       </div>
 
-
-                    <div className="space-y-2 border-t border-border pt-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-wider text-muted">
-                          Items
-                        </span>
-                        <Button
-                          type="button"
-                          variant="Secondary-Outline"
-                          size="sm"
-                          icon={LuPlus}
-                          iconPosition="left"
-                          label="Add Item"
-                          onClick={() => addListItem(listIdx)}
-                        />
-                      </div>
-                      {list.items.map((item, itemIdx) => (
-                        <div key={itemIdx} className="flex items-center gap-2">
-                          <TextInput
-                            id={`proj-list-item-${listIdx}-${itemIdx}`}
-                            value={item}
+                      {section.paragraphs.map((para, paraIdx) => (
+                        <div key={paraIdx} className="flex items-center gap-2">
+                          <TextArea
+                            id={`proj-sec-para-${sectionIdx}-${paraIdx}`}
+                            rows={2}
+                            value={para}
                             onChange={(e) =>
-                              updateListItem(listIdx, itemIdx, e.target.value)
+                              updateSectionParagraph(sectionIdx, paraIdx, e.target.value)
                             }
-                            placeholder="List item"
+                            placeholder="Paragraph text"
                             className="flex-1"
                           />
                           <button
                             type="button"
-                            onClick={() => removeListItem(listIdx, itemIdx)}
+                            onClick={() => removeSectionParagraph(sectionIdx, paraIdx)}
                             className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove item"
+                            title="Remove paragraph"
                           >
                             <LuTrash2 className="w-4 h-4" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => moveListItem(listIdx, itemIdx, -1)}
-                            disabled={itemIdx === 0}
+                            onClick={() => moveSectionParagraph(sectionIdx, paraIdx, -1)}
+                            disabled={paraIdx === 0}
                             className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
                             title="Move up"
                           >
@@ -1923,8 +1930,8 @@ export const AdminDashboard = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => moveListItem(listIdx, itemIdx, 1)}
-                            disabled={itemIdx === list.items.length - 1}
+                            onClick={() => moveSectionParagraph(sectionIdx, paraIdx, 1)}
+                            disabled={paraIdx === section.paragraphs.length - 1}
                             className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
                             title="Move down"
                           >
@@ -1936,15 +1943,14 @@ export const AdminDashboard = () => {
                   </div>
                 ))}
 
-                {projectForm.lists.length === 0 && (
+                {projectForm.sections.length === 0 && (
                   <p className="text-xs text-muted py-2">
-                    No lists yet. Add a titled list with items using the button above.
+                    No explanation sections yet. Add a section with a heading and paragraphs.
                   </p>
                 )}
               </div>
 
-
-              {/* Section B â€” Project Lists (real lists, never badges) */}
+              {/* Section B — Project Lists (real lists, never badges) */}
               <div className="space-y-4 border-t border-border pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -2022,81 +2028,69 @@ export const AdminDashboard = () => {
                       placeholder="Short introductory paragraph (optional)"
                     />
 
-                  {uploadError ? (
-                    <p className="text-[11px] text-error leading-relaxed" role="alert">
-                      {uploadError}
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-muted">
-                      JPG, PNG, WEBP or AVIF Â· max 4 MB each. Images upload straight to Cloudinary.
-                    </p>
-                  )}
-                </div>
-
-                {projectForm.images.map((img, idx) => {
-                  const previewUrl = buildCloudinaryUrl(img.url, { width: 160, height: 160 });
-                  return (
-                    <div key={idx} className="flex items-start gap-2">
-                      <input
-                        type="radio"
-                        name="proj-cover-select"
-                        checked={projectForm.coverImage === img.url && img.url !== ''}
-                        onChange={() =>
-                          setProjectForm({
-                            ...projectForm,
-                            coverImage: img.url,
-                            coverImagePublicId: img.publicId || '',
-                          })
-                        }
-                        title="Use as listing & hero image"
-                        className="w-4 h-4 accent-black shrink-0 mt-2"
-                      />
-                      {/* Preview after upload */}
-                      <div className="w-14 h-14 shrink-0 bg-surface border border-border overflow-hidden flex items-center justify-center">
-                        {previewUrl ? (
-                          <img
-                            src={previewUrl}
-                            alt={`Project image ${idx + 1} preview`}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : null}
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <TextInput
-                          value={img.url}
-                          onChange={(e) => updateProjectImage(idx, e.target.value)}
-                          placeholder="https://... image URL"
+                    <div className="space-y-2 border-t border-border pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">
+                          Items
+                        </span>
+                        <Button
+                          type="button"
+                          variant="Secondary-Outline"
+                          size="sm"
+                          icon={LuPlus}
+                          iconPosition="left"
+                          label="Add Item"
+                          onClick={() => addListItem(listIdx)}
                         />
-                        <label
-                          className={`inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-medium ${
-                            uploadingImage ? 'text-muted' : 'text-ink cursor-pointer hover:text-black'
-                          }`}
-                        >
-                          <span>{uploadingImage ? 'Uploadingâ€¦' : 'Replace'}</span>
-                          <input
-                            type="file"
-                            accept={ACCEPTED_IMAGE_TYPES}
-                            className="hidden"
-                            disabled={uploadingImage}
-                            onChange={(e) => handleUploadImageFile(e, idx)}
-                          />
-                        </label>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeProjectImage(idx)}
-                        className="p-1 text-muted hover:text-error transition-colors shrink-0 mt-2"
-                        title="Remove image"
-                      >
-                        <LuTrash2 className="w-4 h-4" />
-                      </button>
+                      {list.items.map((item, itemIdx) => (
+                        <div key={itemIdx} className="flex items-center gap-2">
+                          <TextInput
+                            id={`proj-list-item-${listIdx}-${itemIdx}`}
+                            value={item}
+                            onChange={(e) =>
+                              updateListItem(listIdx, itemIdx, e.target.value)
+                            }
+                            placeholder="List item"
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeListItem(listIdx, itemIdx)}
+                            className="p-1.5 text-muted hover:text-error transition-colors"
+                            title="Remove item"
+                          >
+                            <LuTrash2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveListItem(listIdx, itemIdx, -1)}
+                            disabled={itemIdx === 0}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move up"
+                          >
+                            <LuArrowUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveListItem(listIdx, itemIdx, 1)}
+                            disabled={itemIdx === list.items.length - 1}
+                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
+                            title="Move down"
+                          >
+                            <LuArrowDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })}
-                <span className="text-[11px] text-muted block">
-                  Select the radio button to choose the listing &amp; hero image.
-                </span>
+                  </div>
+                ))}
+
+                {projectForm.lists.length === 0 && (
+                  <p className="text-xs text-muted py-2">
+                    No lists yet. Add a titled list with items using the button above.
+                  </p>
+                )}
               </div>
 
               {/* Detail page content blocks editor */}
@@ -2229,7 +2223,7 @@ export const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Feature A â€” Keyword Lists Section */}
+              {/* Feature A — Keyword Lists Section */}
               <div className="space-y-4 border-t border-border pt-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -2342,7 +2336,7 @@ export const AdminDashboard = () => {
                 )}
               </div>
 
-              {/* Feature B â€” Dynamic Color / Material Palette Section */}
+              {/* Feature B — Dynamic Color / Material Palette Section */}
               <div className="space-y-4 border-t border-border pt-4">
                 <div className="flex items-center justify-between">
                   <div>
