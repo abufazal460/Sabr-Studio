@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useScrollLock } from '../../../shared/hooks/useScrollLock';
 import {
@@ -13,8 +13,6 @@ import {
   LuX,
   LuEye,
   LuEyeOff,
-  LuArrowUp,
-  LuArrowDown,
   LuUpload,
 } from 'react-icons/lu';
 import adminApi from '../api/adminProjects.api';
@@ -32,6 +30,14 @@ import TextArea from '../../../shared/components/TextArea';
 import Select from '../../../shared/components/Select';
 import Seo from '../../../shared/components/Seo';
 import ProjectCategorySelect from '../../projects/components/ProjectCategorySelect';
+import DetailBlocksEditor from '../../admin-projects/components/DetailBlocksEditor';
+import {
+  blocksFromLegacyFields,
+  hasLegacyDetailContent,
+} from '../../../shared/utils/detailBuilder';
+
+// Debounce for the Project Details builder autosave.
+const DETAIL_AUTOSAVE_DEBOUNCE_MS = 900;
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -59,7 +65,6 @@ export const AdminDashboard = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
-  const [uploadingBlockIdx, setUploadingBlockIdx] = useState(null);
   const [deletingProjectId, setDeletingProjectId] = useState(null);
   const [retailModalOpen, setRetailModalOpen] = useState(false);
   const [viewEnquiryModal, setViewEnquiryModal] = useState(null);
@@ -110,9 +115,122 @@ export const AdminDashboard = () => {
     lists: [],
     sections: [],
     imageBlocks: [],
+    detailBlocks: [],
   };
 
   const [projectForm, setProjectForm] = useState(emptyProjectForm);
+
+  // ---- Project Details builder: legacy import + debounced autosave ----
+  // The removed per-field editors wrote these legacy arrays; the builder keeps
+  // reading them so an existing project can be migrated with one click.
+  const legacyDetailSource = useMemo(
+    () => ({
+      palette:
+        projectForm.paletteColors.length || projectForm.paletteHeading
+          ? { heading: projectForm.paletteHeading, colors: projectForm.paletteColors }
+          : null,
+      keywords:
+        projectForm.keywordsItems.length || projectForm.keywordsHeading
+          ? { heading: projectForm.keywordsHeading, items: projectForm.keywordsItems }
+          : null,
+      lists: projectForm.lists,
+      sections: projectForm.sections,
+      imageBlocks: projectForm.imageBlocks,
+      contentBlocks: projectForm.contentBlocks,
+    }),
+    [
+      projectForm.paletteHeading,
+      projectForm.paletteColors,
+      projectForm.keywordsHeading,
+      projectForm.keywordsItems,
+      projectForm.lists,
+      projectForm.sections,
+      projectForm.imageBlocks,
+      projectForm.contentBlocks,
+    ]
+  );
+
+  const importLegacyDetails = () =>
+    setProjectForm((f) => ({ ...f, detailBlocks: blocksFromLegacyFields(legacyDetailSource) }));
+
+  const [detailAutosave, setDetailAutosave] = useState('idle');
+  // Why the last autosave failed, so the admin can fix the element instead of
+  // retrying the same rejected payload.
+  const [detailAutosaveError, setDetailAutosaveError] = useState('');
+  // Serialized builder state — the identity the autosave loop compares against.
+  const detailBlocksKey = JSON.stringify(projectForm.detailBlocks || []);
+  const persistedDetailKey = useRef(detailBlocksKey);
+  const detailAutosaveTimer = useRef(null);
+  const detailAutosaveSeq = useRef(0);
+
+  /** Persist only the builder array so images and other fields stay untouched. */
+  const persistDetailBlocks = useCallback(async (projectId, blocksKey) => {
+    const seq = ++detailAutosaveSeq.current;
+    try {
+      const res = await adminApi.updateProject(projectId, {
+        detailBlocks: JSON.parse(blocksKey),
+      });
+      // A newer edit has already gone out, so this response must not report
+      // success for content the admin has since changed.
+      if (seq !== detailAutosaveSeq.current) return;
+      const saved = res?.data || res;
+      persistedDetailKey.current = blocksKey;
+      setProjects((prev) =>
+        prev.map((p) =>
+          String(p._id || p.id) === String(projectId)
+            ? {
+                ...p,
+                detailBlocks: Array.isArray(saved?.detailBlocks)
+                  ? saved.detailBlocks
+                  : JSON.parse(blocksKey),
+              }
+            : p
+        )
+      );
+      setDetailAutosave('saved');
+      setDetailAutosaveError('');
+    } catch (err) {
+      if (seq !== detailAutosaveSeq.current) return;
+      // axiosClient normalises rejections: `errors[0].message` carries the
+      // per-field text, `message` is only the generic "Validation failed".
+      const msg =
+        err?.errors?.[0]?.message ||
+        err?.response?.data?.errors?.[0]?.message ||
+        err?.message ||
+        'The details could not be saved.';
+      setDetailAutosaveError(String(msg).slice(0, 180));
+      setDetailAutosave('error');
+    }
+  }, []);
+
+  const retryDetailAutosave = () => {
+    if (!editingProjectId) return;
+    setDetailAutosaveError('');
+    setDetailAutosave('saving');
+    persistDetailBlocks(editingProjectId, detailBlocksKey);
+  };
+
+  // Re-baseline whenever another project is loaded (or the modal closes) so a
+  // fresh load never looks like an unsaved edit.
+  useEffect(() => {
+    window.clearTimeout(detailAutosaveTimer.current);
+    persistedDetailKey.current = detailBlocksKey;
+    setDetailAutosave('idle');
+    setDetailAutosaveError('');
+  }, [editingProjectId, projectModalOpen]);
+
+  useEffect(() => {
+    if (!editingProjectId || savingProject) return undefined;
+    if (detailBlocksKey === persistedDetailKey.current) return undefined;
+    setDetailAutosaveError('');
+    setDetailAutosave('saving');
+    detailAutosaveTimer.current = window.setTimeout(() => {
+      persistDetailBlocks(editingProjectId, detailBlocksKey);
+    }, DETAIL_AUTOSAVE_DEBOUNCE_MS);
+    return () => window.clearTimeout(detailAutosaveTimer.current);
+  }, [detailBlocksKey, editingProjectId, savingProject, persistDetailBlocks]);
+
+  useEffect(() => () => window.clearTimeout(detailAutosaveTimer.current), []);
 
   const [retailForm, setRetailForm] = useState({
     title: '',
@@ -278,6 +396,7 @@ export const AdminDashboard = () => {
       lists: Array.isArray(projectForm.lists) ? projectForm.lists : [],
       sections: Array.isArray(projectForm.sections) ? projectForm.sections : [],
       imageBlocks: Array.isArray(projectForm.imageBlocks) ? projectForm.imageBlocks : [],
+      detailBlocks: Array.isArray(projectForm.detailBlocks) ? projectForm.detailBlocks : [],
     };
 
     setSavingProject(true);
@@ -358,6 +477,9 @@ export const AdminDashboard = () => {
         lists: Array.isArray(project.lists) ? [...project.lists] : [],
         sections: Array.isArray(project.sections) ? [...project.sections] : [],
         imageBlocks: Array.isArray(project.imageBlocks) ? [...project.imageBlocks] : [],
+        detailBlocks: Array.isArray(project.detailBlocks)
+          ? project.detailBlocks.map((block) => ({ ...block }))
+          : [],
       });
     } else {
       setEditingProjectId(null);
@@ -477,325 +599,6 @@ export const AdminDashboard = () => {
 
   const addProjectImage = () =>
     setProjectForm((f) => ({ ...f, images: [...f.images, { url: '', publicId: '' }] }));
-
-  const updateContentBlock = (idx, patch) =>
-    setProjectForm((f) => ({
-      ...f,
-      contentBlocks: f.contentBlocks.map((b, i) => (i === idx ? { ...b, ...patch } : b)),
-    }));
-
-  const removeContentBlock = (idx) =>
-    setProjectForm((f) => ({
-      ...f,
-      contentBlocks: f.contentBlocks.filter((_, i) => i !== idx),
-    }));
-
-  const moveContentBlock = (idx, dir) =>
-    setProjectForm((f) => {
-      const next = [...f.contentBlocks];
-      const target = idx + dir;
-      if (target < 0 || target >= next.length) return f;
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return { ...f, contentBlocks: next };
-    });
-
-  const addContentBlock = () =>
-    setProjectForm((f) => ({
-      ...f,
-      contentBlocks: [...f.contentBlocks, { type: 'paragraph', text: '', url: '' }],
-    }));
-
-  const addImageContentBlock = () =>
-    setProjectForm((f) => ({
-      ...f,
-      contentBlocks: [...f.contentBlocks, { type: 'image', text: '', url: '' }],
-    }));
-
-  const addKeywordItem = () =>
-    setProjectForm((f) => ({
-      ...f,
-      keywordsHeading: f.keywordsHeading || 'Spatial Highlights',
-      keywordsItems: [...f.keywordsItems, ''],
-    }));
-
-  const updateKeywordItem = (index, value) =>
-    setProjectForm((f) => ({
-      ...f,
-      keywordsItems: f.keywordsItems.map((item, idx) => (idx === index ? value : item)),
-    }));
-
-  const removeKeywordItem = (index) =>
-    setProjectForm((f) => ({
-      ...f,
-      keywordsItems: f.keywordsItems.filter((_, idx) => idx !== index),
-    }));
-
-  const moveKeywordItem = (index, direction) =>
-    setProjectForm((f) => {
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= f.keywordsItems.length) return f;
-      const next = [...f.keywordsItems];
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-      return { ...f, keywordsItems: next };
-    });
-
-  const addPaletteColor = () =>
-    setProjectForm((f) => ({
-      ...f,
-      paletteHeading: f.paletteHeading || 'Color Palette',
-      paletteColors: [...f.paletteColors, { name: '', value: '#D9C7B8' }],
-    }));
-
-  const updatePaletteColor = (index, patch) =>
-    setProjectForm((f) => ({
-      ...f,
-      paletteColors: f.paletteColors.map((c, idx) => (idx === index ? { ...c, ...patch } : c)),
-    }));
-
-  const removePaletteColor = (index) =>
-    setProjectForm((f) => ({
-      ...f,
-      paletteColors: f.paletteColors.filter((_, idx) => idx !== index),
-    }));
-
-  const movePaletteColor = (index, direction) =>
-    setProjectForm((f) => {
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= f.paletteColors.length) return f;
-      const next = [...f.paletteColors];
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-      return { ...f, paletteColors: next };
-    });
-
-  const addList = () =>
-    setProjectForm((f) => ({
-      ...f,
-      lists: [...f.lists, { heading: '', paragraph: '', items: [''] }],
-    }));
-  const removeList = (idx) =>
-    setProjectForm((f) => ({
-      ...f,
-      lists: f.lists.filter((_, i) => i !== idx),
-    }));
-  const moveList = (idx, dir) =>
-    setProjectForm((f) => {
-      const next = [...f.lists];
-      const target = idx + dir;
-      if (target < 0 || target >= next.length) return f;
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return { ...f, lists: next };
-    });
-  const updateList = (idx, patch) =>
-    setProjectForm((f) => ({
-      ...f,
-      lists: f.lists.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
-    }));
-  const addListItem = (listIdx) =>
-    setProjectForm((f) => ({
-      ...f,
-      lists: f.lists.map((l, i) =>
-        i === listIdx ? { ...l, items: [...l.items, ''] } : l
-      ),
-    }));
-  const removeListItem = (listIdx, itemIdx) =>
-    setProjectForm((f) => ({
-      ...f,
-      lists: f.lists.map((l, i) =>
-        i === listIdx ? { ...l, items: l.items.filter((_, j) => j !== itemIdx) } : l
-      ),
-    }));
-  const moveListItem = (listIdx, itemIdx, dir) =>
-    setProjectForm((f) => {
-      const list = f.lists[listIdx];
-      if (!list) return f;
-      const next = [...list.items];
-      const target = itemIdx + dir;
-      if (target < 0 || target >= next.length) return f;
-      [next[itemIdx], next[target]] = [next[target], next[itemIdx]];
-      return {
-        ...f,
-        lists: f.lists.map((l, i) =>
-          i === listIdx ? { ...l, items: next } : l
-        ),
-      };
-    });
-  const updateListItem = (listIdx, itemIdx, value) =>
-    setProjectForm((f) => ({
-      ...f,
-      lists: f.lists.map((l, i) =>
-        i === listIdx
-          ? { ...l, items: l.items.map((it, j) => (j === itemIdx ? value : it)) }
-          : l
-      ),
-    }));
-  const clearContentBlockImage = (idx) => updateContentBlock(idx, { url: '' });
-
-  /** ---- Explanations sections (Section C) ---- */
-  const addSection = () =>
-    setProjectForm((f) => ({
-      ...f,
-      sections: [...f.sections, { heading: '', intro: '', paragraphs: [''] }],
-    }));
-  const removeSection = (idx) =>
-    setProjectForm((f) => ({
-      ...f,
-      sections: f.sections.filter((_, i) => i !== idx),
-    }));
-  const moveSection = (idx, dir) =>
-    setProjectForm((f) => {
-      const next = [...f.sections];
-      const target = idx + dir;
-      if (target < 0 || target >= next.length) return f;
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return { ...f, sections: next };
-    });
-  const updateSection = (idx, patch) =>
-    setProjectForm((f) => ({
-      ...f,
-      sections: f.sections.map((s, i) => (i === idx ? { ...s, ...patch } : s)),
-    }));
-  const addSectionParagraph = (sectionIdx) =>
-    setProjectForm((f) => ({
-      ...f,
-      sections: f.sections.map((s, i) =>
-        i === sectionIdx ? { ...s, paragraphs: [...s.paragraphs, ''] } : s
-      ),
-    }));
-  const removeSectionParagraph = (sectionIdx, paraIdx) =>
-    setProjectForm((f) => ({
-      ...f,
-      sections: f.sections.map((s, i) =>
-        i === sectionIdx
-          ? { ...s, paragraphs: s.paragraphs.filter((_, j) => j !== paraIdx) }
-          : s
-      ),
-    }));
-  const moveSectionParagraph = (sectionIdx, paraIdx, dir) =>
-    setProjectForm((f) => {
-      const section = f.sections[sectionIdx];
-      if (!section) return f;
-      const next = [...section.paragraphs];
-      const target = paraIdx + dir;
-      if (target < 0 || target >= next.length) return f;
-      [next[paraIdx], next[target]] = [next[target], next[paraIdx]];
-      return {
-        ...f,
-        sections: f.sections.map((s, i) =>
-          i === sectionIdx ? { ...s, paragraphs: next } : s
-        ),
-      };
-    });
-  const updateSectionParagraph = (sectionIdx, paraIdx, value) =>
-    setProjectForm((f) => ({
-      ...f,
-      sections: f.sections.map((s, i) =>
-        i === sectionIdx
-          ? {
-              ...s,
-              paragraphs: s.paragraphs.map((p, j) => (j === paraIdx ? value : p)),
-            }
-          : s
-      ),
-    }));
-
-  /** ---- Image & text blocks (Section D) ---- */
-  const addImageBlock = () =>
-    setProjectForm((f) => ({
-      ...f,
-      imageBlocks: [
-        ...f.imageBlocks,
-        {
-          url: '',
-          heading: '',
-          paragraphs: [''],
-          subheadings: [],
-          items: [],
-          caption: '',
-          layout: '',
-        },
-      ],
-    }));
-  const removeImageBlock = (idx) =>
-    setProjectForm((f) => ({
-      ...f,
-      imageBlocks: f.imageBlocks.filter((_, i) => i !== idx),
-    }));
-  const moveImageBlock = (idx, dir) =>
-    setProjectForm((f) => {
-      const next = [...f.imageBlocks];
-      const target = idx + dir;
-      if (target < 0 || target >= next.length) return f;
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return { ...f, imageBlocks: next };
-    });
-  const updateImageBlock = (idx, patch) =>
-    setProjectForm((f) => ({
-      ...f,
-      imageBlocks: f.imageBlocks.map((b, i) => (i === idx ? { ...b, ...patch } : b)),
-    }));
-  const addImageParagraph = (blockIdx) =>
-    setProjectForm((f) => ({
-      ...f,
-      imageBlocks: f.imageBlocks.map((b, i) =>
-        i === blockIdx ? { ...b, paragraphs: [...b.paragraphs, ''] } : b
-      ),
-    }));
-  const removeImageParagraph = (blockIdx, paraIdx) =>
-    setProjectForm((f) => ({
-      ...f,
-      imageBlocks: f.imageBlocks.map((b, i) =>
-        i === blockIdx
-          ? { ...b, paragraphs: b.paragraphs.filter((_, j) => j !== paraIdx) }
-          : b
-      ),
-    }));
-  const moveImageParagraph = (blockIdx, paraIdx, dir) =>
-    setProjectForm((f) => {
-      const block = f.imageBlocks[blockIdx];
-      if (!block) return f;
-      const next = [...block.paragraphs];
-      const target = paraIdx + dir;
-      if (target < 0 || target >= next.length) return f;
-      [next[paraIdx], next[target]] = [next[target], next[paraIdx]];
-      return {
-        ...f,
-        imageBlocks: f.imageBlocks.map((b, i) =>
-          i === blockIdx ? { ...b, paragraphs: next } : b
-        ),
-      };
-    });
-  const updateImageParagraph = (blockIdx, paraIdx, value) =>
-    setProjectForm((f) => ({
-      ...f,
-      imageBlocks: f.imageBlocks.map((b, i) =>
-        i === blockIdx
-          ? {
-              ...b,
-              paragraphs: b.paragraphs.map((p, j) => (j === paraIdx ? value : p)),
-            }
-          : b
-      ),
-    }));
-
-  const handleUploadContentBlockImage = async (e, targetIdx) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || uploadingBlockIdx !== null) return;
-
-    setUploadError('');
-    setUploadingBlockIdx(targetIdx);
-
-    const { uploaded, errors } = await uploadImagesSequentially([file], (f) =>
-      adminApi.uploadImage(f, { folder: 'projects' })
-    );
-
-    if (uploaded[0]) {
-      updateContentBlock(targetIdx, { url: uploaded[0].url });
-    }
-    if (errors.length) setUploadError(errors.join(' '));
-
-    setUploadingBlockIdx(null);
-  };
 
   const handleCreateRetail = async (e) => {
     e.preventDefault();
@@ -1507,1033 +1310,76 @@ export const AdminDashboard = () => {
                 </span>
               </div>
 
-              <div className="space-y-4 border-t border-border pt-4">
-                <div className="flex items-center justify-between gap-2">
+              {/* Project Details builder — the one and only editor for the
+                  public details page. The previous per-field editors (image
+                  explanations, explanation sections, project lists, content
+                  blocks, keyword lists and palette) were removed: every element
+                  they wrote is available here as a drag-and-drop block with the
+                  same content fields plus placement and styling controls. */}
+              <div className="space-y-3 border-t border-border pt-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <span className="text-xs uppercase tracking-wider font-medium text-ink block">
-                      Image Explanations
+                      Project Details Builder
                     </span>
                     <span className="text-[11px] text-muted">
-                      One block per image: image, heading, paragraphs, and an optional list.
+                      Drag elements onto the canvas to compose the details page. Rows and
+                      columns follow the drop position.
                     </span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="Secondary-Outline"
-                    size="sm"
-                    icon={LuPlus}
-                    iconPosition="left"
-                    label="Add Block"
-                    onClick={addImageBlock}
-                  />
-                </div>
 
-                {projectForm.imageBlocks.map((block, blockIdx) => (
-                  <div
-                    key={blockIdx}
-                    className="border border-border rounded-sm bg-surface/40 p-3 space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <Select
-                          id={`proj-img-layout-${blockIdx}`}
-                          label="Layout"
-                          placeholder=""
-                          value={block.layout || ''}
-                          onChange={(e) =>
-                            updateImageBlock(blockIdx, { layout: e.target.value })
+                  {editingProjectId ? (
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          role="status"
+                          className={
+                            detailAutosave === 'error'
+                              ? 'text-[11px] font-mono uppercase tracking-wider text-error'
+                              : 'text-[11px] font-mono uppercase tracking-wider text-muted'
                           }
-                          className="max-w-[220px]"
-                          options={[
-                            { value: '', label: 'Default (image above)' },
-                            { value: 'image-left', label: 'Image left' },
-                            { value: 'image-right', label: 'Image right' },
-                            { value: 'full-width', label: 'Full width' },
-                            { value: 'editorial', label: 'Editorial' },
-                            { value: 'grid', label: 'Grid' },
-                          ]}
-                        />
+                        >
+                          {detailAutosave === 'saving'
+                            ? 'Saving details…'
+                            : detailAutosave === 'saved'
+                            ? 'Details saved'
+                            : detailAutosave === 'error'
+                            ? 'Details not saved'
+                            : 'Autosave ready'}
+                        </span>
+                        {detailAutosave === 'error' && (
+                          <Button
+                            type="button"
+                            variant="Secondary-Outline"
+                            size="sm"
+                            icon={LuRefreshCw}
+                            label="Retry"
+                            onClick={retryDetailAutosave}
+                          />
+                        )}
                       </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => removeImageBlock(blockIdx)}
-                          className="p-1.5 text-muted hover:text-error transition-colors"
-                          title="Remove block"
-                        >
-                          <LuTrash2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveImageBlock(blockIdx, -1)}
-                          disabled={blockIdx === 0}
-                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                          title="Move up"
-                        >
-                          <LuArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveImageBlock(blockIdx, 1)}
-                          disabled={blockIdx === projectForm.imageBlocks.length - 1}
-                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                          title="Move down"
-                        >
-                          <LuArrowDown className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="file"
-                        id={`proj-img-file-${blockIdx}`}
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = () => {
-                            updateImageBlock(blockIdx, { url: reader.result });
-                          };
-                          reader.readAsDataURL(file);
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="Secondary-Outline"
-                        size="sm"
-                        label="Upload"
-                        onClick={() =>
-                          document.getElementById(`proj-img-file-${blockIdx}`)?.click()
-                        }
-                      />
-                      {block.url && (
-                        <span className="text-[10px] text-muted truncate max-w-[160px]">
-                          {block.url}
+                      {detailAutosave === 'error' && detailAutosaveError && (
+                        <span className="max-w-xs text-right text-[11px] text-error">
+                          {detailAutosaveError}
                         </span>
                       )}
                     </div>
-                    {block.url && (
-                      <div className="border border-border rounded-sm overflow-hidden bg-white h-32">
-                        <img
-                          src={block.url}
-                          alt={block.heading || `Image ${blockIdx + 1}`}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
-
-                    <TextInput
-                      id={`proj-img-heading-${blockIdx}`}
-                      label="Image Heading"
-                      value={block.heading || ''}
-                      onChange={(e) =>
-                        updateImageBlock(blockIdx, { heading: e.target.value })
-                      }
-                      placeholder="Image heading"
-                      className="mt-2"
-                    />
-
-                    <div className="space-y-2 border-t border-border pt-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-wider text-muted">
-                          Explanation Paragraphs
-                        </span>
-                        <Button
-                          type="button"
-                          variant="Secondary-Outline"
-                          size="sm"
-                          icon={LuPlus}
-                          label="Add"
-                          onClick={() => addImageParagraph(blockIdx)}
-                        />
-                      </div>
-                      {block.paragraphs.map((para, paraIdx) => (
-                        <div key={paraIdx} className="flex items-center gap-2">
-                          <TextArea
-                            id={`proj-img-para-${blockIdx}-${paraIdx}`}
-                            rows={2}
-                            value={para}
-                            onChange={(e) =>
-                              updateImageParagraph(blockIdx, paraIdx, e.target.value)
-                            }
-                            placeholder="Explains this image"
-                            className="flex-1"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeImageParagraph(blockIdx, paraIdx)
-                            }
-                            className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove paragraph"
-                          >
-                            <LuTrash2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveImageParagraph(blockIdx, paraIdx, -1)}
-                            disabled={paraIdx === 0}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move up"
-                          >
-                            <LuArrowUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveImageParagraph(blockIdx, paraIdx, 1)}
-                            disabled={paraIdx === block.paragraphs.length - 1}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move down"
-                          >
-                            <LuArrowDown className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="space-y-2 border-t border-border pt-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-wider text-muted">
-                          Subheadings
-                        </span>
-                        <Button
-                          type="button"
-                          variant="Secondary-Outline"
-                          size="sm"
-                          icon={LuPlus}
-                          label="Add"
-                          onClick={() =>
-                            updateImageBlock(blockIdx, {
-                              subheadings: [...block.subheadings, ''],
-                            })
-                          }
-                        />
-                      </div>
-                      {block.subheadings.map((sub, subIdx) => (
-                        <div key={subIdx} className="flex items-center gap-2">
-                          <TextInput
-                            id={`proj-img-sub-${blockIdx}-${subIdx}`}
-                            value={sub}
-                            onChange={(e) =>
-                              updateImageBlock(
-                                blockIdx,
-                                { subheadings: block.subheadings.map((s, j) =>
-                                  j === subIdx ? e.target.value : s
-                                )}
-                              )
-                            }
-                            placeholder="Subheading"
-                            className="flex-1"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateImageBlock(
-                                blockIdx,
-                                { subheadings: block.subheadings.filter((_, j) => j !== subIdx) }
-                              )
-                            }
-                            className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove"
-                          >
-                            <LuTrash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="space-y-2 border-t border-border pt-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-wider text-muted">
-                          List Items
-                        </span>
-                        <Button
-                          type="button"
-                          variant="Secondary-Outline"
-                          size="sm"
-                          icon={LuPlus}
-                          label="Add Item"
-                          onClick={() =>
-                            updateImageBlock(blockIdx, {
-                              items: [...block.items, ''],
-                            })
-                          }
-                        />
-                      </div>
-                      {block.items.map((item, itemIdx) => (
-                        <div key={itemIdx} className="flex items-center gap-2">
-                          <TextInput
-                            id={`proj-img-item-${blockIdx}-${itemIdx}`}
-                            value={item}
-                            onChange={(e) =>
-                              updateImageBlock(
-                                blockIdx,
-                                { items: block.items.map((it, j) =>
-                                  j === itemIdx ? e.target.value : it
-                                )}
-                              )
-                            }
-                            placeholder="List item"
-                            className="flex-1"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateImageBlock(
-                                blockIdx,
-                                { items: block.items.filter((_, j) => j !== itemIdx) }
-                              )
-                            }
-                            className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove"
-                          >
-                            <LuTrash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                {projectForm.imageBlocks.length === 0 && (
-                  <p className="text-xs text-muted py-2">
-                    No image blocks yet. Add a block to explain an image with its own heading and paragraphs.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-4 border-t border-border pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
-                      Explanation Sections
+                  ) : (
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-muted">
+                      Saved with the project
                     </span>
-                    <span className="text-[11px] text-muted">
-                      Grouped headings + paragraphs so each aspect stays independently editable.
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="Secondary-Outline"
-                    size="sm"
-                    icon={LuPlus}
-                    iconPosition="left"
-                    label="Add Section"
-                    onClick={addSection}
-                  />
-                </div>
-
-                {projectForm.sections.map((section, sectionIdx) => (
-                  <div
-                    key={sectionIdx}
-                    className="border border-border rounded-sm bg-surface/40 p-3 space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <TextInput
-                        id={`proj-sec-heading-${sectionIdx}`}
-                        label="Section Heading"
-                        value={section.heading || ''}
-                        onChange={(e) =>
-                          updateSection(sectionIdx, { heading: e.target.value })
-                        }
-                        placeholder="e.g. Design Concept"
-                        className="flex-1"
-                      />
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => removeSection(sectionIdx)}
-                          className="p-1.5 text-muted hover:text-error transition-colors"
-                          title="Remove section"
-                        >
-                          <LuTrash2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveSection(sectionIdx, -1)}
-                          disabled={sectionIdx === 0}
-                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                          title="Move up"
-                        >
-                          <LuArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveSection(sectionIdx, 1)}
-                          disabled={sectionIdx === projectForm.sections.length - 1}
-                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                          title="Move down"
-                        >
-                          <LuArrowDown className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <TextArea
-                      id={`proj-sec-intro-${sectionIdx}`}
-                      rows={2}
-                      value={section.intro || ''}
-                      onChange={(e) =>
-                        updateSection(sectionIdx, { intro: e.target.value })
-                      }
-                      placeholder="Short introduction (optional)"
-                    />
-
-                    <div className="space-y-2 border-t border-border pt-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-wider text-muted">
-                          Paragraphs
-                        </span>
-                        <Button
-                          type="button"
-                          variant="Secondary-Outline"
-                          size="sm"
-                          icon={LuPlus}
-                          iconPosition="left"
-                          label="Add Paragraph"
-                          onClick={() => addSectionParagraph(sectionIdx)}
-                        />
-                      </div>
-
-                      {section.paragraphs.map((para, paraIdx) => (
-                        <div key={paraIdx} className="flex items-center gap-2">
-                          <TextArea
-                            id={`proj-sec-para-${sectionIdx}-${paraIdx}`}
-                            rows={2}
-                            value={para}
-                            onChange={(e) =>
-                              updateSectionParagraph(sectionIdx, paraIdx, e.target.value)
-                            }
-                            placeholder="Paragraph text"
-                            className="flex-1"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeSectionParagraph(sectionIdx, paraIdx)}
-                            className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove paragraph"
-                          >
-                            <LuTrash2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveSectionParagraph(sectionIdx, paraIdx, -1)}
-                            disabled={paraIdx === 0}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move up"
-                          >
-                            <LuArrowUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveSectionParagraph(sectionIdx, paraIdx, 1)}
-                            disabled={paraIdx === section.paragraphs.length - 1}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move down"
-                          >
-                            <LuArrowDown className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                {projectForm.sections.length === 0 && (
-                  <p className="text-xs text-muted py-2">
-                    No explanation sections yet. Add a section with a heading and paragraphs.
-                  </p>
-                )}
-              </div>
-
-              {/* Section B — Project Lists (real lists, never badges) */}
-              <div className="space-y-4 border-t border-border pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
-                      Project Lists
-                    </span>
-                    <span className="text-[11px] text-muted">
-                      Add titled lists; each list can have a paragraph and multiple items.
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="Secondary-Outline"
-                    size="sm"
-                    icon={LuPlus}
-                    iconPosition="left"
-                    label="Add List"
-                    onClick={addList}
-                  />
-                </div>
-
-                {projectForm.lists.map((list, listIdx) => (
-                  <div
-                    key={listIdx}
-                    className="border border-border rounded-sm bg-surface/40 p-3 space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <TextInput
-                        id={`proj-list-heading-${listIdx}`}
-                        label="List Heading"
-                        value={list.heading || ''}
-                        onChange={(e) =>
-                          updateList(listIdx, { heading: e.target.value })
-                        }
-                        placeholder="e.g. Materials, Specifications"
-                        className="flex-1"
-                      />
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => removeList(listIdx)}
-                          className="p-1.5 text-muted hover:text-error transition-colors"
-                          title="Remove list"
-                        >
-                          <LuTrash2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveList(listIdx, -1)}
-                          disabled={listIdx === 0}
-                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                          title="Move up"
-                        >
-                          <LuArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveList(listIdx, 1)}
-                          disabled={listIdx === projectForm.lists.length - 1}
-                          className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                          title="Move down"
-                        >
-                          <LuArrowDown className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <TextArea
-                      id={`proj-list-para-${listIdx}`}
-                      rows={2}
-                      value={list.paragraph || ''}
-                      onChange={(e) =>
-                        updateList(listIdx, { paragraph: e.target.value })
-                      }
-                      placeholder="Short introductory paragraph (optional)"
-                    />
-
-                    <div className="space-y-2 border-t border-border pt-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-wider text-muted">
-                          Items
-                        </span>
-                        <Button
-                          type="button"
-                          variant="Secondary-Outline"
-                          size="sm"
-                          icon={LuPlus}
-                          iconPosition="left"
-                          label="Add Item"
-                          onClick={() => addListItem(listIdx)}
-                        />
-                      </div>
-                      {list.items.map((item, itemIdx) => (
-                        <div key={itemIdx} className="flex items-center gap-2">
-                          <TextInput
-                            id={`proj-list-item-${listIdx}-${itemIdx}`}
-                            value={item}
-                            onChange={(e) =>
-                              updateListItem(listIdx, itemIdx, e.target.value)
-                            }
-                            placeholder="List item"
-                            className="flex-1"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeListItem(listIdx, itemIdx)}
-                            className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove item"
-                          >
-                            <LuTrash2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveListItem(listIdx, itemIdx, -1)}
-                            disabled={itemIdx === 0}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move up"
-                          >
-                            <LuArrowUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveListItem(listIdx, itemIdx, 1)}
-                            disabled={itemIdx === list.items.length - 1}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move down"
-                          >
-                            <LuArrowDown className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                {projectForm.lists.length === 0 && (
-                  <p className="text-xs text-muted py-2">
-                    No lists yet. Add a titled list with items using the button above.
-                  </p>
-                )}
-              </div>
-
-              {/* Detail page content blocks editor */}
-              <div className="space-y-3 border-t border-border pt-4">
-                <span className="text-xs uppercase tracking-wider font-medium text-muted block">
-                  Detail Page Content Blocks
-                </span>
-                {projectForm.contentBlocks.map((block, idx) => (
-                  <div key={idx} className="border border-border rounded-sm p-3 space-y-2 bg-surface/40">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-mono text-muted">Block {idx + 1}</span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => moveContentBlock(idx, -1)}
-                          disabled={idx === 0}
-                          className="p-1 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                          title="Move up"
-                        >
-                          <LuArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveContentBlock(idx, 1)}
-                          disabled={idx === projectForm.contentBlocks.length - 1}
-                          className="p-1 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                          title="Move down"
-                        >
-                          <LuArrowDown className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeContentBlock(idx)}
-                          className="p-1 text-muted hover:text-error transition-colors"
-                          title="Remove block"
-                        >
-                          <LuTrash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <Select
-                      value={block.type}
-                      onChange={(e) => updateContentBlock(idx, { type: e.target.value })}
-                      options={[
-                        { value: 'heading', label: 'Heading' },
-                        { value: 'paragraph', label: 'Paragraph' },
-                        { value: 'image', label: 'Image' },
-                      ]}
-                    />
-                    {block.type === 'image' ? (
-                      <div className="space-y-2">
-                        <TextInput
-                          value={block.url || ''}
-                          onChange={(e) => updateContentBlock(idx, { url: e.target.value })}
-                          placeholder="https://... image URL"
-                        />
-                        {block.url ? (
-                          <div className="border border-border rounded-sm overflow-hidden bg-white">
-                            <img
-                              src={block.url}
-                              alt={`Content block ${idx + 1} preview`}
-                              className="w-full h-40 object-cover object-center"
-                              loading="lazy"
-                            />
-                          </div>
-                        ) : null}
-                        <div className="flex flex-wrap items-center gap-2">
-                          <label
-                            className={`inline-flex items-center gap-2 px-3 py-2 border border-border bg-white text-ink text-xs uppercase tracking-wider font-medium transition-colors ${
-                              uploadingBlockIdx === idx
-                                ? 'opacity-60 cursor-not-allowed'
-                                : 'cursor-pointer hover:border-black'
-                            }`}
-                          >
-                            <input
-                              type="file"
-                              accept={ACCEPTED_IMAGE_TYPES}
-                              className="hidden"
-                              disabled={uploadingBlockIdx === idx}
-                              onChange={(e) => handleUploadContentBlockImage(e, idx)}
-                            />
-                            {uploadingBlockIdx === idx
-                              ? 'Uploading...'
-                              : block.url
-                                ? 'Change image'
-                                : 'Upload image'}
-                          </label>
-                          {block.url ? (
-                            <button
-                              type="button"
-                              onClick={() => clearContentBlockImage(idx)}
-                              className="px-3 py-2 text-xs uppercase tracking-wider font-medium text-muted hover:text-error transition-colors"
-                            >
-                              Remove image
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : (
-                      <TextArea
-                        rows={block.type === 'heading' ? 1 : 3}
-                        value={block.text}
-                        onChange={(e) => updateContentBlock(idx, { text: e.target.value })}
-                        placeholder={
-                          block.type === 'heading' ? 'Section heading' : 'Paragraph text...'
-                        }
-                      />
-                    )}
-                  </div>
-                ))}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="Secondary-Outline"
-                    size="sm"
-                    icon={LuPlus}
-                    iconPosition="left"
-                    label="Add content block"
-                    onClick={addContentBlock}
-                  />
-                  <Button
-                    type="button"
-                    variant="Secondary-Outline"
-                    size="sm"
-                    icon={LuPlus}
-                    iconPosition="left"
-                    label="Add image block"
-                    onClick={addImageContentBlock}
-                  />
-                </div>
-              </div>
-
-              {/* Feature A — Keyword Lists Section */}
-              <div className="space-y-4 border-t border-border pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
-                      Keyword Lists
-                    </span>
-                    <span className="text-[11px] text-muted">
-                      Custom categorized keywords, materials, or architectural tags.
-                    </span>
-                  </div>
-                  {projectForm.keywordsItems.length === 0 && !projectForm.keywordsHeading && (
-                    <Button
-                      type="button"
-                      variant="Secondary-Outline"
-                      size="sm"
-                      icon={LuPlus}
-                      iconPosition="left"
-                      label="Add Keywords Section"
-                      onClick={addKeywordItem}
-                    />
                   )}
                 </div>
 
-                {(projectForm.keywordsItems.length > 0 || projectForm.keywordsHeading) && (
-                  <div className="space-y-3 bg-surface/40 border border-border rounded-sm p-3.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <TextInput
-                        id="proj-keywords-heading"
-                        label="Section Heading (Required)"
-                        value={projectForm.keywordsHeading}
-                        onChange={(e) =>
-                          setProjectForm((prev) => ({ ...prev, keywordsHeading: e.target.value }))
-                        }
-                        placeholder="e.g. Key Materials, Spatial Highlights, Project Tags"
-                        className="flex-1"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProjectForm((prev) => ({
-                            ...prev,
-                            keywordsHeading: '',
-                            keywordsItems: [],
-                          }));
-                        }}
-                        className="mt-6 text-xs text-muted hover:text-error transition-colors px-2 py-1"
-                        title="Remove keywords section"
-                      >
-                        Clear Section
-                      </button>
-                    </div>
-
-                    <div className="space-y-2 pt-1">
-                      <span className="text-[11px] font-mono text-muted uppercase tracking-wider block">
-                        Keyword Items ({projectForm.keywordsItems.length})
-                      </span>
-                      {projectForm.keywordsItems.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <span className="text-xs text-muted font-mono w-5 shrink-0 text-center">
-                            {idx + 1}.
-                          </span>
-                          <TextInput
-                            value={item}
-                            onChange={(e) => updateKeywordItem(idx, e.target.value)}
-                            placeholder={`Item ${idx + 1} (e.g. Board-formed concrete)`}
-                            className="flex-1"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => moveKeywordItem(idx, -1)}
-                            disabled={idx === 0}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move up"
-                          >
-                            <LuArrowUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveKeywordItem(idx, 1)}
-                            disabled={idx === projectForm.keywordsItems.length - 1}
-                            className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                            title="Move down"
-                          >
-                            <LuArrowDown className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeKeywordItem(idx)}
-                            className="p-1.5 text-muted hover:text-error transition-colors"
-                            title="Remove item"
-                          >
-                            <LuTrash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="pt-1">
-                      <Button
-                        type="button"
-                        variant="Secondary-Outline"
-                        size="sm"
-                        icon={LuPlus}
-                        iconPosition="left"
-                        label="Add Keyword Item"
-                        onClick={addKeywordItem}
-                      />
-                    </div>
-                  </div>
-                )}
+                <DetailBlocksEditor
+                  blocks={projectForm.detailBlocks}
+                  onChange={(nextBlocks) =>
+                    setProjectForm((f) => ({ ...f, detailBlocks: nextBlocks }))
+                  }
+                  hasLegacy={hasLegacyDetailContent(legacyDetailSource)}
+                  onImportLegacy={importLegacyDetails}
+                />
               </div>
-
-              {/* Feature B — Dynamic Color / Material Palette Section */}
-              <div className="space-y-4 border-t border-border pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
-                      Color / Material Palette (Optional)
-                    </span>
-                    <span className="text-[11px] text-muted">
-                      Circular color swatches with live preview (HEX, RGB, RGBA, named colors).
-                    </span>
-                  </div>
-                  {projectForm.paletteColors.length === 0 && (
-                    <Button
-                      type="button"
-                      variant="Secondary-Outline"
-                      size="sm"
-                      icon={LuPlus}
-                      iconPosition="left"
-                      label="Add Color Palette"
-                      onClick={addPaletteColor}
-                    />
-                  )}
-                </div>
-
-                {projectForm.paletteColors.length > 0 && (
-                  <div className="space-y-3 bg-surface/40 border border-border rounded-sm p-3.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <TextInput
-                        id="proj-palette-heading"
-                        label="Palette Heading"
-                        value={projectForm.paletteHeading}
-                        onChange={(e) =>
-                          setProjectForm((prev) => ({ ...prev, paletteHeading: e.target.value }))
-                        }
-                        placeholder="e.g. Color Palette, Material Palette"
-                        className="flex-1"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProjectForm((prev) => ({
-                            ...prev,
-                            paletteHeading: '',
-                            paletteColors: [],
-                          }));
-                        }}
-                        className="mt-6 text-xs text-muted hover:text-error transition-colors px-2 py-1"
-                        title="Remove palette"
-                      >
-                        Clear Palette
-                      </button>
-                    </div>
-
-                    {/* Palette swatches live preview summary */}
-                    <div className="pt-2 pb-1 border-b border-border/50">
-                      <span className="text-[11px] font-mono text-muted uppercase tracking-wider block mb-2">
-                        Swatches Live Preview
-                      </span>
-                      <div className="flex flex-wrap items-start gap-4 p-3 bg-white border border-border rounded-sm min-h-[60px]">
-                        {projectForm.paletteColors.map((col, idx) => {
-                          const valid = isValidCSSColor(col.value);
-                          return (
-                            <div key={idx} className="flex flex-col items-center gap-1.5 text-center">
-                              <div
-                                className={`w-9 h-9 rounded-full border shadow-xs transition-transform ${
-                                  valid
-                                    ? 'border-border'
-                                    : 'border-error border-dashed bg-error/10'
-                                }`}
-                                style={valid ? { backgroundColor: col.value } : undefined}
-                                title={valid ? (col.name ? `${col.name} (${col.value})` : col.value) : 'Invalid CSS color'}
-                              />
-                              {col.name ? (
-                                <span className="text-[10px] font-inter text-ink max-w-[70px] truncate">
-                                  {col.name}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-mono text-muted max-w-[70px] truncate">
-                                  {valid ? col.value : 'Invalid'}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Individual color entries editor */}
-                    <div className="space-y-2.5 pt-2">
-                      <span className="text-[11px] font-mono text-muted uppercase tracking-wider block">
-                        Color Entries ({projectForm.paletteColors.length})
-                      </span>
-                      {projectForm.paletteColors.map((col, idx) => {
-                        const valid = isValidCSSColor(col.value);
-                        return (
-                          <div
-                            key={idx}
-                            className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-white border border-border rounded-sm"
-                          >
-                            {/* Live circular swatch preview - ONLY color inside, no text/icons */}
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`w-9 h-9 rounded-full border shrink-0 ${
-                                  valid
-                                    ? 'border-border'
-                                    : 'border-error border-dashed bg-error/10'
-                                }`}
-                                style={valid ? { backgroundColor: col.value } : undefined}
-                                title={valid ? col.value : 'Invalid color'}
-                              />
-                            </div>
-
-                            {/* Color Value Input */}
-                            <div className="flex-1">
-                              <input
-                                type="text"
-                                aria-label={`Color Value ${idx + 1}`}
-                                value={col.value}
-                                onChange={(e) =>
-                                  updatePaletteColor(idx, { value: e.target.value })
-                                }
-                                placeholder="CSS value (e.g. #D9C7B8, rgba(...), burlywood)"
-                                className={`w-full px-3 py-1.5 text-xs font-mono border rounded-sm outline-none transition-colors ${
-                                  col.value && !valid
-                                    ? 'border-error text-error bg-error/5 focus:border-error'
-                                    : 'border-border focus:border-ink'
-                                }`}
-                              />
-                              {col.value && !valid && (
-                                <span className="text-[10px] text-error block mt-0.5">
-                                  Invalid CSS color value
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Optional Color Name Input */}
-                            <div className="flex-1">
-                              <input
-                                type="text"
-                                aria-label={`Color Name ${idx + 1} (optional)`}
-                                value={col.name}
-                                onChange={(e) =>
-                                  updatePaletteColor(idx, { name: e.target.value })
-                                }
-                                placeholder="Color name (optional, e.g. Warm Alabaster)"
-                                className="w-full px-3 py-1.5 text-xs font-inter border border-border rounded-sm outline-none focus:border-ink transition-colors"
-                              />
-                            </div>
-
-                            {/* Reorder and Delete controls */}
-                            <div className="flex items-center gap-1 self-end sm:self-center">
-                              <button
-                                type="button"
-                                onClick={() => movePaletteColor(idx, -1)}
-                                disabled={idx === 0}
-                                className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                                title="Move up"
-                              >
-                                <LuArrowUp className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => movePaletteColor(idx, 1)}
-                                disabled={idx === projectForm.paletteColors.length - 1}
-                                className="p-1.5 text-muted hover:text-ink transition-colors disabled:opacity-30"
-                                title="Move down"
-                              >
-                                <LuArrowDown className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removePaletteColor(idx)}
-                                className="p-1.5 text-muted hover:text-error transition-colors"
-                                title="Remove color"
-                              >
-                                <LuTrash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="pt-1">
-                      <Button
-                        type="button"
-                        variant="Secondary-Outline"
-                        size="sm"
-                        icon={LuPlus}
-                        iconPosition="left"
-                        label="Add Another Color"
-                        onClick={addPaletteColor}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* SEO Settings */}
               <div className="space-y-3 border-t border-border pt-4">
                 <span className="text-xs uppercase tracking-wider font-medium text-muted block">

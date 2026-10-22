@@ -9,6 +9,7 @@ import Skeleton from '../../../shared/components/Skeleton';
 import EnquiryForm from '../../enquiries/components/EnquiryForm';
 import Seo from '../../../shared/components/Seo';
 import { buildCloudinaryUrl } from '../../../shared/utils/buildCloudinaryUrl';
+import { DetailBlockRows } from '../components/DetailBlockContent';
 
 /** Section A — Color palette swatch: name + HEX + optional description. */
 const PaletteSwatch = ({ color }) => {
@@ -311,6 +312,53 @@ const ImageBlocksSection = ({ imageBlocks }) => {
   );
 };
 
+/**
+ * Project Details body.
+ *
+ * When the project has dynamic `detailBlocks`, the builder layout (rows,
+ * columns, per-element placement and styling) is rendered from the saved array
+ * in document order — the exact same component the admin canvas previews, so
+ * the two cannot diverge. Projects without dynamic blocks keep rendering the
+ * legacy palette/keywords/lists/sections/imageBlocks fields.
+ */
+const ProjectDetailsBody = ({ project }) => {
+  const detailBlocks = Array.isArray(project.detailBlocks) ? project.detailBlocks : [];
+
+  if (detailBlocks.length > 0) {
+    return (
+      <div className="space-y-8">
+        <DetailBlockRows blocks={detailBlocks} />
+      </div>
+    );
+  }
+
+  const palette = project.palette || null;
+  const keywords = project.keywords || { heading: '', items: [] };
+  const lists = Array.isArray(project.lists) ? project.lists : [];
+  const sections = Array.isArray(project.sections) ? project.sections : [];
+  const imageBlocks = Array.isArray(project.imageBlocks) ? project.imageBlocks : [];
+  const contentBlocks = Array.isArray(project.contentBlocks) ? project.contentBlocks : [];
+
+  return (
+    <div className="space-y-8">
+      {/* Section A — Color Palette */}
+      <PaletteSection palette={palette} />
+
+      {/* Section B2 — Keywords rendered as real <ul>/<li> (never badges) */}
+      <KeywordsSection keywords={keywords} />
+
+      {/* Section B — Lists (real HTML lists) */}
+      <ListsSection lists={lists} />
+
+      {/* Section C — Headings + paragraphs (structured explanation groups) */}
+      <ExplanationsSection sections={sections} contentBlocks={contentBlocks} />
+
+      {/* Section D — Image + text explanations with selectable layouts */}
+      <ImageBlocksSection imageBlocks={imageBlocks} />
+    </div>
+  );
+};
+
 
 
 export const ProjectDetail = () => {
@@ -395,12 +443,6 @@ export const ProjectDetail = () => {
   const heroImageUrl = heroSource
     ? buildCloudinaryUrl(heroSource, { width: 1800, height: 1012 })
     : '';
-  const palette = project.palette || null;
-  const keywords = project.keywords || { heading: '', items: [] };
-  const lists = Array.isArray(project.lists) ? project.lists : [];
-  const sections = Array.isArray(project.sections) ? project.sections : [];
-  const imageBlocks = Array.isArray(project.imageBlocks) ? project.imageBlocks : [];
-  const contentBlocks = Array.isArray(project.contentBlocks) ? project.contentBlocks : [];
 
   return (
     <div className="w-full bg-white">
@@ -445,20 +487,7 @@ export const ProjectDetail = () => {
           </h1>
 
           <div className="space-y-8">
-            {/* Section A — Color Palette */}
-            <PaletteSection palette={palette} />
-
-            {/* Section B2 — Keywords rendered as real <ul>/<li> (never badges) */}
-            <KeywordsSection keywords={keywords} />
-
-            {/* Section B — Lists (real HTML lists) */}
-            <ListsSection lists={lists} />
-
-            {/* Section C — Headings + paragraphs (structured explanation groups) */}
-            <ExplanationsSection sections={sections} contentBlocks={contentBlocks} />
-
-            {/* Section D — Image + text explanations with selectable layouts */}
-            <ImageBlocksSection imageBlocks={imageBlocks} />
+            <ProjectDetailsBody project={project} />
           </div>
 
           <div className="flex justify-center pt-10 sm:pt-14">
