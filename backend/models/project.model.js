@@ -1,4 +1,14 @@
 import mongoose from 'mongoose';
+import {
+  DETAIL_ALIGNMENTS,
+  DETAIL_ASPECTS,
+  DETAIL_BLOCK_TYPES,
+  DETAIL_GAPS,
+  DETAIL_HEADING_LEVELS,
+  DETAIL_LIST_STYLES,
+  DETAIL_PADDINGS,
+  DETAIL_WIDTHS,
+} from '../utils/detailBlockSpec.js';
 
 /**
  * Project Mongoose Schema
@@ -156,12 +166,134 @@ const projectSchema = new mongoose.Schema(
       type: [
         {
           _id: false,
+          // Image source for the block. Holds either a Cloudinary secure_url
+          // (uploaded via /admin/uploads) or a direct absolute URL. This field
+          // was missing from the schema, so Mongoose strict mode stripped it on
+          // every save and the image never rendered on the public page.
+          url: { type: String, trim: true, default: '' },
           heading: { type: String, trim: true, default: '' },
           paragraphs: { type: [String], default: [] },
           subheadings: { type: [String], default: [] },
           items: { type: [String], default: [] },
           caption: { type: String, default: '' },
           layout: { type: String, trim: true, default: '' },
+        },
+      ],
+      default: [],
+    },
+    // ---- Dynamic Project Details builder (detail blocks) ----
+    // Each block is one renderable unit of the public project page. The `type`
+    // discriminator selects which payload key is populated:
+    //   palette      -> block.palette     { heading, colors[] }
+    //   keywords     -> block.keywords    { heading, items[] }
+    //   lists        -> block.lists       { heading, paragraph, items[] }
+    //   sections     -> block.sections    { heading, intro, paragraphs[] }
+    //   imageBlocks  -> block.imageBlocks { url, heading, paragraphs[], subheadings[], items[], caption, layout }
+    // `order` is the 0-based render position; `id` is a stable per-block key.
+    // The legacy `palette` / `keywords` / `lists` / `sections` / `imageBlocks`
+    // fields above are untouched and remain the read-time fallback.
+    detailBlocks: {
+      type: [
+        {
+          _id: false,
+          id: { type: String, trim: true, required: true },
+          type: {
+            type: String,
+            enum: DETAIL_BLOCK_TYPES,
+            required: true,
+          },
+          order: { type: Number, default: 0 },
+          // Where the block sits in the builder canvas. Consecutive blocks with
+          // the same `place.rowId` render side by side; `place.col` picks the
+          // column (0..DETAIL_MAX_COLUMNS-1) and equal columns stack top to
+          // bottom. Absent/null place = a standalone full-width row, so legacy
+          // documents and old blocks need no migration.
+          place: {
+            type: {
+              _id: false,
+              rowId: { type: String, trim: true, default: '' },
+              col: { type: Number, default: 0 },
+            },
+            default: undefined,
+          },
+          // Per-element presentation tokens validated against fixed enums in the
+          // shared spec (see utils/detailBlockSpec.js). The public page maps them
+          // to whitelisted Tailwind classes / inline CSS, so no free-form style
+          // string is ever persisted.
+          style: {
+            type: {
+              _id: false,
+              align: { type: String, enum: ['', ...DETAIL_ALIGNMENTS], default: '' },
+              width: { type: String, enum: ['', ...DETAIL_WIDTHS], default: '' },
+              imageWidth: { type: String, enum: ['', ...DETAIL_WIDTHS], default: '' },
+              aspect: { type: String, enum: ['', ...DETAIL_ASPECTS], default: '' },
+              padding: { type: String, enum: ['', ...DETAIL_PADDINGS], default: '' },
+              gap: { type: String, enum: ['', ...DETAIL_GAPS], default: '' },
+              listStyle: { type: String, enum: ['', ...DETAIL_LIST_STYLES], default: '' },
+              fontSize: { type: String, trim: true, default: '' },
+              color: { type: String, trim: true, default: '' },
+              background: { type: String, trim: true, default: '' },
+              headingLevel: { type: Number, default: 0 },
+            },
+            default: undefined,
+          },
+          palette: {
+            type: {
+              _id: false,
+              heading: { type: String, trim: true, default: '' },
+              colors: {
+                type: [
+                  {
+                    _id: false,
+                    name: { type: String, trim: true, default: '' },
+                    value: { type: String, trim: true, default: '' },
+                    description: { type: String, default: '' },
+                  },
+                ],
+                default: [],
+              },
+            },
+            default: undefined,
+          },
+          keywords: {
+            type: {
+              _id: false,
+              heading: { type: String, trim: true, default: '' },
+              items: { type: [String], default: [] },
+            },
+            default: undefined,
+          },
+          lists: {
+            type: {
+              _id: false,
+              heading: { type: String, trim: true, default: '' },
+              paragraph: { type: String, default: '' },
+              items: { type: [String], default: [] },
+            },
+            default: undefined,
+          },
+          sections: {
+            type: {
+              _id: false,
+              heading: { type: String, trim: true, default: '' },
+              intro: { type: String, default: '' },
+              paragraphs: { type: [String], default: [] },
+            },
+            default: undefined,
+          },
+          imageBlocks: {
+            type: {
+              _id: false,
+              url: { type: String, trim: true, default: '' },
+              heading: { type: String, trim: true, default: '' },
+              paragraphs: { type: [String], default: [] },
+              subheadings: { type: [String], default: [] },
+              items: { type: [String], default: [] },
+              caption: { type: String, default: '' },
+              layout: { type: String, trim: true, default: '' },
+            },
+            default: undefined,
+          },
         },
       ],
       default: [],

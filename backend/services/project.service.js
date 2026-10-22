@@ -1,5 +1,11 @@
 import { Project, inMemoryProjects, ProjectCategory, inMemoryProjectCategories } from '../models/project.model.js';
 import { collectPublicIds, deleteAssets } from './cloudinary.service.js';
+import { isValidCSSColor } from '../utils/colorValidator.js';
+import {
+  DETAIL_BLOCK_TYPES,
+  normalizeBlockPlace,
+  normalizeBlockStyle,
+} from '../utils/detailBlockSpec.js';
 
 /**
  * Generate URL-safe slug from title
@@ -11,6 +17,126 @@ export const slugify = (text) => {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+};
+
+// Re-exported so existing importers keep working; the arrays live in one place.
+export { DETAIL_BLOCK_TYPES };
+
+/**
+ * Normalize a client-supplied detail block into the canonical persisted shape.
+ *
+ * Guarantees:
+ *  - a stable, unique `id` (client id wins, otherwise a deterministic one)
+ *  - a supported `type` discriminator
+ *  - a numeric `order`
+ *  - only the payload matching `type` survives (the rest are dropped)
+ *  - `place`/`style` are reduced to the whitelisted builder tokens, or omitted
+ *    entirely when the block is a plain full-width row with no styling
+ *
+ * Blocks with an unknown type or without a usable payload are skipped so a
+ * malformed payload can never break the whole project save.
+ */
+export const normalizeDetailBlocks = (rawBlocks) => {
+  if (!Array.isArray(rawBlocks)) return [];
+
+  const usedIds = new Set();
+  const normalized = [];
+
+  rawBlocks.forEach((raw, index) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+    if (!DETAIL_BLOCK_TYPES.includes(raw.type)) return;
+
+    const payload = raw[raw.type];
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
+
+    // Stable id: keep the client's when usable, otherwise derive one.
+    let id = typeof raw.id === 'string' ? raw.id.trim() : '';
+    if (!id) {
+      id = `${raw.type}-${index + 1}`;
+    }
+    // Guarantee uniqueness even when the client repeats an id.
+    if (usedIds.has(id)) {
+      let suffix = 2;
+      while (usedIds.has(`${id}-${suffix}`)) suffix += 1;
+      id = `${id}-${suffix}`;
+    }
+    usedIds.add(id);
+
+    const order = Number.isFinite(raw.order) ? raw.order : index;
+
+    const block = { id, type: raw.type, order };
+
+    if (raw.type === 'palette') {
+      block.palette = {
+        heading: String(payload.heading || 'Color Palette').trim(),
+        colors: (Array.isArray(payload.colors) ? payload.colors : [])
+          .map((c) => ({
+            name: String(c?.name || '').trim(),
+            value: String(c?.value || '').trim(),
+            description: String(c?.description || '').trim(),
+          }))
+          .filter((c) => c.value),
+      };
+    }
+
+    if (raw.type === 'keywords') {
+      block.keywords = {
+        heading: String(payload.heading || '').trim(),
+        items: (Array.isArray(payload.items) ? payload.items : [])
+          .map((it) => String(it).trim())
+          .filter(Boolean),
+      };
+    }
+
+    if (raw.type === 'lists') {
+      block.lists = {
+        heading: String(payload.heading || '').trim(),
+        paragraph: String(payload.paragraph || '').trim(),
+        items: (Array.isArray(payload.items) ? payload.items : [])
+          .map((it) => String(it).trim())
+          .filter(Boolean),
+      };
+    }
+
+    if (raw.type === 'sections') {
+      block.sections = {
+        heading: String(payload.heading || '').trim(),
+        intro: String(payload.intro || '').trim(),
+        paragraphs: (Array.isArray(payload.paragraphs) ? payload.paragraphs : [])
+          .map((p) => String(p).trim()),
+      };
+    }
+
+    if (raw.type === 'imageBlocks') {
+      block.imageBlocks = {
+        url: String(payload.url || '').trim(),
+        heading: String(payload.heading || '').trim(),
+        paragraphs: (Array.isArray(payload.paragraphs) ? payload.paragraphs : []).map((p) =>
+          String(p).trim()
+        ),
+        subheadings: (Array.isArray(payload.subheadings) ? payload.subheadings : []).map((s) =>
+          String(s).trim()
+        ),
+        items: (Array.isArray(payload.items) ? payload.items : [])
+          .map((it) => String(it).trim())
+          .filter(Boolean),
+        caption: String(payload.caption || '').trim(),
+        layout: String(payload.layout || '').trim(),
+      };
+    }
+
+    const place = normalizeBlockPlace(raw.place);
+    if (place) block.place = place;
+    const style = normalizeBlockStyle(raw.style, { isValidColor: isValidCSSColor });
+    if (style) block.style = style;
+
+    normalized.push(block);
+  });
+
+  // The array order is what the builder drags, so it is authoritative: `order`
+  // is re-derived from the position instead of letting a stale client-supplied
+  // number reorder blocks behind the admin's back.
+  return normalized.map((block, index) => ({ ...block, order: index }));
 };
 
 export const projectService = {
@@ -180,6 +306,7 @@ export const projectService = {
         : [],
       imageBlocks: Array.isArray(data.imageBlocks)
         ? data.imageBlocks.map((b) => ({
+            url: typeof b.url === 'string' ? b.url.trim() : '',
             heading: typeof b.heading === 'string' ? b.heading.trim() : '',
             paragraphs: Array.isArray(b.paragraphs) ? b.paragraphs.map((p) => String(p).trim()) : [],
             subheadings: Array.isArray(b.subheadings) ? b.subheadings.map((p) => String(p).trim()) : [],
@@ -188,6 +315,9 @@ export const projectService = {
             layout: typeof b.layout === 'string' ? b.layout.trim() : '',
           }))
         : [],
+      // Dynamic Project Details builder. Non-empty detailBlocks take precedence
+      // over the legacy fields above at render time (see ProjectDetail.jsx).
+      detailBlocks: normalizeDetailBlocks(data.detailBlocks),
       seo: {
         title: String(data.seo?.title || '').trim(),
         description: String(data.seo?.description || '').trim(),
@@ -303,6 +433,7 @@ export const projectService = {
     }
     if (Array.isArray(updateData.imageBlocks)) {
       allowedUpdates.imageBlocks = updateData.imageBlocks.map((b) => ({
+        url: typeof b.url === 'string' ? b.url.trim() : '',
         heading: typeof b.heading === 'string' ? b.heading.trim() : '',
         paragraphs: Array.isArray(b.paragraphs) ? b.paragraphs.map((p) => String(p).trim()) : [],
         subheadings: Array.isArray(b.subheadings) ? b.subheadings.map((p) => String(p).trim()) : [],
@@ -310,6 +441,11 @@ export const projectService = {
         caption: typeof b.caption === 'string' ? b.caption.trim() : '',
         layout: typeof b.layout === 'string' ? b.layout.trim() : '',
       }));
+    }
+    // Dynamic Project Details builder. An empty array clears the blocks and
+    // makes the legacy fields render again.
+    if (updateData.detailBlocks !== undefined) {
+      allowedUpdates.detailBlocks = normalizeDetailBlocks(updateData.detailBlocks);
     }
 
     const nextImageIds = Array.isArray(allowedUpdates.images)
