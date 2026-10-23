@@ -1,8 +1,11 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LuArrowDown,
   LuArrowUp,
   LuGripVertical,
+  LuMaximize2,
+  LuMinimize2,
   LuPlus,
   LuTrash2,
   LuX,
@@ -48,15 +51,22 @@ import {
  *   Canvas     the real section layout: rows, columns, drop zones, selection
  *   Properties content and layout controls for the selected element only
  *
- * Drag-and-drop is native HTML5 DnD, so no dependency is added. Dragging, the
- * keyboard shortcuts and the Properties panel all call the same placement
- * helpers, which keeps the three input methods in sync and still gives touch
- * devices full control over rows and columns without needing a drag.
+ * Drag-and-drop runs on Pointer Events, so one code path serves mouse, pen and
+ * touch and no dependency is added. Dragging, the keyboard shortcuts and the
+ * Properties panel all call the same placement helpers, which keeps the three
+ * input methods in sync.
  */
 
-const DRAG_MIME = 'application/x-sabr-detail-block';
+/** A press becomes a drag only after this much movement, so taps still select/add. */
+const DRAG_START_DISTANCE = 6;
+/** Distance from a scroll edge that starts auto-scrolling during a drag. */
+const AUTO_SCROLL_EDGE = 56;
+const AUTO_SCROLL_STEP = 18;
+/** How long to wait for the browser to confirm native fullscreen before falling back. */
+const FULLSCREEN_SETTLE_MS = 300;
 
-const cx = (...parts) => parts.filter(Boolean).join('');
+/** Joins conditional class names; Tailwind tokens must stay space-separated. */
+const cx = (...parts) => parts.filter(Boolean).join(' ');
 
 const panelTitleClass = 'text-[11px] font-mono uppercase tracking-wider text-muted';
 
@@ -93,6 +103,84 @@ const clampCol = (value, fallback = 0) => {
   const col = Number(value);
   if (!Number.isFinite(col)) return fallback;
   return Math.min(Math.max(Math.trunc(col), 0), DETAIL_MAX_COLUMNS - 1);
+};
+
+/**
+ * One canonical slot shape. Slots are normalised because the pointer resolves a
+ * slot from a data attribute (always a string) and must still compare equal to
+ * the slot the canvas built in JS, otherwise the drop hint flickers.
+ */
+const normaliseSlot = (slot) => ({
+  joinRowKey: slot.joinRowKey || '',
+  rowId: slot.rowId || '',
+  col: clampCol(slot.col),
+  beforeId: slot.beforeId || null,
+});
+
+/** Slots carry their identity on the DOM so a pointer point can resolve one. */
+const slotAttrs = (slot) => {
+  const { joinRowKey, rowId, col, beforeId } = normaliseSlot(slot);
+  return {
+    'data-dbl-slot': '1',
+    'data-join-row': joinRowKey,
+    'data-slot-row': rowId,
+    'data-slot-col': String(col),
+    'data-slot-before': beforeId || '',
+  };
+};
+
+const slotFromElement = (el) => {
+  const { joinRow, slotRow, slotCol, slotBefore } = el.dataset;
+  return normaliseSlot({
+    joinRowKey: joinRow,
+    rowId: slotRow,
+    col: Number(slotCol),
+    beforeId: slotBefore,
+  });
+};
+
+/** Shortest distance from a point to a rectangle; 0 when the point is inside. */
+const rectDistance = (rect, x, y) =>
+  Math.hypot(
+    Math.max(rect.left - x, 0, x - rect.right),
+    Math.max(rect.top - y, 0, y - rect.bottom)
+  );
+
+/**
+ * Resolve the slot the pointer is over. Slots are thin strips with gutters
+ * around them (row padding, grid gaps, card chrome), and a drop in one of those
+ * gutters must not fail, so inside the canvas the closest slot is used instead.
+ * The same function drives the live hint, so the highlight always shows exactly
+ * where the release will land.
+ */
+const slotFromPoint = (x, y, canvasEl) => {
+  const found = document.elementFromPoint(x, y);
+  const direct = found?.closest?.('[data-dbl-slot]');
+  if (direct) return slotFromElement(direct);
+  if (!canvasEl || !found || !canvasEl.contains(found)) return null;
+
+  let nearest = null;
+  let nearestDistance = Infinity;
+  canvasEl.querySelectorAll('[data-dbl-slot]').forEach((el) => {
+    const distance = rectDistance(el.getBoundingClientRect(), x, y);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = el;
+    }
+  });
+  return nearest ? slotFromElement(nearest) : null;
+};
+
+const sameSlot = (a, b) => {
+  if (!a || !b) return false;
+  const left = normaliseSlot(a);
+  const right = normaliseSlot(b);
+  return (
+    left.joinRowKey === right.joinRowKey &&
+    left.rowId === right.rowId &&
+    left.col === right.col &&
+    left.beforeId === right.beforeId
+  );
 };
 
 const IMAGE_LAYOUT_OPTIONS = [
@@ -225,7 +313,7 @@ const ColorField = ({ id, label, value, onChange }) => (
 // Elements panel
 // ---------------------------------------------------------------------------
 
-const ElementsPanel = ({ onAdd, onDragStartNew, onDragEnd }) => (
+const ElementsPanel = ({ chip }) => (
   <div className="space-y-2">
     <span className={panelTitleClass}>Elements</span>
     <p className="text-[11px] text-muted leading-relaxed">Drag onto the canvas, or click to append.</p>
@@ -234,14 +322,20 @@ const ElementsPanel = ({ onAdd, onDragStartNew, onDragEnd }) => (
         <li key={element.key}>
           <button
             type="button"
-            draggable
-            onDragStart={(e) => onDragStartNew(e, element)}
-            onDragEnd={onDragEnd}
-            onClick={() => onAdd(element)}
             aria-label={`Add ${element.label} element`}
-            className="w-full flex items-center gap-2 text-left px-3 py-2.5 border border-border rounded-sm bg-white hover:border-ink hover:shadow-hover transition-all cursor-grab active:cursor-grabbing focus:outline-none focus:ring-1 focus:ring-ink"
+            onPointerDown={(e) => chip.press(e, { kind: 'new', element })}
+            onClick={() => chip.click(element)}
+            onDragStart={(e) => e.preventDefault()}
+            aria-pressed={chip.active?.kind === 'new' && chip.active.element === element}
+            className={cx(
+              'w-full flex items-center gap-2 text-left px-3 py-2.5 border border-border rounded-sm bg-white hover:border-ink hover:shadow-hover transition-all cursor-grab active:cursor-grabbing focus:outline-none focus:ring-1 focus:ring-ink',
+              'touch-none select-none',
+              chip.active?.kind === 'new' && chip.active.element === element && 'opacity-40'
+            )}
           >
-            <LuGripVertical className="w-4 h-4 text-muted shrink-0" aria-hidden="true" />
+            <span data-drag-handle aria-hidden="true" className="touch-none -my-2 -ml-2 p-2 flex items-center">
+              <LuGripVertical className="w-4 h-4 text-muted" />
+            </span>
             <span className="min-w-0">
               <span className="block text-sm text-ink truncate">{element.label}</span>
               <span className="block text-[10px] text-muted truncate">{element.hint}</span>
@@ -258,19 +352,17 @@ const ElementsPanel = ({ onAdd, onDragStartNew, onDragEnd }) => (
 // ---------------------------------------------------------------------------
 
 /**
- * Drop zone. `zone` carries the live drag state and the generic handlers; the
- * slot this zone represents is handed to them on the event, which is what lets
- * drag, keyboard and panel placement share one code path.
+ * Drop zone. It is only a marker: the pointer engine resolves the slot under
+ * the cursor from these data attributes, which keeps hit-testing independent of
+ * event ordering while drag, keyboard and panel placement share one code path.
  */
 const DropZone = ({ slot, zone, tall = false, label = '' }) => (
   <div
     role="presentation"
-    onDragOver={(e) => zone.onDragOver(e, slot)}
-    onDragLeave={zone.onDragLeave}
-    onDrop={(e) => zone.onDrop(e, slot)}
+    {...slotAttrs(slot)}
     className={cx(
       'rounded-sm transition-all flex items-center justify-center',
-      tall ? 'min-h-[34px]' : 'h-4 -my-1',
+      tall ? 'min-h-[34px]' : 'h-5 -my-1',
       zone.isHinted(slot)
         ? 'bg-ink/80 ring-1 ring-ink'
         : zone.dragActive
@@ -284,27 +376,38 @@ const DropZone = ({ slot, zone, tall = false, label = '' }) => (
   </div>
 );
 
-const BlockCard = ({ block, card }) => (
+/**
+ * The whole card is a target while a drag is live: its top half drops before
+ * itself and its bottom half drops after, so the pointer does not have to hit a
+ * thin strip between cards to place an element where it looks it will land.
+ */
+const BlockCard = ({ block, card, zone, beforeSlot, afterSlot }) => (
   <div
     id={`dbl-card-${block.id}`}
     role="button"
     tabIndex={0}
     aria-pressed={card.selectedId === block.id}
     aria-label={`${DETAIL_BLOCK_TYPE_LABELS[block.type] || 'Block'}, ${blockTitle(block)}. Press Enter to edit its properties.`}
-    draggable
-    onClick={() => card.onSelect(block)}
+    onClick={() => card.onClick(block)}
     onFocus={() => card.onSelect(block)}
     onKeyDown={(e) => card.onKeyDown(e, block)}
-    onDragStart={(e) => card.onDragStart(e, block)}
-    onDragEnd={card.onDragEnd}
+    onPointerDown={(e) => card.press(e, { kind: 'move', blockId: block.id, block })}
+    onDragStart={(e) => e.preventDefault()}
     className={cx(
       'relative border rounded-sm bg-white p-3 pl-8 space-y-2 transition-shadow cursor-grab active:cursor-grabbing',
+      'touch-none select-none',
       'focus:outline-none focus:ring-1 focus:ring-ink',
       card.selectedId === block.id ? 'border-ink shadow-hover' : 'border-border hover:border-muted/60',
       card.draggingId === block.id && 'opacity-40'
     )}
   >
-    <LuGripVertical className="w-4 h-4 text-muted absolute left-2 top-3.5" aria-hidden="true" />
+    <span
+      data-drag-handle
+      aria-hidden="true"
+      className="absolute left-0 top-0 h-full w-7 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing"
+    >
+      <LuGripVertical className="w-4 h-4 text-muted" />
+    </span>
     <div className="flex items-center justify-between gap-2">
       <span className={panelTitleClass}>{DETAIL_BLOCK_TYPE_LABELS[block.type] || block.type}</span>
       <span className="text-[11px] text-muted truncate max-w-[55%]">{blockTitle(block)}</span>
@@ -312,22 +415,49 @@ const BlockCard = ({ block, card }) => (
     <div className="pointer-events-none select-none">
       <DetailBlockContent block={block} showEmpty />
     </div>
+    {card.dragActive && (
+      <>
+        <div
+          {...slotAttrs(beforeSlot)}
+          aria-hidden="true"
+          className={cx('absolute inset-x-0 top-0 h-1/2', zone.isHinted(beforeSlot) && 'border-t-2 border-ink')}
+        />
+        <div
+          {...slotAttrs(afterSlot)}
+          aria-hidden="true"
+          className={cx('absolute inset-x-0 bottom-0 h-1/2', zone.isHinted(afterSlot) && 'border-b-2 border-ink')}
+        />
+      </>
+    )}
   </div>
 );
 
+/** Cards of one column, each with the slot it drops before and after itself. */
+const ColumnCards = ({ rowId, column, zone, card, afterLastSlot }) =>
+  column.map((block, idx) => {
+    const col = clampCol(block.place?.col);
+    const next = column[idx + 1];
+    const beforeSlot = { rowId, col, beforeId: block.id };
+    const afterSlot = next
+      ? { rowId, col: clampCol(next.place?.col), beforeId: next.id }
+      : afterLastSlot || { rowId, col, beforeId: null };
+    return (
+      <div key={block.id}>
+        <DropZone slot={beforeSlot} zone={zone} />
+        <BlockCard block={block} card={card} zone={zone} beforeSlot={beforeSlot} afterSlot={afterSlot} />
+      </div>
+    );
+  });
+
 const CanvasColumn = ({ row, column, zone, card }) => (
   <div className="min-w-0 space-y-1">
-    {column.map((block) => (
-      <div key={block.id}>
-        <DropZone
-          slot={{ rowId: row.rowId, col: clampCol(block.place?.col), beforeId: block.id }}
-          zone={zone}
-        />
-        <BlockCard block={block} card={card} />
-      </div>
-    ))}
+    <ColumnCards rowId={row.rowId} column={column} zone={zone} card={card} />
     <DropZone
-      slot={{ rowId: row.rowId, col: clampCol(column[column.length - 1].place?.col), beforeId: null }}
+      slot={{
+        rowId: row.rowId,
+        col: clampCol(column[column.length - 1].place?.col),
+        beforeId: null,
+      }}
       zone={zone}
       tall
       label="Below in column"
@@ -335,18 +465,25 @@ const CanvasColumn = ({ row, column, zone, card }) => (
   </div>
 );
 
-const CanvasRow = ({ row, rowNumber, zone, card }) => {
+const CanvasRow = ({ row, rowNumber, zone, card, nextRowFirstId }) => {
   const joinCol = clampCol(row.columns.length);
 
   if (row.columns.length === 1) {
+    // A card in a row of its own has no row id, so "below it" would otherwise
+    // resolve to the end of the canvas and the element would jump. Anchor it on
+    // the next row instead, which is the strip that highlights under it.
+    const afterLastSlot = !row.rowId && nextRowFirstId
+      ? { rowId: '', col: 0, beforeId: nextRowFirstId }
+      : null;
     return (
       <div className="space-y-1">
-        {row.columns[0].map((block) => (
-          <div key={block.id}>
-            <DropZone slot={{ rowId: row.rowId, col: 0, beforeId: block.id }} zone={zone} />
-            <BlockCard block={block} card={card} />
-          </div>
-        ))}
+        <ColumnCards
+          rowId={row.rowId}
+          column={row.columns[0]}
+          zone={zone}
+          card={card}
+          afterLastSlot={afterLastSlot}
+        />
         <DropZone
           slot={{ joinRowKey: row.key, col: joinCol }}
           zone={zone}
@@ -898,13 +1035,26 @@ const PropertiesPanel = ({ block, rows, onPayload, onStyle, onRowPlace, onColumn
 // Builder
 // ---------------------------------------------------------------------------
 
-export const DetailBlocksEditor = ({ blocks = [], onChange, hasLegacy = false, onImportLegacy }) => {
+export const DetailBlocksEditor = ({
+  blocks = [],
+  onChange,
+  hasLegacy = false,
+  onImportLegacy,
+  autosaveSlot = null,
+}) => {
   const list = Array.isArray(blocks) ? blocks : [];
   const [selectedId, setSelectedId] = useState(null);
   const [hint, setHint] = useState(null);
   const [announcement, setAnnouncement] = useState('');
-  const [dragState, setDragState] = useState(null);
-  const dragRef = useRef(null);
+  const [drag, setDrag] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [nativeMode, setNativeMode] = useState(false);
+  const pressRef = useRef(null);
+  const pointerRef = useRef({ x: 0, y: 0 });
+  const ghostRef = useRef(null);
+  const rootRef = useRef(null);
+  const canvasRef = useRef(null);
+  const suppressClickRef = useRef(false);
 
   const rows = useMemo(() => groupBlocksIntoRows(list), [list]);
   const selected = list.find((block) => block.id === selectedId) || null;
@@ -975,74 +1125,263 @@ export const DetailBlocksEditor = ({ blocks = [], onChange, hasLegacy = false, o
 
   // -- drag lifecycle --------------------------------------------------------
 
-  const startNewDrag = (event, element) => {
-    dragRef.current = { kind: 'new', element };
-    setDragState({ kind: 'new' });
-    event.dataTransfer.effectAllowed = 'copy';
-    event.dataTransfer.setData(
-      DRAG_MIME,
-      JSON.stringify({ kind: 'new', type: element.type, key: element.key })
-    );
+  const placeGhost = (x, y) => {
+    if (ghostRef.current) {
+      ghostRef.current.style.transform = `translate3d(${x + 12}px, ${y + 12}px, 0)`;
+    }
   };
 
-  const startBlockDrag = (event, block) => {
-    dragRef.current = { kind: 'move', blockId: block.id };
-    setDragState({ kind: 'move', blockId: block.id });
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData(DRAG_MIME, JSON.stringify({ kind: 'move', id: block.id }));
-  };
-
-  const endDrag = () => {
-    dragRef.current = null;
-    setDragState(null);
+  const clearPress = () => {
+    pressRef.current = null;
+    setDrag(null);
     setHint(null);
   };
 
-  // A drop always fires before dragend, so the ref is the reliable source and
-  // the dataTransfer payload is the fallback for cross-window drags.
-  const readPayload = (event) => {
-    if (dragRef.current) return dragRef.current;
-    try {
-      const parsed = JSON.parse(event.dataTransfer.getData(DRAG_MIME) || '{}');
-      if (parsed.kind === 'new') {
-        return { kind: 'new', element: ELEMENT_CATALOG.find((el) => el.key === parsed.key) };
-      }
-      if (parsed.kind === 'move') return { kind: 'move', blockId: parsed.id };
-    } catch {
-      return null;
-    }
-    return null;
+  /** The click a browser fires after a pointerup must not repeat the action. */
+  const swallowNextClick = () => {
+    suppressClickRef.current = true;
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 350);
   };
 
-  const sameSlot = (a, b) =>
-    Boolean(
-      a &&
-        b &&
-        a.joinRowKey === b.joinRowKey &&
-        a.rowId === b.rowId &&
-        a.col === b.col &&
-        a.beforeId === b.beforeId
-    );
+  /**
+   * A press becomes a drag only after it travels a few pixels, so a tap still
+   * adds or selects. The source captures the pointer, which keeps the move and
+   * up events arriving even when the cursor is over another panel, and touch
+   * drags start from the grip only so the list stays scrollable on a phone.
+   */
+  const beginPress = (event, payload) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.pointerType === 'touch' && !event.target.closest('[data-drag-handle]')) return;
+    if (event.target.closest('[data-no-drag]')) return;
+    pressRef.current = {
+      pointerId: event.pointerId,
+      payload,
+      x: event.clientX,
+      y: event.clientY,
+      started: false,
+    };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Where capture is unavailable the events still reach the canvas handlers.
+    }
+  };
+
+  /** Keeps a long canvas usable: nudge the scroll host near its top/bottom edge. */
+  const autoScroll = (y) => {
+    // Start at the builder itself: in fullscreen it is the scroll host.
+    let node = rootRef.current;
+    while (node) {
+      if (node.scrollHeight > node.clientHeight + 8) {
+        const box = node.getBoundingClientRect();
+        if (y < box.top + AUTO_SCROLL_EDGE) node.scrollTop -= AUTO_SCROLL_STEP;
+        else if (y > box.bottom - AUTO_SCROLL_EDGE) node.scrollTop += AUTO_SCROLL_STEP;
+        return;
+      }
+      node = node.parentElement;
+    }
+  };
+
+  const handlePointerMove = (event) => {
+    const press = pressRef.current;
+    if (!press || event.pointerId !== press.pointerId) return;
+    if (!press.started) {
+      if (Math.hypot(event.clientX - press.x, event.clientY - press.y) < DRAG_START_DISTANCE) return;
+      press.started = true;
+      setDrag(press.payload);
+    }
+    pointerRef.current = { x: event.clientX, y: event.clientY };
+    placeGhost(event.clientX, event.clientY);
+    autoScroll(event.clientY);
+    const slot = slotFromPoint(event.clientX, event.clientY, canvasRef.current);
+    setHint((current) => (sameSlot(current, slot) ? current : slot));
+  };
+
+  const handlePointerUp = (event) => {
+    const press = pressRef.current;
+    if (!press || event.pointerId !== press.pointerId) return;
+    if (press.started) {
+      swallowNextClick();
+      const slot = slotFromPoint(event.clientX, event.clientY, canvasRef.current);
+      if (slot) dropIntoSlot(press.payload, slot);
+      else notify('Dropped outside the canvas — nothing moved');
+    }
+    clearPress();
+  };
+
+  const cancelPress = (message) => {
+    if (!pressRef.current?.started) return false;
+    swallowNextClick();
+    clearPress();
+    if (message) notify(message);
+    return true;
+  };
 
   const zone = {
-    dragActive: Boolean(dragState),
-    isHinted: (slot) => Boolean(hint && sameSlot(hint, slot)),
-    onDragOver: (event, slot) => {
-      if (!dragRef.current) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = dragRef.current.kind === 'new' ? 'copy' : 'move';
-      if (!sameSlot(hint, slot)) setHint(slot);
-    },
-    onDragLeave: () => setHint(null),
-    onDrop: (event, slot) => {
-      event.preventDefault();
-      const payload = readPayload(event);
-      setHint(null);
-      setDragState(null);
-      dragRef.current = null;
-      if (payload) dropIntoSlot(payload, slot);
-    },
+    dragActive: Boolean(drag),
+    isHinted: (slot) => sameSlot(hint, slot),
   };
+
+  // -- fullscreen ------------------------------------------------------------
+  //
+  // The browser's own Fullscreen API is the primary path: requestFullscreen()
+  // moves the builder element into the top layer, exactly like F11 does for the
+  // whole page but scoped to this element, so the admin shell, the project
+  // dialog and every other element are hidden while the three builder panels
+  // fill the screen. The DOM node is not re-created, so the selection, the
+  // canvas scroll position, any drag in progress and all unsaved edits survive
+  // the toggle. Where the request is refused or unsupported — iOS Safari has no
+  // element fullscreen — the same control expands the builder over the viewport
+  // through a portal instead, so it still covers everything.
+
+  const fullscreenElement = () =>
+    document.fullscreenElement || document.webkitFullscreenElement || null;
+
+  // A fullscreen request is only answered through the fullscreenchange event,
+  // so the outcome is tracked here rather than through the returned promise:
+  // Chrome leaves that promise unsettled when it refuses the request for lack
+  // of a user gesture, which would leave the toggle dead if it were awaited.
+  const settleTimerRef = useRef(null);
+
+  const clearSettleTimer = () => {
+    if (settleTimerRef.current !== null) {
+      clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+  };
+
+  // Whether the builder currently fills the screen through the top layer. The
+  // listeners below are registered once, so they read it through a ref.
+  const nativeModeRef = useRef(false);
+  useEffect(() => {
+    nativeModeRef.current = nativeMode;
+  });
+
+  // Expand over the viewport instead. Only reached when the browser never
+  // entered fullscreen, so it never competes with the top layer.
+  const expandOverlayRef = useRef(() => {});
+  useEffect(() => {
+    expandOverlayRef.current = () => {
+      clearSettleTimer();
+      if (fullscreenElement()) return;
+      setNativeMode(false);
+      setIsFullscreen(true);
+    };
+  });
+
+  useEffect(() => clearSettleTimer, []);
+
+  const enterFullscreen = () => {
+    const node = rootRef.current;
+    const request = node?.requestFullscreen || node?.webkitRequestFullscreen;
+    if (!request) {
+      expandOverlayRef.current();
+      return;
+    }
+
+    let outcome;
+    try {
+      outcome = request.call(node, { navigationUI: 'hide' });
+    } catch {
+      outcome = Promise.reject(new Error('fullscreen request refused'));
+    }
+
+    // Whichever arrives first — a rejection, a fullscreenerror, or the timeout
+    // for an engine that stays silent — falls back, and the fullscreenchange
+    // listener cancels it once fullscreen is live.
+    Promise.resolve(outcome).catch(() => expandOverlayRef.current());
+    settleTimerRef.current = setTimeout(
+      () => expandOverlayRef.current(),
+      FULLSCREEN_SETTLE_MS
+    );
+  };
+
+  const leaveFullscreen = () => {
+    clearSettleTimer();
+    if (fullscreenElement() === rootRef.current) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) Promise.resolve(exit.call(document)).catch(() => {});
+    }
+    setNativeMode(false);
+    setIsFullscreen(false);
+  };
+
+  const toggleFullscreen = () => {
+    if (isFullscreen) return leaveFullscreen();
+    return enterFullscreen();
+  };
+
+  // Escape cancels a live drag first, then leaves fullscreen. Returning whether
+  // it was consumed lets the capture-phase listener below stop the event before
+  // the project dialog behind the builder closes on the same key. In native
+  // fullscreen the browser takes Escape itself and no keydown reaches the page,
+  // which the fullscreenchange listener below covers.
+  const escapeRef = useRef(() => false);
+  useEffect(() => {
+    escapeRef.current = () => {
+      if (cancelPress('Drag cancelled')) return true;
+      if (!isFullscreen) return false;
+      leaveFullscreen();
+      return true;
+    };
+  });
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape' && escapeRef.current()) event.stopPropagation();
+    };
+    document.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => document.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, []);
+
+  // The browser owns native fullscreen in both directions — entering it through
+  // the request, leaving it through Escape, the context menu or a lost window —
+  // and no keydown reaches the page for those exits, so the state follows these
+  // events rather than the buttons.
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const element = fullscreenElement();
+      if (element === rootRef.current) {
+        clearSettleTimer();
+        setNativeMode(true);
+        setIsFullscreen(true);
+        return;
+      }
+      if (!element && nativeModeRef.current) {
+        setNativeMode(false);
+        setIsFullscreen(false);
+      }
+    };
+    const onFullscreenError = () => expandOverlayRef.current();
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    document.addEventListener('fullscreenerror', onFullscreenError);
+    document.addEventListener('webkitfullscreenerror', onFullscreenError);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+      document.removeEventListener('fullscreenerror', onFullscreenError);
+      document.removeEventListener('webkitfullscreenerror', onFullscreenError);
+    };
+  }, []);
+
+  // Background page scrolling is frozen while the builder covers the screen and
+  // restored on the way out, including when the dialog unmounts mid-fullscreen.
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+    const html = document.documentElement;
+    const body = document.body;
+    const previous = { html: html.style.overflow, body: body.style.overflow };
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      html.style.overflow = previous.html;
+      body.style.overflow = previous.body;
+    };
+  }, [isFullscreen]);
 
   // -- keyboard --------------------------------------------------------------
 
@@ -1161,15 +1500,45 @@ export const DetailBlocksEditor = ({ blocks = [], onChange, hasLegacy = false, o
 
   const card = {
     selectedId,
-    draggingId: dragState?.kind === 'move' ? dragState.blockId : null,
+    dragActive: Boolean(drag),
+    draggingId: drag?.kind === 'move' ? drag.blockId : null,
+    press: beginPress,
     onSelect: (block) => setSelectedId(block.id),
-    onDragStart: startBlockDrag,
-    onDragEnd: endDrag,
+    onClick: (block) => {
+      if (suppressClickRef.current) return;
+      setSelectedId(block.id);
+    },
     onKeyDown: handleKeyDown,
   };
 
-  return (
-    <div className="space-y-3">
+  const chip = {
+    active: drag,
+    press: beginPress,
+    click: (element) => {
+      if (suppressClickRef.current) return;
+      appendElement(element);
+    },
+  };
+
+  const dragLabel =
+    drag?.kind === 'new' ? drag.element.label : drag ? blockTitle(drag.block) : '';
+
+  const builderRoot = (
+    <div
+      ref={rootRef}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => cancelPress('Drag cancelled')}
+      {...(isFullscreen ? { 'data-lenis-prevent': '' } : {})}
+      className={cx(
+        'space-y-3',
+        drag && 'select-none',
+        isFullscreen &&
+          (nativeMode
+            ? 'h-full max-h-full w-full overflow-y-auto overscroll-contain bg-white p-3 sm:p-6'
+            : 'fixed inset-0 z-[70] overflow-y-auto overscroll-contain bg-white p-3 sm:p-6')
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <span className="text-xs uppercase tracking-wider font-medium text-ink block">
@@ -1179,7 +1548,10 @@ export const DetailBlocksEditor = ({ blocks = [], onChange, hasLegacy = false, o
             Arrange headings, text, images, lists and palettes into sections and columns.
           </span>
         </div>
-        <span className="text-[11px] text-muted">{list.length} elements</span>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {isFullscreen && autosaveSlot}
+          <span className="text-[11px] text-muted">{list.length} elements</span>
+        </div>
       </div>
 
       {hasLegacy && list.length === 0 && (
@@ -1201,9 +1573,12 @@ export const DetailBlocksEditor = ({ blocks = [], onChange, hasLegacy = false, o
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-[168px_minmax(0,1fr)] xl:grid-cols-[176px_minmax(0,1fr)_300px] gap-4">
-        <ElementsPanel onAdd={appendElement} onDragStartNew={startNewDrag} onDragEnd={endDrag} />
+        <ElementsPanel chip={chip} />
 
-        <div className="min-w-0 space-y-1 border border-border rounded-sm bg-surface/30 p-2">
+        <div
+          ref={canvasRef}
+          className="min-w-0 space-y-1 border border-border rounded-sm bg-surface/30 p-2"
+        >
           <span className={panelTitleClass}>Canvas</span>
 
           {list.length === 0 && (
@@ -1224,7 +1599,13 @@ export const DetailBlocksEditor = ({ blocks = [], onChange, hasLegacy = false, o
                   label="New row"
                 />
               )}
-              <CanvasRow row={row} rowNumber={rowIdx + 1} zone={zone} card={card} />
+              <CanvasRow
+                row={row}
+                rowNumber={rowIdx + 1}
+                zone={zone}
+                card={card}
+                nextRowFirstId={rows[rowIdx + 1]?.blocks[0]?.id}
+              />
             </div>
           ))}
 
@@ -1252,11 +1633,61 @@ export const DetailBlocksEditor = ({ blocks = [], onChange, hasLegacy = false, o
         </div>
       </div>
 
+      <div className="sticky bottom-0 z-20 flex justify-end pt-1 pointer-events-none">
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-pressed={isFullscreen}
+          aria-label={isFullscreen ? 'Exit builder fullscreen' : 'Expand builder to fullscreen'}
+          title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen (Esc)'}
+          className={
+            'pointer-events-auto inline-flex items-center gap-2 px-3 py-2 rounded-full border bg-white shadow-hover text-[11px] font-mono uppercase tracking-wider transition-colors ' +
+            (isFullscreen
+              ? 'border-ink text-ink'
+              : 'border-border text-ink hover:border-ink focus:outline-none focus:ring-1 focus:ring-ink')
+          }
+        >
+          {isFullscreen ? (
+            <LuMinimize2 className="w-4 h-4" aria-hidden="true" />
+          ) : (
+            <LuMaximize2 className="w-4 h-4" aria-hidden="true" />
+          )}
+          <span className="hidden sm:inline">
+            {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          </span>
+        </button>
+      </div>
+
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
+
+      {drag && (
+        <div
+          ref={ghostRef}
+          aria-hidden="true"
+          style={{
+            transform: `translate3d(${pointerRef.current.x + 12}px, ${
+              pointerRef.current.y + 12
+            }px, 0)`,
+          }}
+          className="pointer-events-none fixed top-0 left-0 z-[80] max-w-[260px] truncate px-3 py-2 rounded-sm border border-ink bg-white shadow-hover text-[11px] font-mono uppercase tracking-wider"
+        >
+          {dragLabel}
+        </div>
+      )}
     </div>
   );
+
+  // The CSS fallback has to leave the project dialog: the dialog backdrop uses
+  // backdrop-filter, which becomes the containing block for fixed descendants
+  // and clips them to the dialog's scroll area. Rendering the same element into
+  // document.body makes it cover the viewport like native fullscreen does.
+  if (isFullscreen && !nativeMode) {
+    return createPortal(builderRoot, document.body);
+  }
+
+  return builderRoot;
 };
 
 export default DetailBlocksEditor;

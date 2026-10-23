@@ -1319,56 +1319,12 @@ export const AdminDashboard = () => {
               <div className="space-y-3 border-t border-border pt-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <span className="text-xs uppercase tracking-wider font-medium text-ink block">
-                      Project Details Builder
-                    </span>
                     <span className="text-[11px] text-muted">
                       Drag elements onto the canvas to compose the details page. Rows and
-                      columns follow the drop position.
+                      columns follow the drop position. The builder can expand to the full
+                      screen with the control in its bottom-right corner.
                     </span>
                   </div>
-
-                  {editingProjectId ? (
-                    <div className="flex flex-col items-end gap-1">
-                      <div className="flex items-center gap-2">
-                        <span
-                          role="status"
-                          className={
-                            detailAutosave === 'error'
-                              ? 'text-[11px] font-mono uppercase tracking-wider text-error'
-                              : 'text-[11px] font-mono uppercase tracking-wider text-muted'
-                          }
-                        >
-                          {detailAutosave === 'saving'
-                            ? 'Saving details…'
-                            : detailAutosave === 'saved'
-                            ? 'Details saved'
-                            : detailAutosave === 'error'
-                            ? 'Details not saved'
-                            : 'Autosave ready'}
-                        </span>
-                        {detailAutosave === 'error' && (
-                          <Button
-                            type="button"
-                            variant="Secondary-Outline"
-                            size="sm"
-                            icon={LuRefreshCw}
-                            label="Retry"
-                            onClick={retryDetailAutosave}
-                          />
-                        )}
-                      </div>
-                      {detailAutosave === 'error' && detailAutosaveError && (
-                        <span className="max-w-xs text-right text-[11px] text-error">
-                          {detailAutosaveError}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-[11px] font-mono uppercase tracking-wider text-muted">
-                      Saved with the project
-                    </span>
-                  )}
                 </div>
 
                 <DetailBlocksEditor
@@ -1378,6 +1334,49 @@ export const AdminDashboard = () => {
                   }
                   hasLegacy={hasLegacyDetailContent(legacyDetailSource)}
                   onImportLegacy={importLegacyDetails}
+                  autosaveSlot={
+                    editingProjectId ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            role="status"
+                            className={
+                              detailAutosave === 'error'
+                                ? 'text-[11px] font-mono uppercase tracking-wider text-error'
+                                : 'text-[11px] font-mono uppercase tracking-wider text-muted'
+                            }
+                          >
+                            {detailAutosave === 'saving'
+                              ? 'Saving details…'
+                              : detailAutosave === 'saved'
+                              ? 'Details saved'
+                              : detailAutosave === 'error'
+                              ? 'Details not saved'
+                              : 'Autosave ready'}
+                          </span>
+                          {detailAutosave === 'error' && (
+                            <Button
+                              type="button"
+                              variant="Secondary-Outline"
+                              size="sm"
+                              icon={LuRefreshCw}
+                              label="Retry"
+                              onClick={retryDetailAutosave}
+                            />
+                          )}
+                        </div>
+                        {detailAutosave === 'error' && detailAutosaveError && (
+                          <span className="max-w-xs text-right text-[11px] text-error">
+                            {detailAutosaveError}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-muted">
+                        Saved with the project
+                      </span>
+                    )
+                  }
                 />
               </div>
               {/* SEO Settings */}
