@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { logger } from '../utils/logger.js';
 
 const isProd = () => process.env.NODE_ENV === 'production';
 
@@ -55,7 +56,7 @@ export async function connectDB() {
     if (isProd()) {
       throw new Error('MONGODB_URI is not set — cannot start in production without a database.');
     }
-    console.warn('[db] MONGODB_URI not set — running with in-memory fallback data.');
+    logger.warn('[db] MONGODB_URI not set — running with in-memory fallback data.');
     return null;
   }
 
@@ -92,12 +93,12 @@ export async function connectDB() {
             serverSelectionTimeoutMS: 5000,
             connectTimeoutMS: 10000,
           });
-          console.log(`[db] MongoDB connected (db=${mongoose.connection.name}).`);
+          logger.info(`[db] MongoDB connected (db=${mongoose.connection.name}).`);
           return conn;
         } catch (err) {
           lastErr = err;
           // Never log the URI or any credentials — only the sanitized error message
-          console.error(`[db] MongoDB connection attempt ${attempt}/${MAX_RETRIES} failed:`, err.message);
+          logger.error(`[db] MongoDB connection attempt ${attempt}/${MAX_RETRIES} failed: ${err.message}`);
           if (attempt < MAX_RETRIES) {
             await sleep(RETRY_DELAY_MS * attempt);
           }
@@ -118,7 +119,7 @@ export async function connectDB() {
     if (isProd()) {
       throw err;
     }
-    console.error('[db] MongoDB connection failed after retries:', err.message);
+    logger.error('[db] MongoDB connection failed after retries: ${err.message}');
   }
 
   return cached.conn;

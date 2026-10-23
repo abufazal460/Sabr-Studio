@@ -1,5 +1,6 @@
 import { authService } from '../services/auth.service.js';
 import { COOKIE_NAME, getCookieOptions, getClearCookieOptions } from '../utils/cookieOptions.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Controller for Admin Authentication endpoints
@@ -57,7 +58,7 @@ class AuthController {
         });
       }
 
-      console.error('[AuthController.login] Error:', err.message);
+      logger.error('[AuthController.login] Error: ${err.message}');
       return res.status(500).json({
         success: false,
         message: 'Internal server error during authentication',

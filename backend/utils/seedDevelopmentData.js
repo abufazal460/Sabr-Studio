@@ -4,6 +4,7 @@
 import { Project, inMemoryProjects } from '../models/project.model.js';
 import { Retail, inMemoryRetail } from '../models/retail.model.js';
 import { isFallbackEnabled } from '../utils/fallbackStorage.js';
+import { logger } from './logger.js';
 
 export async function seedDevelopmentData() {
   if (process.env.NODE_ENV === 'production') return;
@@ -20,10 +21,10 @@ export async function seedDevelopmentData() {
           return rest;
         });
         await Model.insertMany(docs);
-        console.log(`[seed] Inserted ${docs.length} ${name} records into MongoDB`);
+        logger.info(`[seed] Inserted ${docs.length} ${name} records into MongoDB`);
       }
     } catch (e) {
-      console.error(`[seed] Error seeding ${name}:`, e.message);
+      logger.error(`[seed] Error seeding ${name}: ${e.message}`);
     }
   };
 

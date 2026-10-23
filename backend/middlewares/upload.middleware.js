@@ -1,4 +1,5 @@
 import multer from 'multer';
+import { logger } from '../utils/logger.js';
 
 /**
  * Admin image upload middleware (Work 04).
@@ -131,7 +132,7 @@ export function uploadImage(req, res, next) {
           code: err.code,
         });
       }
-      console.error('[Upload] Unexpected multipart error:', err?.message || err);
+    logger.error(`[Upload] Unexpected multipart error: ${err?.message || err}`);
       return res.status(400).json({
         success: false,
         message: 'Image upload could not be processed.',

@@ -2,18 +2,19 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import mongoose from 'mongoose';
 import { Admin, inMemoryAdmins } from '../models/admin.model.js';
+import { logger } from '../utils/logger.js';
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     if (process.env.NODE_ENV === 'production') {
-      console.error('[FATAL] JWT_SECRET is missing in production. Process exiting.');
+    logger.error('[FATAL] JWT_SECRET is missing in production. Process exiting.');
       process.exit(1);
     }
     throw new Error('JWT_SECRET is not configured');
   }
   if (process.env.NODE_ENV === 'production' && secret.length < 32) {
-    console.error('[FATAL] JWT_SECRET must be at least 32 characters long in production. Process exiting.');
+    logger.error('[FATAL] JWT_SECRET must be at least 32 characters long in production. Process exiting.');
     process.exit(1);
   }
   return secret;
@@ -47,11 +48,11 @@ export async function bootstrapAdmin() {
           role: 'admin',
           status: 'active',
         });
-        console.log(`[AuthService] Idempotent bootstrap created initial admin: ${adminEmail}`);
+        logger.info(`[AuthService] Idempotent bootstrap created initial admin: ${adminEmail}`);
         return created;
       }
     } catch (err) {
-      console.error('[AuthService] Error during admin bootstrap:', err.message);
+      logger.error(`[AuthService] Error during admin bootstrap: ${err.message}`);
     }
   } else if (process.env.NODE_ENV !== 'production') {
     // Non-production in-memory fallback when Mongo is not connected
@@ -131,7 +132,7 @@ class AuthService {
           passwordHash = admin.password;
         }
       } catch (err) {
-        console.error('[AuthService] Database error during lookup:', err.message);
+        logger.error(`[AuthService] Database error during lookup: ${err.message}`);
       }
     }
 
@@ -227,7 +228,7 @@ class AuthService {
           };
         }
       } catch (err) {
-        console.error('[AuthService] Database error during getById:', err.message);
+        logger.error(`[AuthService] Database error during getById: ${err.message}`);
       }
     }
 

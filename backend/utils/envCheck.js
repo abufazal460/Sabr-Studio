@@ -10,6 +10,8 @@
  * - Optional integrations warn per feature group only when PARTIALLY configured.
  * - Dev/test never fail: local work boots without Atlas or third-party keys.
  */
+import { logger } from './logger.js';
+
 const PLACEHOLDER_RE = /^(xxxx|example|your-|test-|placeholder|change-?me|undefined|null|<.*>)\s*$/i;
 
 function isBlank(v) {
@@ -93,10 +95,10 @@ export function checkEnv() {
     }
   }
 
-  for (const w of warnings) console.warn(`[env] WARN: ${w}`);
+  for (const w of warnings) logger.warn(`[env] WARN: ${w}`);
   if (fatals.length) {
-    for (const f of fatals) console.error(`[env] FATAL: ${f}`);
+    for (const f of fatals) logger.error(`[env] FATAL: ${f}`);
     throw new Error(`Missing required production environment: ${fatals.length} fatal issue(s). See [env] FATAL lines above (keys only, values never printed).`);
   }
-  console.log(`[env] Environment check passed (NODE_ENV=${process.env.NODE_ENV || 'development'}).`);
+  logger.info(`[env] Environment check passed (NODE_ENV=${process.env.NODE_ENV || 'development'}).`);
 }

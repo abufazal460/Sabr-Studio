@@ -5,6 +5,7 @@
 // app into no-DB / fallback mode. An explicit path keeps root and
 // backend-directory launches identical.
 import dotenv from 'dotenv';
+import { logger } from './utils/logger.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -136,9 +137,9 @@ app.use(createRequestTimeout(30000, 'Request timeout. Please try again.'));
 // and /health always fall through to the API routes below.
 if (serveFrontend && fs.existsSync(path.join(frontendDist, 'index.html'))) {
   app.use(express.static(frontendDist));
-  console.log(`[hosting] Serving frontend from ${frontendDist}`);
+  logger.info(`[hosting] Serving frontend from ${frontendDist}`);
 } else if (process.env.SERVE_FRONTEND === 'true') {
-  console.warn(`[hosting] SERVE_FRONTEND=true but no build at ${path.join(frontendDist, 'index.html')} — serving API only. Check the Hostinger build step / output directory.`);
+  logger.warn(`[hosting] SERVE_FRONTEND=true but no build at ${path.join(frontendDist, 'index.html')} — serving API only. Check the Hostinger build step / output directory.`);
 }
 
 

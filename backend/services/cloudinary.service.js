@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { logger } from '../utils/logger.js';
 
 /**
  * Cloudinary media service — the ONLY module allowed to talk to Cloudinary.
@@ -110,7 +111,7 @@ export async function deleteAsset(publicId) {
     return result?.result === 'ok' || result?.result === 'not found';
   } catch (err) {
     // Cleanup must never break the caller (replace/delete request).
-    console.warn('[Cloudinary] Asset cleanup failed for one public_id:', err?.message || err);
+    logger.warn(`[Cloudinary] Asset cleanup failed for one public_id: ${err?.message || err}`);
     return false;
   }
 }

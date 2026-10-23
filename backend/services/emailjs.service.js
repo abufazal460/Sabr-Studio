@@ -4,6 +4,8 @@
  * Template params exactly match the shared EnquiryForm fields:
  *   name, phone, email, projectType, message
  */
+import { logger } from '../utils/logger.js';
+
 const EMAILJS_SEND_URL = 'https://api.emailjs.com/api/v1.0/email/send';
 
 const REQUIRED_VARS = [
@@ -152,7 +154,7 @@ export async function sendEnquiryEmail({ name, phone, email, projectType, messag
     const { code, statusCode } = classifyEmailJsError(res.status, bodyText);
     const safeDetail = bodyText.slice(0, 300).replace(/[\r\n]+/g, ' ');
     // Safe server-side log: status + EmailJS message only, never keys/secrets.
-    console.error(
+    logger.error(
       `[EmailJS] send failed: code=${code} http=${res.status} detail=${safeDetail || '(empty response)'}`
     );
     const err = new Error('Failed to deliver enquiry email. Please try again.');

@@ -12,6 +12,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -53,7 +54,7 @@ if (fallbackDir && persistenceEnabled) {
     }
   } catch (err) {
     persistenceEnabled = false;
-    console.error(
+    logger.error(
       `[FallbackStorage] Directory not writable (${fallbackDir}): ${err.message}. Running in in-memory mode.`
     );
   }
@@ -73,7 +74,7 @@ class FallbackStorage {
         return JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
       }
     } catch (err) {
-      console.error(`[FallbackStorage:${this.collectionName}] Load error:`, err.message);
+      logger.error(`[FallbackStorage:${this.collectionName}] Load error: ${err.message}`);
     }
     return [];
   }
@@ -84,7 +85,7 @@ class FallbackStorage {
       fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
       return true;
     } catch (err) {
-      console.error(`[FallbackStorage:${this.collectionName}] Save error:`, err.message);
+      logger.error(`[FallbackStorage:${this.collectionName}] Save error: ${err.message}`);
       return false;
     }
   }
@@ -173,11 +174,11 @@ export function clearAllFallbackData() {
     if (fs.existsSync(fallbackDir)) {
       fs.rmSync(fallbackDir, { recursive: true, force: true });
       fs.mkdirSync(fallbackDir, { recursive: true });
-      console.log('[FallbackStorage] All data cleared');
+      logger.info('[FallbackStorage] All data cleared');
       return true;
     }
   } catch (err) {
-    console.error('[FallbackStorage] Clear error:', err.message);
+    logger.error(`[FallbackStorage] Clear error: ${err.message}`);
   }
   return false;
 }
@@ -200,7 +201,7 @@ export async function syncFallbackToMongoose({ orders = false, enquiries = false
           await Order.create(record);
           result.orders.synced++;
         } catch (err) {
-          console.error('[FallbackSync] Order error:', err.message);
+          logger.error(`[FallbackSync] Order error: ${err.message}`);
           result.orders.failed++;
         }
       }
@@ -217,13 +218,13 @@ export async function syncFallbackToMongoose({ orders = false, enquiries = false
           await Enquiry.create(record);
           result.enquiries.synced++;
         } catch (err) {
-          console.error('[FallbackSync] Enquiry error:', err.message);
+          logger.error(`[FallbackSync] Enquiry error: ${err.message}`);
           result.enquiries.failed++;
         }
       }
     }
   } catch (err) {
-    console.error('[FallbackSync] Sync error:', err.message);
+    logger.error(`[FallbackSync] Sync error: ${err.message}`);
   }
 
   return result;

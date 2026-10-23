@@ -1,6 +1,7 @@
 import { Enquiry, inMemoryEnquiries } from '../models/enquiry.model.js';
 import { fallbackEnquiries } from '../utils/fallbackStorage.js';
 import { sendEnquiryEmail } from './emailjs.service.js';
+import { logger } from '../utils/logger.js';
 
 const SERVICE_SLUG_MAP = {
   'residential-interiors': 'Residential Interiors',
@@ -69,7 +70,7 @@ export const enquiryService = {
           Object.assign(createdRecord, patch);
         }
       } catch (persistErr) {
-        console.error(`[Enquiry] email-status persist failed for ${recordId}:`, persistErr.message);
+        logger.error(`[Enquiry] email-status persist failed for ${recordId}: ${persistErr.message}`);
       }
     };
 
@@ -95,11 +96,11 @@ export const enquiryService = {
       await persistEmailStatus({ emailStatus: 'failed', emailError: safeCode });
       // Safe server log: which config is missing / which class failed — no values.
       if (safeCode === 'EMAILJS_CONFIG_MISSING') {
-        console.error(
+        logger.error(
           `[Enquiry] email not sent (enquiry ${recordId} preserved): missing EmailJS config: ${(emailErr.missing || []).join(', ') || 'unknown'}`
         );
       } else {
-        console.error(
+        logger.error(
           `[Enquiry] email not sent (enquiry ${recordId} preserved): ${safeCode}`
         );
       }
