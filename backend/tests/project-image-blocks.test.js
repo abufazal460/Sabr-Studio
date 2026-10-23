@@ -25,11 +25,11 @@ const test = async (name, fn) => {
   try {
     await fn();
     passed += 1;
-    console.log(`  PASS  ${name}`);
+    process.stdout.write(`  PASS  ${name}\n`);
   } catch (err) {
     failed += 1;
-    console.error(`  FAIL  ${name}`);
-    console.error(`        ${err.message}`);
+    process.stderr.write(`  FAIL  ${name}\n`);
+    process.stderr.write(`        ${err.message}\n`);
   }
 };
 
@@ -37,7 +37,7 @@ const CLOUDINARY_URL =
   'https://res.cloudinary.com/demo/image/upload/sabrstudio/hero.jpg';
 const DIRECT_URL = 'https://example.com/photo.jpg';
 
-console.log('\nproject image-block persistence\n');
+process.stdout.write('\nproject image-block persistence\n');
 
 await test('mongoose schema keeps url on image blocks', () => {
   const doc = new Project({
@@ -114,5 +114,5 @@ await test('validator rejects a non-string url on image blocks', async () => {
   );
 });
 
-console.log(`\n${passed} passed, ${failed} failed\n`);
+process.stdout.write(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);

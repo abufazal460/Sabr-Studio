@@ -3,6 +3,7 @@ import {
   isCloudinaryConfigured,
   uploadImageBuffer,
 } from '../services/cloudinary.service.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * POST /api/admin/uploads controller (Work 04).
@@ -60,7 +61,7 @@ export const uploadController = {
       });
     } catch (err) {
       // Details stay server-side; the client gets a sanitized message.
-      console.error('[Upload] Cloudinary upload failed:', err?.message || err);
+      logger.error(`[Upload] Cloudinary upload failed: ${err?.message || err}`);
       return res.status(502).json({
         success: false,
         message: 'Image upload failed. Please try again.',

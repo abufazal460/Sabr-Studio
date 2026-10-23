@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { logger } from '../utils/logger.js';
 import mongoose from 'mongoose';
 import { Customer } from '../models/customer.model.js';
 
@@ -6,13 +7,13 @@ function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     if (process.env.NODE_ENV === 'production') {
-      console.error('[FATAL] JWT_SECRET is missing in production. Process exiting.');
+    logger.error('[FATAL] JWT_SECRET is missing in production. Process exiting.');
       process.exit(1);
     }
     throw new Error('JWT_SECRET is not configured');
   }
   if (process.env.NODE_ENV === 'production' && secret.length < 32) {
-    console.error('[FATAL] JWT_SECRET must be at least 32 characters long in production. Process exiting.');
+    logger.error('[FATAL] JWT_SECRET must be at least 32 characters long in production. Process exiting.');
     process.exit(1);
   }
   return secret;

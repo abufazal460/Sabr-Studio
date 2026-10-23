@@ -9,6 +9,7 @@
  * @param {number} timeoutMs - Timeout in milliseconds (default: 30000 = 30s)
  * @param {string} timeoutMessage - Message to return on timeout
  */
+import { logger } from '../utils/logger.js';
 export function createRequestTimeout(timeoutMs = 30000, timeoutMessage = 'Request timeout') {
   return (req, res, next) => {
     // Set timeout on the socket
@@ -53,7 +54,7 @@ export function setupRequestTimeout(app, timeoutMs = 30000) {
   app.use((err, req, res, next) => {
     if (err.code === 'ECONNRESET' || err.code === 'socket hang up') {
       // Client disconnected - this is fine, just log it
-      console.log(`[Timeout] Client disconnected: ${req.method} ${req.url}`);
+      logger.info(`[Timeout] Client disconnected: ${req.method} ${req.url}`);
       return;
     }
     next(err);
@@ -63,10 +64,6 @@ export function setupRequestTimeout(app, timeoutMs = 30000) {
 /**
  * Simple logger fallback if logger utility not available
  */
-const logger = {
-  info: (msg, meta) => console.log(`[RequestTimeout] ${msg}`, meta || ''),
-  warn: (msg, meta) => console.warn(`[RequestTimeout] ${msg}`, meta || ''),
-  error: (msg, meta) => console.error(`[RequestTimeout] ${msg}`, meta || ''),
-};
+
 
 export default createRequestTimeout;

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import nodePath from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from './utils/logger.js';
 
 import { authController } from './controllers/auth.controller.js';
 import { customerController } from './controllers/customer.controller.js';
@@ -245,7 +246,7 @@ export default async function handleApiRequest(req, res) {
         return res.send ? res.send(content) : res.end(content);
       }
     } catch (e) {
-      console.error('[DownloadAudit] Error serving audit file:', e);
+      logger.error(`[DownloadAudit] Error serving audit file: ${e.message}`);
     }
   }
 

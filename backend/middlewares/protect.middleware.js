@@ -1,4 +1,5 @@
 import { authService } from '../services/auth.service.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Helper to extract token from cookies
@@ -81,7 +82,7 @@ export async function protect(req, res, next) {
   try {
     admin = await authService.getAdminById(decoded.id);
   } catch (err) {
-    console.error('[Protect Middleware] Error fetching admin:', err.message);
+    logger.error(`[Protect Middleware] Error fetching admin: ${err.message}`);
     return res.status(500).json({
       success: false,
       message: 'Internal server error verifying credentials.',

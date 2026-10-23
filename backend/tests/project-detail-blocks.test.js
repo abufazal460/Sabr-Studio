@@ -29,11 +29,11 @@ const test = async (name, fn) => {
   try {
     await fn();
     passed += 1;
-    console.log(`  PASS  ${name}`);
+    process.stdout.write(`  PASS  ${name}\n`);
   } catch (err) {
     failed += 1;
-    console.error(`  FAIL  ${name}`);
-    console.error(`        ${err.message}`);
+    process.stderr.write(`  FAIL  ${name}\n`);
+    process.stderr.write(`        ${err.message}\n`);
   }
 };
 
@@ -45,7 +45,7 @@ const sectionBlock = (id, heading, extra = {}) => ({
   ...extra,
 });
 
-console.log('\nproject detail-block builder persistence\n');
+process.stdout.write('\nproject detail-block builder persistence\n');
 
 await test('mongoose schema keeps place and style on detail blocks', () => {
   const doc = new Project({
@@ -274,5 +274,5 @@ await test('groupBlocksIntoRows never leaves a phantom leading column', () => {
   assert.deepEqual(rows[0].columns[0].map((b) => b.id), ['a', 'b']);
 });
 
-console.log(`\n${passed} passed, ${failed} failed\n`);
+process.stdout.write(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);
