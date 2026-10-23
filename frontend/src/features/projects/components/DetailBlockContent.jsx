@@ -142,13 +142,13 @@ const BuilderImage = ({ url, alt, style, caption }) => {
 
   return (
     <figure className={cx('relative w-full', WIDTH_CLASS[style?.imageWidth], IMAGE_ALIGN[style?.align])}>
-      <div className={cx('relative overflow-hidden rounded-md border border-border bg-surface', ASPECT_CLASS[style?.aspect] || 'aspect-[16/10]')}>
+      <div className={cx('relative overflow-hidden rounded-md border border-border bg-surface', ASPECT_CLASS[style?.aspect] || 'aspect-[4/3]')}>
         <img
           src={buildCloudinaryUrl(url, { width: 1400, height: 875 })}
           alt={alt || ''}
           loading="lazy"
           onError={() => setFailed(true)}
-          className="w-full h-full object-cover object-center"
+          className="w-full h-full object-fit object-center"
         />
       </div>
       {caption && (
@@ -316,7 +316,7 @@ export const DetailBlockRows = ({ blocks }) => {
       return (
         <div key={row.key} className="space-y-4 sm:space-y-6">
           {(row.columns[0] || []).map((block) => (
-            <div key={block.id} className="max-w-4xl mx-auto pt-2 sm:pt-4 border-t border-border/60">
+            <div key={block.id} className="max-w-6xl mx-auto pt-2 sm:pt-4 border-t border-border/60">
               <DetailBlockContent block={block} />
             </div>
           ))}
