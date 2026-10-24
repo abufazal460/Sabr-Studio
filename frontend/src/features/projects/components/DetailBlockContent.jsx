@@ -141,18 +141,30 @@ const BuilderImage = ({ url, alt, style, caption }) => {
   }
 
   return (
-    <figure className={cx('relative w-full min-w-0', WIDTH_CLASS[style?.imageWidth], IMAGE_ALIGN[style?.align])}>
-      <div className={cx('relative overflow-hidden rounded-md border border-border bg-surface', ASPECT_CLASS[style?.aspect] || 'aspect-[4/3]')}>
+    <figure
+      className={cx(
+        'relative w-full min-w-0',
+        WIDTH_CLASS[style?.imageWidth],
+        IMAGE_ALIGN[style?.align]
+      )}
+    >
+      <div
+        className={cx(
+          'relative aspect-[16/9] overflow-hidden rounded-md border border-border bg-surface',
+          ASPECT_CLASS[style?.aspect]
+        )}
+      >
         <img
-          src={buildCloudinaryUrl(url, { width: 2000  })}
+          src={buildCloudinaryUrl(url, { width: 2000 })}
           alt={alt || ''}
           loading="lazy"
           onError={() => setFailed(true)}
-          className="absolute inset-0  w-full h-full object-fill object-center"
+          className="absolute inset-0 h-full w-full object-fill object-center"
         />
       </div>
+
       {caption && (
-        <figcaption className="absolute bottom-2 left-2 text-xs text-white bg-black/50 rounded-md px-2 py-1">
+        <figcaption className="absolute bottom-2 left-2 right-2 w-fit max-w-[calc(100%-1rem)] break-words rounded-md bg-black/50 px-2 py-1 text-xs text-white">
           {caption}
         </figcaption>
       )}
