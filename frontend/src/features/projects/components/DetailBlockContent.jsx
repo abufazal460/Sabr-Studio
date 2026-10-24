@@ -141,14 +141,14 @@ const BuilderImage = ({ url, alt, style, caption }) => {
   }
 
   return (
-    <figure className={cx('relative w-full', WIDTH_CLASS[style?.imageWidth], IMAGE_ALIGN[style?.align])}>
+    <figure className={cx('relative w-full min-w-0', WIDTH_CLASS[style?.imageWidth], IMAGE_ALIGN[style?.align])}>
       <div className={cx('relative overflow-hidden rounded-md border border-border bg-surface', ASPECT_CLASS[style?.aspect] || 'aspect-[4/3]')}>
         <img
-          src={buildCloudinaryUrl(url, { width: 1400, height: 875 })}
+          src={buildCloudinaryUrl(url, { width: 2000  })}
           alt={alt || ''}
           loading="lazy"
           onError={() => setFailed(true)}
-          className="w-full h-full object-fit object-center"
+          className="absolute inset-0  w-full h-full object-fill object-center"
         />
       </div>
       {caption && (
